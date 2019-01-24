@@ -15,12 +15,14 @@
 baseURL = "https://www.simoncoulombe.com/"
 languageCode = "en-us"
 defaultContentLanguage = "en-us"
-title = "Hugo tranquilpeak theme"
+title = "Simon's snippets"
 theme = "hugo-tranquilpeak-theme"
-disqusShortname = "hugo-tranquilpeak-theme"
-# googleAnalytics = "UA-123-45"
+disqusShortname = ""
+googleAnalytics = "UA-112244835-1"
 paginate = 7
 canonifyurls = true
+rssLimit = 30
+enableEmoji = "true"
 
 [permalinks]
   post = "/:year/:month/:slug/"
@@ -31,10 +33,10 @@ canonifyurls = true
   archive = "archives"
 
 [author]
-  name = "Firstname Lastname"
-  bio = "Super bio with markdown support **COOL**"
-  job = "Your job title"
-  location = "France"
+  name = "Simon Coulombe"
+  bio = "gosseux de données"
+  job = "data scientist in the insurance industry"
+  location = "Québec, Canada"
   # Your Gravatar email. Overwrite `author.picture` everywhere in the blog
   #gravatarEmail = "simoncoulombe@gmail.com"
   # Your profile picture
@@ -82,13 +84,13 @@ canonifyurls = true
   identifier = "github"
   name = "GitHub"
   pre = "<i class=\"sidebar-button-icon fa fa-lg fa-github\"></i>"
-  url = "https://github.com/kakawait"
+  url = "https://github.com/simoncoulombe"
 [[menu.links]]
   weight = 2
-  identifier = "stackoverflow"
-  name = "Stack Overflow"
-  pre = "<i class=\"sidebar-button-icon fa fa-lg fa-stack-overflow\"></i>"
-  url = "https://stackoverflow.com/users/636472/kakawait"
+  identifier = "twitter"
+  name = "Twitter"
+  pre = "<i class=\"sidebar-button-icon fa fa-lg fa-twitter\"></i>"
+  url = "https://twitter.com/CoulSim"
 
 [[menu.misc]]
   weight = 1
@@ -118,7 +120,7 @@ canonifyurls = true
   # If false it will flat categories.
   hierarchicalCategories = true
 
-  description = "Hugo tranquilpeak theme demo"
+  description = "blog pour ne pas oublier ce que je fais..."
 
   # Customization
   # Define the behavior of the sidebar
