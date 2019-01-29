@@ -1,0 +1,119 @@
+---
+title: "Mapping UN Votes on a hex grid"
+author: "Simon Coulombe"
+slug: "unvotes_hexgrid"
+date: 2018-01-09
+categories: ["R"]
+tags: ["R Markdown", "plot", "regression", "hexmapr","unvotes", "rworldmap"]
+---
+
+<script src="/rmarkdown-libs/htmlwidgets/htmlwidgets.js"></script>
+<script src="/rmarkdown-libs/pymjs/pym.v1.js"></script>
+<script src="/rmarkdown-libs/widgetframe-binding/widgetframe.js"></script>
+
+
+<p>EDIT 2019: hexmapr has been renamed to geogrid. Also calculate_cell_size() has been deprecated to become calculate_grid() Today, David Robinson (<span class="citation">@drob</span>) tweeted about his unvotes package which contains the history of the United Nations General Assembly voting :<br />
+{{% tweet "950741750112555010" %}}</p>
+<p>To me, this dataset just screams to be mapped. Especially on a hex map, as I have been looking for an excuse to try Joseph Bailey’s (<span class="citation">@iammrbailey</span>) hexmapr package since I saw this tweet two months ago:<br />
+{{% tweet "925346870381240320" %}}</p>
+<p>Hex map arrange the polygons of the countries on a grid of hexagons, where each country has the same size, which is great since each vote has the same value and huge countries such as Canada or Russia see their visual importance exagerated.</p>
+<p>In this post, we will first map the results from the most recent important UN vote on a leaflet using Andy South (<span class="citation">@southmapr</span>)’s rworldmap package as a source for the world map shapefile.</p>
+<p>Then we will attempt to convert the world map to a hex map using the hexmapr package and map the result using ggplot.</p>
+<div id="get-the-votes-and-map-them-on-the-world-map" class="section level2">
+<h2>Get the votes and map them on the world map</h2>
+<pre class="r"><code>#devtools::install_github(&quot;sassalley/hexmapr&quot;)
+#install.packages(&quot;geogrid&quot;)
+library(plyr)
+library(dplyr)
+library(unvotes)
+library(rworldmap)
+library(leaflet)
+library(viridis)
+library(geogrid)
+library(leaflet)
+library(ggplot2)
+library(gridExtra)
+library(sf)
+library(widgetframe) # for inserting datatables and leaflets inside the blog 
+lastvote &lt;- un_votes %&gt;%
+  inner_join(un_roll_calls, by = &quot;rcid&quot;) %&gt;%
+  filter(importantvote == 1) %&gt;% 
+  filter(date == max(date))
+# save title of the last vote for use in the legend 
+lastvote_desc &lt;- lastvote %&gt;% distinct(descr) %&gt;% pull(descr)  
+# attach votes to shapefile from rworldmap using ISO alpha2 country code
+# drop the polygons for which there has never been a vote using inner_join
+sf &lt;- st_as_sf(rworldmap::countriesCoarseLessIslands)  %&gt;% 
+  select(NAME,ISO_A2) %&gt;%
+  left_join(lastvote %&gt;% select(ISO_A2 = country_code, vote)) %&gt;%
+  inner_join(un_votes %&gt;% 
+               distinct(country_code) %&gt;% 
+               select(ISO_A2 = country_code))
+# create a palette 
+ndistinct&lt;- as.numeric(lastvote %&gt;% 
+                         summarise( count = n_distinct(vote)) %&gt;%
+                         select(count))
+mypal &lt;- leaflet::colorFactor(viridis_pal(option=&quot;C&quot;)(ndistinct), 
+                              domain = lastvote$vote, reverse = TRUE)
+# map votes using leaflet
+leaflet(sf) %&gt;% 
+  addProviderTiles(providers$Stamen.TonerLines) %&gt;%
+  addProviderTiles(providers$Stamen.TonerLabels) %&gt;%
+  addPolygons( fillColor = ~mypal(vote),
+               color = &quot;none&quot;,
+               label = ~ paste0(NAME, &quot; - &quot;, vote )) %&gt;%
+  addLegend(&quot;bottomleft&quot;,
+            pal = mypal,
+            values = ~ vote,
+            title = ~ paste0(&quot;votes on &quot;, lastvote_desc))  %&gt;%
+  widgetframe::frameWidget(., width = &#39;95%&#39;)</code></pre>
+<div id="htmlwidget-1" style="width:95%;height:480px;" class="widgetframe html-widget"></div>
+<script type="application/json" data-for="htmlwidget-1">{"x":{"url":"/post/2018-01-09-unvotes_hexgrid_files/figure-html//widgets/widget_put_votes_on_map.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script>
+</div>
+<div id="convert-the-world-map-to-a-hex-grid-and-map-the-votes" class="section level2">
+<h2>Convert the world map to a hex grid and map the votes</h2>
+<p>Here, we follow the hexmapr vignette, except that we use the <code>as(sf, 'Spatial')</code> function instead of <code>read_polygons()</code> since we dont have an actual shapefile to read. The documentation of <code>read_polygons()</code> states that it is “basically st_read”, and it seems to work.</p>
+<pre class="r"><code>
+original_shapes &lt;- as(sf, &#39;Spatial&#39;)
+#original_details &lt;-get_shape_details(original_shapes)
+raw &lt;- as(sf, &#39;Spatial&#39;)
+raw@data$xcentroid &lt;- coordinates(raw)[,1]
+raw@data$ycentroid &lt;- coordinates(raw)[,2]
+clean &lt;- function(shape){
+  shape@data$id = rownames(shape@data)
+  shape.points = fortify(shape, region=&quot;id&quot;)
+  shape.df = join(shape.points, shape@data, by=&quot;id&quot;)
+}
+result_df_raw &lt;- clean(raw)
+rawplot &lt;- ggplot(result_df_raw) +
+  geom_polygon( aes(x=long, y=lat, fill = vote, group = group)) +
+  geom_text(aes(xcentroid, ycentroid, label = substr(NAME,1,4)), 
+            size=2,color = &quot;white&quot;) +
+  coord_equal() +
+  scale_fill_viridis(discrete = T) +
+  guides(fill=FALSE) +
+  theme_void()
+#new_cells_hex &lt;-  calculate_cell_size(original_shapes, original_details,0.03, &#39;hexagonal&#39;, 6)
+new_cells_hex &lt;-  calculate_grid(original_shapes, 0.03, &#39;hexagonal&#39;, 6)
+resulthex &lt;- assign_polygons(original_shapes,new_cells_hex)
+result_df_hex &lt;- clean(resulthex)
+hexplot &lt;- ggplot(result_df_hex) +
+  geom_polygon( aes(x=long, y=lat, fill = vote, group = group)) +
+  geom_text(aes(V1, V2, label = substr(NAME,1,4)), size=2,color = &quot;white&quot;) +
+  scale_fill_viridis(discrete=T) +
+  coord_equal() +
+  guides(fill=FALSE) +
+  theme_void()
+gridExtra::grid.arrange(rawplot,hexplot, layout_matrix = rbind(c(1,1), c(2,2)))</code></pre>
+<p><img src="/post/2018-01-09-unvotes_hexgrid_files/figure-html/convert_map_to_hex_grid-1.png" width="672" /></p>
+</div>
+<div id="conclusion" class="section level2">
+<h2>Conclusion</h2>
+<p>It sorta “worked”! We achieved our goal to convert the world map to a hex grid show the votes, which was our initial goal.</p>
+<p>I have to admit that I am a bit disappointed with the resulting grid map.<br />
+I believe the algorithm focussed too much on recreating a map that had roughly the same shape as the original at the expense of keeping countries on their home continent. As a consequence, a huge “North America” block was created using countries from Europe (United Kingdown, Luxembourg, etc..) and Africa (Senegal, Mauritania, etc..).</p>
+<p>I believe that the hex grid still allows us to see more easily that the vote was mostly a yes (purple), while the world map would lead us to believe that most of Asia voted no, because of Russia and China.</p>
+<p>This might be a case of where a well-designed table would have done a better job, depending on the message that we want to convey.</p>
+<p>Maybe an option to create groups (continents) and force countries in these groups to stick together would make finding a country on the hex map easier.</p>
+<p>Huge thanks to the package developers.</p>
+</div>

@@ -1,0 +1,1428 @@
+---
+title: "Bayesian optimization of xgboost hyperparameters for a Poisson regression in R"
+author: "Simon Coulombe"
+date: 2019-01-09
+slug: "bayesian"
+output:
+  html_document:
+    code_folding: hide
+    number_sections: true
+    theme: simplex
+    toc: true
+    toc_depth: 3
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+    editor_options:   
+      chunk_output_type: console
+categories: ["R"]
+tags: ["bayesian", "optimization", "rstats", "mlrMBO", "caret", "mlr" ,"poisson", "rBayesianOptimization"]
+---
+
+
+
+<div id="introduction" class="section level1">
+<h1>Introduction</h1>
+<p>Ratemaking models in insurance routinely use Poisson regression to model the frequency of auto insurance claims. They usually are GLMs but some insurers are moving towards GBMs, such as <code>xgboost</code>.</p>
+<p><code>xgboost</code>has multiple hyperparameters that can be tuned to obtain a better predictive power. There are multiple ways to tune these hyperparameters. In order of efficiency are the grid search, the random search and the bayesian optimization search.</p>
+<p>In this post, we will compare the results of xgboost hyperparameters for a Poisson regression in R using a random search versus a bayesian search. Two packages wills be compared for the bayesian approach: the <code>mlrMBO</code> package and the <code>rBayesianOptimization</code> package.</p>
+<p>We will model the number of auto insurance claims based on characteristics of the car and driver, while offsetting for exposure. The data comes from the <code>insuranceData</code> package.</p>
+<p>For most model types, <code>mlrMBO</code> can be used in combination with the <code>mlr</code> package to find the best hyperparameters directly. As far as I know the <code>mlr</code> package doesnt <a href="https://github.com/mlr-org/mlr/issues/515">handle poisson regression</a>, so we will have to create our own function to maximise.</p>
+<p>I tried the <code>rBayesianOptimization</code> package after being inspired by this post from <a href="http://blog.revolutionanalytics.com/2016/06/bayesian-optimization-of-machine-learning-models.html">Max Kuhn</a> from 2016. I do not recommend using this package because it <a href="https://github.com/yanyachen/rBayesianOptimization/issues/4">sometimes recycles hyperparameters</a> and hasnt been updated on github since 2016.</p>
+<p><strong>Keep your eyes peeled</strong>: Max Kuhn (<span class="citation">@topepos</span>) <a href="https://twitter.com/topepos/status/1075151561863692290">said that tidymodels might do this in the first half of 2019</a>.</p>
+<pre class="r"><code>library(xgboost)
+library(insuranceData) # example dataset https://cran.r-project.org/web/packages/insuranceData/insuranceData.pdf
+library(tidyverse) # for data wrangling
+library(rBayesianOptimization) # to create cv folds and for bayesian optimisation
+library(mlrMBO)  # for bayesian optimisation
+library(skimr) # for summarising databases
+library(purrr) # to evaluate the loglikelihood of each parameter set in the random grid search
+require(&quot;DiceKriging&quot;) # mlrmbo requires this
+require(&quot;rgenoud&quot;) # mlrmbo requires this</code></pre>
+</div>
+<div id="preparing-the-data" class="section level1">
+<h1>Preparing the data</h1>
+<p>First, we load the dataCar data from the <code>insuranceData</code> package. It contains 67 856 one-year vehicle insurance policies taken out in 2004 or 2005.</p>
+<p>The dependent variable is <code>numclaims</code>, which represents the number of claims.</p>
+<p>The <code>exposure</code> variable represents the “number of year of exposure” and is used as the offset variable. It is bounded between 0 and 1.</p>
+<p>Finally, the independent variables are as follow:</p>
+<ul>
+<li><code>veh_value</code>, the vehicle value in tens of thousand of dollars,<br />
+</li>
+<li><code>veh_body</code>, y vehicle body, coded as BUS CONVT COUPE HBACK HDTOP MCARA MIBUS PANVN RDSTR SEDAN STNWG TRUCK UTE,<br />
+</li>
+<li><code>veh_age</code>, 1 (youngest), 2, 3, 4,<br />
+</li>
+<li><code>gender</code>, a factor with levels F M,<br />
+</li>
+<li><code>area</code> a factor with levels A B C D E F,<br />
+</li>
+<li><code>agecat</code> 1 (youngest), 2, 3, 4, 5, 6</li>
+</ul>
+<pre class="r"><code># load insurance data
+data(dataCar)
+mydb &lt;- dataCar %&gt;% select(numclaims, exposure, veh_value, veh_body,
+                           veh_age, gender, area, agecat)
+label_var &lt;- &quot;numclaims&quot;  
+offset_var &lt;- &quot;exposure&quot;
+feature_vars &lt;- mydb %&gt;% 
+  select(-one_of(c(label_var, offset_var))) %&gt;% 
+  colnames()
+
+skimr::skim(mydb ) %&gt;% 
+  skimr::kable()</code></pre>
+<pre><code>## Skim summary statistics  
+##  n obs: 67856    
+##  n variables: 8    
+## 
+## Variable type: factor
+## 
+##  variable    missing    complete      n      n_unique                     top_counts                      ordered 
+## ----------  ---------  ----------  -------  ----------  -----------------------------------------------  ---------
+##    area         0        67856      67856       6            C: 20540, A: 16312, B: 13341, D: 8173         FALSE  
+##   gender        0        67856      67856       2                  F: 38603, M: 29253, NA: 0               FALSE  
+##  veh_body       0        67856      67856       13       SED: 22233, HBA: 18915, STN: 16261, UTE: 4586     FALSE  
+## 
+## Variable type: integer
+## 
+##  variable     missing    complete      n      mean      sd     p0    p25    p50    p75    p100      hist   
+## -----------  ---------  ----------  -------  -------  ------  ----  -----  -----  -----  ------  ----------
+##   agecat         0        67856      67856    3.49     1.43    1      2      3      5      6      &lt;U+2583&gt;&lt;U+2586&gt;&lt;U+2581&gt;&lt;U+2587&gt;&lt;U+2587&gt;&lt;U+2581&gt;&lt;U+2585&gt;&lt;U+2583&gt; 
+##  numclaims       0        67856      67856    0.073    0.28    0      0      0      0      4      &lt;U+2587&gt;&lt;U+2581&gt;&lt;U+2581&gt;&lt;U+2581&gt;&lt;U+2581&gt;&lt;U+2581&gt;&lt;U+2581&gt;&lt;U+2581&gt; 
+##   veh_age        0        67856      67856    2.67     1.07    1      2      3      4      4      &lt;U+2585&gt;&lt;U+2581&gt;&lt;U+2586&gt;&lt;U+2581&gt;&lt;U+2581&gt;&lt;U+2587&gt;&lt;U+2581&gt;&lt;U+2587&gt; 
+## 
+## Variable type: numeric
+## 
+##  variable     missing    complete      n      mean     sd       p0      p25     p50     p75     p100       hist   
+## -----------  ---------  ----------  -------  ------  ------  --------  ------  ------  ------  -------  ----------
+##  exposure        0        67856      67856    0.47    0.29    0.0027    0.22    0.45    0.71      1      &lt;U+2587&gt;&lt;U+2587&gt;&lt;U+2587&gt;&lt;U+2587&gt;&lt;U+2586&gt;&lt;U+2586&gt;&lt;U+2586&gt;&lt;U+2586&gt; 
+##  veh_value       0        67856      67856    1.78    1.21      0       1.01    1.5     2.15    34.56    &lt;U+2587&gt;&lt;U+2581&gt;&lt;U+2581&gt;&lt;U+2581&gt;&lt;U+2581&gt;&lt;U+2581&gt;&lt;U+2581&gt;&lt;U+2581&gt;</code></pre>
+<p>Insurance ratemaking often requires monotonous relationships. In our case, we will arbitrarily force the number of claims to be non-increasing with the age of the vehicle.</p>
+<p>The code below imports the data, one-hot encodes dummy variables, converts the data frame to a xgb.DMatrix for xgboost consumption, sets the offset for exposure, sets the constraints and defines the 3 folds we will use for cross-validation.</p>
+<pre class="r"><code># one hot encoding of categorical (factor) data
+myformula &lt;- paste0( &quot;~&quot;, paste0( feature_vars, collapse = &quot; + &quot;) ) %&gt;% 
+  as.formula()
+
+dummyFier &lt;- caret::dummyVars(myformula, data=mydb, fullRank = TRUE)
+dummyVars.df &lt;- predict(dummyFier,newdata = mydb)
+mydb_dummy &lt;- cbind(mydb %&gt;% select(one_of(c(label_var, offset_var))), 
+                    dummyVars.df)
+rm(myformula, dummyFier, dummyVars.df)
+
+# get  list the column names of the db with the dummy variables
+feature_vars_dummy &lt;-  mydb_dummy  %&gt;% 
+  select(-one_of(c(label_var, offset_var))) %&gt;% 
+  colnames()
+
+# create xgb.matrix for xgboost consumption
+mydb_xgbmatrix &lt;- xgb.DMatrix(
+  data = mydb_dummy %&gt;% select(feature_vars_dummy) %&gt;% as.matrix, 
+  label = mydb_dummy %&gt;% pull(label_var),
+  missing = &quot;NAN&quot;)
+
+#base_margin: apply exposure offset 
+setinfo(mydb_xgbmatrix,&quot;base_margin&quot;, 
+        mydb %&gt;% pull(offset_var) %&gt;% log() )</code></pre>
+<pre><code>## [1] TRUE</code></pre>
+<pre class="r"><code># a fake constraint, just to show how it is done.  
+#Here we force &quot;the older the car, the less likely are claims&quot;
+myConstraint   &lt;- data_frame(Variable = feature_vars_dummy) %&gt;%
+  mutate(sens = ifelse(Variable == &quot;veh_age&quot;, -1, 0))
+
+# random folds for xgb.cv
+cv_folds = rBayesianOptimization::KFold(mydb_dummy$numclaims, 
+                                        nfolds= 3,
+                                        stratified = TRUE,
+                                        seed= 0)</code></pre>
+</div>
+<div id="example-1-optimize-hyperparameters-using-a-random-search-non-bayesian" class="section level1">
+<h1>Example 1: Optimize hyperparameters using a random search (non bayesian)</h1>
+<p>We will start with a quick example of random search.</p>
+<p>I don’t use caret for the random search <a href="https://github.com/topepo/caret/issues/861">because it has a hard time with poisson regression</a>.</p>
+<p>First, we generate 20 random sets of hyperparameters. I will force <code>gamma = 0</code> for half the sets.I will also hardcode an extra set of parameters named <code>simon_params</code> because I find this combination is often a good starting point.</p>
+<pre class="r"><code># generate hard coded parameters
+simon_params &lt;- data.frame(max_depth = 6,
+                           colsample_bytree= 0.8,
+                           subsample = 0.8,
+                           min_child_weight = 3,
+                           eta  = 0.01,
+                           gamma = 0,
+                           nrounds = 200) %&gt;% 
+  as_tibble()
+# generate 20 random models
+how_many_models &lt;- 20
+max_depth &lt;-        data.frame(max_depth = floor(runif(how_many_models)*5 ) + 3)  # 1 à 4
+colsample_bytree &lt;- data.frame(colsample_bytree =runif(how_many_models) * 0.8 + 0.2)  # 0.2 à 1
+subsample &lt;-        data.frame(subsample =runif(how_many_models) * 0.8 + 0.2) # 0.2 à 1
+min_child_weight &lt;- data.frame(min_child_weight = floor(runif(how_many_models) * 10) + 1) # 1 à 10
+eta &lt;-              data.frame(eta = runif(how_many_models) * 0.06 + 0.002) # 0.002 à 0.062
+gamma &lt;-            data.frame(gamma =c(rep(0,how_many_models/2), runif(how_many_models/2)*10)) # 0 à 10
+nrounds &lt;-          data.frame(nrounds = rep(2e2,how_many_models)) # max 200
+
+random_grid &lt;-max_depth %&gt;%
+  bind_cols(colsample_bytree ) %&gt;%
+  bind_cols(subsample) %&gt;%
+  bind_cols(min_child_weight) %&gt;%
+  bind_cols(eta) %&gt;%
+  bind_cols(gamma) %&gt;%
+  bind_cols(nrounds)  %&gt;% as_tibble()
+# combine random and hardcoded parameters
+df.params &lt;- simon_params %&gt;%  bind_rows(random_grid) %&gt;%
+  mutate(rownum = row_number(),
+         rownumber = row_number())
+list_of_param_sets &lt;- df.params %&gt;% nest(-rownum)</code></pre>
+<p>Here are the hyperparameters that will be tested:</p>
+<pre class="r"><code>kable(df.params)</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="center">max_depth</th>
+<th align="center">colsample_bytree</th>
+<th align="center">subsample</th>
+<th align="center">min_child_weight</th>
+<th align="center">eta</th>
+<th align="center">gamma</th>
+<th align="center">nrounds</th>
+<th align="center">rownum</th>
+<th align="center">rownumber</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="center">6</td>
+<td align="center">0.8000000</td>
+<td align="center">0.8000000</td>
+<td align="center">3</td>
+<td align="center">0.0100000</td>
+<td align="center">0.000000</td>
+<td align="center">200</td>
+<td align="center">1</td>
+<td align="center">1</td>
+</tr>
+<tr class="even">
+<td align="center">4</td>
+<td align="center">0.3697140</td>
+<td align="center">0.7176482</td>
+<td align="center">3</td>
+<td align="center">0.0447509</td>
+<td align="center">0.000000</td>
+<td align="center">200</td>
+<td align="center">2</td>
+<td align="center">2</td>
+</tr>
+<tr class="odd">
+<td align="center">5</td>
+<td align="center">0.7213390</td>
+<td align="center">0.8263462</td>
+<td align="center">5</td>
+<td align="center">0.0259997</td>
+<td align="center">0.000000</td>
+<td align="center">200</td>
+<td align="center">3</td>
+<td align="center">3</td>
+</tr>
+<tr class="even">
+<td align="center">7</td>
+<td align="center">0.3004441</td>
+<td align="center">0.6424290</td>
+<td align="center">4</td>
+<td align="center">0.0215211</td>
+<td align="center">0.000000</td>
+<td align="center">200</td>
+<td align="center">4</td>
+<td align="center">4</td>
+</tr>
+<tr class="odd">
+<td align="center">4</td>
+<td align="center">0.4137765</td>
+<td align="center">0.6237757</td>
+<td align="center">7</td>
+<td align="center">0.0474252</td>
+<td align="center">0.000000</td>
+<td align="center">200</td>
+<td align="center">5</td>
+<td align="center">5</td>
+</tr>
+<tr class="even">
+<td align="center">7</td>
+<td align="center">0.5088913</td>
+<td align="center">0.8314850</td>
+<td align="center">3</td>
+<td align="center">0.0141615</td>
+<td align="center">0.000000</td>
+<td align="center">200</td>
+<td align="center">6</td>
+<td align="center">6</td>
+</tr>
+<tr class="odd">
+<td align="center">7</td>
+<td align="center">0.2107123</td>
+<td align="center">0.2186650</td>
+<td align="center">5</td>
+<td align="center">0.0446673</td>
+<td align="center">0.000000</td>
+<td align="center">200</td>
+<td align="center">7</td>
+<td align="center">7</td>
+</tr>
+<tr class="even">
+<td align="center">6</td>
+<td align="center">0.5059104</td>
+<td align="center">0.5817841</td>
+<td align="center">8</td>
+<td align="center">0.0093015</td>
+<td align="center">0.000000</td>
+<td align="center">200</td>
+<td align="center">8</td>
+<td align="center">8</td>
+</tr>
+<tr class="odd">
+<td align="center">6</td>
+<td align="center">0.8957527</td>
+<td align="center">0.7858510</td>
+<td align="center">1</td>
+<td align="center">0.0167293</td>
+<td align="center">0.000000</td>
+<td align="center">200</td>
+<td align="center">9</td>
+<td align="center">9</td>
+</tr>
+<tr class="even">
+<td align="center">3</td>
+<td align="center">0.4722792</td>
+<td align="center">0.7541852</td>
+<td align="center">9</td>
+<td align="center">0.0105983</td>
+<td align="center">0.000000</td>
+<td align="center">200</td>
+<td align="center">10</td>
+<td align="center">10</td>
+</tr>
+<tr class="odd">
+<td align="center">4</td>
+<td align="center">0.5856641</td>
+<td align="center">0.5820957</td>
+<td align="center">4</td>
+<td align="center">0.0163778</td>
+<td align="center">0.000000</td>
+<td align="center">200</td>
+<td align="center">11</td>
+<td align="center">11</td>
+</tr>
+<tr class="even">
+<td align="center">3</td>
+<td align="center">0.6796527</td>
+<td align="center">0.8889676</td>
+<td align="center">9</td>
+<td align="center">0.0055361</td>
+<td align="center">3.531973</td>
+<td align="center">200</td>
+<td align="center">12</td>
+<td align="center">12</td>
+</tr>
+<tr class="odd">
+<td align="center">6</td>
+<td align="center">0.5948330</td>
+<td align="center">0.5504777</td>
+<td align="center">4</td>
+<td align="center">0.0405373</td>
+<td align="center">2.702602</td>
+<td align="center">200</td>
+<td align="center">13</td>
+<td align="center">13</td>
+</tr>
+<tr class="even">
+<td align="center">4</td>
+<td align="center">0.3489741</td>
+<td align="center">0.3958378</td>
+<td align="center">4</td>
+<td align="center">0.0545762</td>
+<td align="center">9.926841</td>
+<td align="center">200</td>
+<td align="center">14</td>
+<td align="center">14</td>
+</tr>
+<tr class="odd">
+<td align="center">6</td>
+<td align="center">0.8618987</td>
+<td align="center">0.2565432</td>
+<td align="center">5</td>
+<td align="center">0.0487349</td>
+<td align="center">6.334933</td>
+<td align="center">200</td>
+<td align="center">15</td>
+<td align="center">15</td>
+</tr>
+<tr class="even">
+<td align="center">5</td>
+<td align="center">0.7347734</td>
+<td align="center">0.2795729</td>
+<td align="center">9</td>
+<td align="center">0.0498385</td>
+<td align="center">2.132081</td>
+<td align="center">200</td>
+<td align="center">16</td>
+<td align="center">16</td>
+</tr>
+<tr class="odd">
+<td align="center">6</td>
+<td align="center">0.8353919</td>
+<td align="center">0.4530174</td>
+<td align="center">9</td>
+<td align="center">0.0293165</td>
+<td align="center">1.293724</td>
+<td align="center">200</td>
+<td align="center">17</td>
+<td align="center">17</td>
+</tr>
+<tr class="even">
+<td align="center">7</td>
+<td align="center">0.2863549</td>
+<td align="center">0.6149074</td>
+<td align="center">4</td>
+<td align="center">0.0266050</td>
+<td align="center">4.781180</td>
+<td align="center">200</td>
+<td align="center">18</td>
+<td align="center">18</td>
+</tr>
+<tr class="odd">
+<td align="center">4</td>
+<td align="center">0.7789688</td>
+<td align="center">0.7296041</td>
+<td align="center">8</td>
+<td align="center">0.0506522</td>
+<td align="center">9.240745</td>
+<td align="center">200</td>
+<td align="center">19</td>
+<td align="center">19</td>
+</tr>
+<tr class="even">
+<td align="center">6</td>
+<td align="center">0.5290195</td>
+<td align="center">0.5254641</td>
+<td align="center">10</td>
+<td align="center">0.0382960</td>
+<td align="center">5.987610</td>
+<td align="center">200</td>
+<td align="center">20</td>
+<td align="center">20</td>
+</tr>
+<tr class="odd">
+<td align="center">7</td>
+<td align="center">0.8567570</td>
+<td align="center">0.9303007</td>
+<td align="center">5</td>
+<td align="center">0.0412834</td>
+<td align="center">9.761707</td>
+<td align="center">200</td>
+<td align="center">21</td>
+<td align="center">21</td>
+</tr>
+</tbody>
+</table>
+<p>Evaluate these 21 models with 3 folds and retourn the loglikelihood of each models:</p>
+<pre class="r"><code>start &lt;- Sys.time()
+random_grid_results &lt;- list_of_param_sets %&gt;% 
+  mutate(booster = map(data, function(X){
+    message(paste0(&quot;model #&quot;,       X$rownumber,
+            &quot; eta = &quot;,              X$eta,
+            &quot; max.depth = &quot;,        X$max_depth,
+            &quot; min_child_weigth = &quot;, X$min_child_weight,
+            &quot; subsample = &quot;,        X$subsample,
+            &quot; colsample_bytree = &quot;, X$colsample_bytree,
+            &quot; gamma = &quot;,            X$gamma, 
+            &quot; nrounds = &quot;,          X$nrounds))
+set.seed(1234)
+
+cv &lt;- xgb.cv(
+  params = list(
+    booster = &quot;gbtree&quot;,
+    eta = X$eta,
+    max_depth = X$max_depth,
+    min_child_weight = X$min_child_weight,
+    gamma = X$gamma,
+    subsample = X$subsample,
+    colsample_bytree = X$colsample_bytree,
+    objective = &#39;count:poisson&#39;, 
+    eval_metric = &quot;poisson-nloglik&quot;),
+  data = mydb_xgbmatrix,
+  nround = X$nrounds,
+  folds=  cv_folds,
+  monotone_constraints = myConstraint$sens,
+  prediction = FALSE,
+  showsd = TRUE,
+  early_stopping_rounds = 50,
+  verbose = 0)
+
+function_return &lt;- list(Score = cv$evaluation_log[, max(test_poisson_nloglik_mean)], # l&#39;itération qui a la plus haute moyenne de nloglik sur toutes les cv folds
+                        Pred = 0)
+
+message(paste0(&quot;Score :&quot;, function_return$Score))
+return(function_return)})) %&gt;%
+  mutate(Score =  pmap(list(booster), function(X){X$Score })%&gt;% unlist())
+
+
+write_rds(random_grid_results, &quot;temp_files/random_grid_results.rds&quot;)
+stop &lt;- Sys.time()
+stop- start</code></pre>
+<pre class="r"><code>random_grid_results &lt;- read_rds( &quot;temp_files/random_grid_results.rds&quot;)
+
+random_grid_results %&gt;%
+  mutate( hardcoded = ifelse(rownum ==1,TRUE,FALSE)) %&gt;%
+  ggplot(aes( x = rownum, y = Score, color = hardcoded)) + 
+  geom_point() +
+  labs(title = &quot;random grid search&quot;)+
+  ylab(&quot;loglikelihood&quot;)</code></pre>
+<p><img src="/post/2019-01-09-mlrmbo_poisson_files/figure-html/unnamed-chunk-4-1.png" width="960" style="display: block; margin: auto;" /></p>
+</div>
+<div id="example-2-bayesian-optimization-using-mlrmbo" class="section level1">
+<h1>Example #2 Bayesian optimization using <code>mlrMBO</code></h1>
+<p>This tutorial builds on the <a href="https://mlrmbo.mlr-org.com/articles/mlrMBO.html">mlrMBO vignette</a></p>
+<p>First, we need to define the objective function that the bayesian search will try to maximise. In this case we want to maximise the log likelihood of the out of fold predictions.</p>
+<pre class="r"><code># objective function: we want to maximise the log likelihood by tuning most parameters
+obj.fun  &lt;- smoof::makeSingleObjectiveFunction(
+  name = &quot;xgb_cv_bayes&quot;,
+  fn =   function(x){
+    set.seed(12345)
+    cv &lt;- xgb.cv(params = list(
+      booster          = &quot;gbtree&quot;,
+      eta              = x[&quot;eta&quot;],
+      max_depth        = x[&quot;max_depth&quot;],
+      min_child_weight = x[&quot;min_child_weight&quot;],
+      gamma            = x[&quot;gamma&quot;],
+      subsample        = x[&quot;subsample&quot;],
+      colsample_bytree = x[&quot;colsample_bytree&quot;],
+      objective        = &#39;count:poisson&#39;, 
+      eval_metric     = &quot;poisson-nloglik&quot;),
+      data = mydb_xgbmatrix,
+      nround = 30,
+      folds=  cv_folds,
+      monotone_constraints = myConstraint$sens,
+      prediction = FALSE,
+      showsd = TRUE,
+      early_stopping_rounds = 10,
+      verbose = 0)
+    
+    cv$evaluation_log[, max(test_poisson_nloglik_mean)]
+  },
+  par.set = makeParamSet(
+    makeNumericParam(&quot;eta&quot;,              lower = 0.001, upper = 0.05),
+    makeNumericParam(&quot;gamma&quot;,            lower = 0,     upper = 5),
+    makeIntegerParam(&quot;max_depth&quot;,        lower= 1,      upper = 10),
+    makeIntegerParam(&quot;min_child_weight&quot;, lower= 1,      upper = 10),
+    makeNumericParam(&quot;subsample&quot;,        lower = 0.2,   upper = 1),
+    makeNumericParam(&quot;colsample_bytree&quot;, lower = 0.2,   upper = 1)
+  ),
+  minimize = FALSE
+)</code></pre>
+<p>After this, we generate the design, which are a set of hyperparameters that will be tested before starting the bayesian optimization. Here we generate only 10 sets, but <code>mlrMBO</code>would normally generate 4 times the number of parameters. I also force my <code>simon_params</code> to be part of the design because I want to make sure at least one of of sets generated is good.</p>
+<pre class="r"><code># generate an optimal design with only 10  points
+des = generateDesign(n=10,
+                     par.set = getParamSet(obj.fun), 
+                     fun = lhs::randomLHS)  ## . If no design is given by the user, mlrMBO will generate a maximin Latin Hypercube Design of size 4 times the number of the black-box function’s parameters.
+# i still want my favorite hyperparameters to be tested
+simon_params &lt;- data.frame(max_depth = 6,
+                           colsample_bytree= 0.8,
+                           subsample = 0.8,
+                           min_child_weight = 3,
+                           eta  = 0.01,
+                           gamma = 0) %&gt;% as_tibble()
+#final design  is a combination of latin hypercube optimization and my own preferred set of parameters
+final_design =  simon_params  %&gt;% bind_rows(des)
+# bayes will have 10 additional iterations
+control = makeMBOControl()
+control = setMBOControlTermination(control, iters = 10)</code></pre>
+<p>Run the bayesian search:</p>
+<pre class="r"><code># run this!
+run = mbo(fun = obj.fun, 
+          design = final_design,  
+          control = control, 
+          show.info = TRUE)
+write_rds( run, &quot;temp_files/run.rds&quot;)</code></pre>
+<pre class="r"><code>run &lt;- read_rds( &quot;temp_files/run.rds&quot;)
+# print a summary with run
+#run
+# return  best model hyperparameters using run$x
+# return best log likelihood using run$y
+# return all results using run$opt.path$env$path
+run$opt.path$env$path  %&gt;% 
+  mutate(Round = row_number()) %&gt;%
+  mutate(type = case_when(
+    Round==1  ~ &quot;1- hardcoded&quot;,
+    Round&lt;= 11 ~ &quot;2 -design &quot;,
+    TRUE ~ &quot;3 - mlrMBO optimization&quot;)) %&gt;%
+  ggplot(aes(x= Round, y= y, color= type)) + 
+  geom_point() +
+  labs(title = &quot;mlrMBO optimization&quot;)+
+  ylab(&quot;loglikelihood&quot;)</code></pre>
+<p><img src="/post/2019-01-09-mlrmbo_poisson_files/figure-html/unnamed-chunk-8-1.png" width="960" style="display: block; margin: auto;" /></p>
+</div>
+<div id="conclusion" class="section level1">
+<h1>Conclusion:</h1>
+<p>Bayesian optimization does generate better models, but it might be overkill if you aren’t participating in a kaggle. The table below shows the log likelihood of the best model found using the random grid and the mlrMBO and compares it my <code>simon params</code>.</p>
+<table>
+<thead>
+<tr class="header">
+<th align="center">type</th>
+<th align="center">loglikelihood</th>
+<th align="center">max_depth</th>
+<th align="center">colsample_bytree</th>
+<th align="center">subsample</th>
+<th align="center">min_child_weight</th>
+<th align="center">eta</th>
+<th align="center">gamma</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="center">simon params</td>
+<td align="center">0.516177</td>
+<td align="center">6</td>
+<td align="center">0.8000000</td>
+<td align="center">0.8000000</td>
+<td align="center">3</td>
+<td align="center">0.0100000</td>
+<td align="center">0.000000</td>
+</tr>
+<tr class="even">
+<td align="center">random_grid</td>
+<td align="center">0.516918</td>
+<td align="center">3</td>
+<td align="center">0.6796527</td>
+<td align="center">0.8889676</td>
+<td align="center">9</td>
+<td align="center">0.0055361</td>
+<td align="center">3.531973</td>
+</tr>
+<tr class="odd">
+<td align="center">mlrMBO</td>
+<td align="center">0.517670</td>
+<td align="center">7</td>
+<td align="center">0.6969516</td>
+<td align="center">0.6896607</td>
+<td align="center">6</td>
+<td align="center">0.0010039</td>
+<td align="center">4.540463</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="code" class="section level1">
+<h1>Code</h1>
+<p>The code that generated this document is located at</p>
+<p><a href="https://github.com/SimonCoulombe/snippets/blob/master/content/post/2019-1-09-bayesian.Rmd" class="uri">https://github.com/SimonCoulombe/snippets/blob/master/content/post/2019-1-09-bayesian.Rmd</a></p>
+<div id="mlrmbo-further-reading" class="section level2">
+<h2>mlrMBO further reading</h2>
+<p>Here are some resources I used to build this post:</p>
+<ul>
+<li><a href="http://rstudio-pubs-static.s3.amazonaws.com/336732_52d1b0e682634b5eae42cf86e1fc2a98.html">Xgboost using MLR package</a><br />
+</li>
+<li><a href="https://mlrmbo.mlr-org.com/articles/supplementary/machine_learning_with_mlrmbo.html">Vignette: https://mlrmbo.mlr-org.com/articles/supplementary/machine_learning_with_mlrmbo.html</a> , how to use lrMBO with mlr. I dont think you can do poisson regression using mlr.</li>
+<li><a href="https://www.r-bloggers.com/parameter-tuning-with-mlrhyperopt/">Parameter tuning with mlrHyperopt</a><br />
+</li>
+<li><a href="https://www.kaggle.com/xanderhorn/train-r-ml-models-efficiently-with-mlr">Train R ML models efficiently with mlr</a></li>
+</ul>
+</div>
+</div>
+<div id="appendix-not-recommended-bayesian-optimization-using-rbayesianoptimization" class="section level1">
+<h1>Appendix: (NOT RECOMMENDED) Bayesian optimization using <code>rBayesianOptimization</code></h1>
+<p>Here I show how to do an equivalent optimization using <code>rBaysianOptimization</code>. I do not recommend using this package because it <a href="https://github.com/yanyachen/rBayesianOptimization/issues/4">recycles hyperparameters</a> and hasnt been updated on github since 2016.</p>
+<p>First, we have to define a special function that return a list of two values that will be returned to the bayesian optimiser:<br />
+- “Score” should be the metrics to be maximized ,<br />
+- “Pred” should be the validation/cross-valiation prediction for ensembling / stacking. We can set it to 0 to save on memory.</p>
+<p>This function will be named <code>xgb_cv_bayes</code> :</p>
+<pre class="r"><code>xgb_cv_bayes &lt;- 
+  function(max_depth=4, 
+           min_child_weight=1, 
+           gamma=0,
+           eta=0.01,
+           subsample = 0.6,
+           colsample_bytree =0.6,
+           nrounds = 200, 
+           early_stopping_rounds = 50 ){
+    set.seed(1234)
+    cv &lt;- xgb.cv(params = list(
+      booster = &quot;gbtree&quot;,
+      eta = eta,
+      max_depth = max_depth,
+      min_child_weight = min_child_weight,
+      gamma = gamma,
+      subsample = subsample,
+      colsample_bytree = colsample_bytree,
+      objective = &#39;count:poisson&#39;, 
+      eval_metric = &quot;poisson-nloglik&quot;),
+      data = mydb_xgbmatrix,
+      nround = nrounds,
+      folds=  cv_folds,
+      monotone_constraints = myConstraint$sens,
+      prediction = FALSE,
+      showsd = TRUE,
+      early_stopping_rounds = 50,
+      verbose = 0)
+    
+    list(Score = cv$evaluation_log[, max(test_poisson_nloglik_mean)],
+         Pred = 0)
+  }</code></pre>
+<p>We then launch <code>BayesianOptimization</code>, specifying:<br />
+- the function to optimise (xgb_cv_bayes),<br />
+- the hyperparameters (<code>bounds</code>) ,<br />
+- the number of iterations, <code>n_iter</code>,</p>
+<p>The optimization function needs some points for initialisation. We pass one of the two following parameters:<br />
+- <code>init_points</code> , start from scratch using this number of randomly generated hyperparameter sets, or - <code>init_grid_dt</code> use the knowledge from a previous run.</p>
+<div id="rbayesianoptimization-from-scratch" class="section level2">
+<h2>rBayesianOptimization from scratch</h2>
+<p>Here is an example “from scratch”.</p>
+<pre class="r"><code>start &lt;- Sys.time()
+bayesian_results &lt;- rBayesianOptimization::BayesianOptimization(
+  FUN = xgb_cv_bayes,
+  bounds = list(max_depth = c(2L, 10L),
+                colsample_bytree = c(0.3, 1),
+                subsample = c(0.3,1),
+                min_child_weight = c(1L, 10L),
+                eta = c(0.001, 0.03),
+                gamma = c(0, 5)),
+  init_grid_dt = NULL, init_points = 4, 
+  n_iter = 7,
+  acq = &quot;ucb&quot;, kappa = 2.576, eps = 0.0,
+  verbose = TRUE)
+stop &lt;- Sys.time()
+stop- start
+write_rds(bayesian_results, &quot;temp_files/bayesian_results.rds&quot;)</code></pre>
+<pre class="r"><code>bayesian_results &lt;- read_rds( &quot;temp_files/bayesian_results.rds&quot;)</code></pre>
+<pre class="r"><code>kable(bayesian_results$History)</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="center">Round</th>
+<th align="center">max_depth</th>
+<th align="center">colsample_bytree</th>
+<th align="center">subsample</th>
+<th align="center">min_child_weight</th>
+<th align="center">eta</th>
+<th align="center">gamma</th>
+<th align="center">Value</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="center">1</td>
+<td align="center">9</td>
+<td align="center">0.4714764</td>
+<td align="center">0.3737111</td>
+<td align="center">5</td>
+<td align="center">0.0274061</td>
+<td align="center">2.5303756</td>
+<td align="center">0.5132937</td>
+</tr>
+<tr class="even">
+<td align="center">2</td>
+<td align="center">8</td>
+<td align="center">0.5702128</td>
+<td align="center">0.5269059</td>
+<td align="center">8</td>
+<td align="center">0.0061257</td>
+<td align="center">0.9034542</td>
+<td align="center">0.5168173</td>
+</tr>
+<tr class="odd">
+<td align="center">3</td>
+<td align="center">4</td>
+<td align="center">0.8170359</td>
+<td align="center">0.9878570</td>
+<td align="center">5</td>
+<td align="center">0.0217078</td>
+<td align="center">3.4681156</td>
+<td align="center">0.5142510</td>
+</tr>
+<tr class="even">
+<td align="center">4</td>
+<td align="center">5</td>
+<td align="center">0.4563544</td>
+<td align="center">0.7572787</td>
+<td align="center">2</td>
+<td align="center">0.0121032</td>
+<td align="center">0.8782680</td>
+<td align="center">0.5158280</td>
+</tr>
+<tr class="odd">
+<td align="center">5</td>
+<td align="center">4</td>
+<td align="center">0.7361223</td>
+<td align="center">0.7468013</td>
+<td align="center">6</td>
+<td align="center">0.0016097</td>
+<td align="center">2.0878073</td>
+<td align="center">0.5175690</td>
+</tr>
+<tr class="even">
+<td align="center">6</td>
+<td align="center">4</td>
+<td align="center">0.7361056</td>
+<td align="center">0.7468026</td>
+<td align="center">6</td>
+<td align="center">0.0016106</td>
+<td align="center">2.0880261</td>
+<td align="center">0.5175687</td>
+</tr>
+<tr class="odd">
+<td align="center">7</td>
+<td align="center">4</td>
+<td align="center">0.7361056</td>
+<td align="center">0.7468013</td>
+<td align="center">6</td>
+<td align="center">0.0016107</td>
+<td align="center">2.0880450</td>
+<td align="center">0.5175687</td>
+</tr>
+<tr class="even">
+<td align="center">8</td>
+<td align="center">4</td>
+<td align="center">0.7361056</td>
+<td align="center">0.7468013</td>
+<td align="center">6</td>
+<td align="center">0.0016110</td>
+<td align="center">2.0880606</td>
+<td align="center">0.5175687</td>
+</tr>
+<tr class="odd">
+<td align="center">9</td>
+<td align="center">4</td>
+<td align="center">0.7361056</td>
+<td align="center">0.7468163</td>
+<td align="center">6</td>
+<td align="center">0.0016135</td>
+<td align="center">2.0880577</td>
+<td align="center">0.5175683</td>
+</tr>
+<tr class="even">
+<td align="center">10</td>
+<td align="center">4</td>
+<td align="center">0.7361056</td>
+<td align="center">0.7468491</td>
+<td align="center">6</td>
+<td align="center">0.0016185</td>
+<td align="center">2.0879417</td>
+<td align="center">0.5175673</td>
+</tr>
+<tr class="odd">
+<td align="center">11</td>
+<td align="center">4</td>
+<td align="center">0.7361056</td>
+<td align="center">0.7468590</td>
+<td align="center">6</td>
+<td align="center">0.0016191</td>
+<td align="center">2.0878072</td>
+<td align="center">0.5175673</td>
+</tr>
+</tbody>
+</table>
+<pre class="r"><code>bayesian_results$History  %&gt;% 
+  mutate(type = case_when(
+    Round&lt;= 4  ~ &quot;1- init_points&quot;,
+    Round&lt;= 11 ~ &quot;2 -n_iter&quot;,
+    TRUE ~ &quot;wtf&quot;)) %&gt;%
+  ggplot(aes(x= Round, y= Value, color= type)) + geom_point()+
+  labs(title = &quot;bayesian from scratch&quot;)</code></pre>
+<p><img src="/post/2019-01-09-mlrmbo_poisson_files/figure-html/unnamed-chunk-12-1.png" width="960" style="display: block; margin: auto;" /></p>
+</div>
+<div id="rbayesianoptimization-resuming-from-previous-runs" class="section level2">
+<h2>rBayesianOptimization resuming from previous runs</h2>
+<p><code>init_grid_dt</code> is a data frame with the same columns as <code>bounds</code> plus a <code>Value</code>column which correspond to the log likelihood we calculated earlier.</p>
+<div id="resuming-from-random-grid" class="section level3">
+<h3>… resuming from random grid</h3>
+<p>Here is an example resuming from the random grid of example #1</p>
+<pre class="r"><code>init_grid &lt;- random_grid_results$data %&gt;% 
+  bind_rows() %&gt;% 
+  add_column(Value = random_grid_results$Score)   %&gt;% 
+  select(max_depth, colsample_bytree, subsample, min_child_weight, eta, gamma, Value)
+kable(init_grid)</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="center">max_depth</th>
+<th align="center">colsample_bytree</th>
+<th align="center">subsample</th>
+<th align="center">min_child_weight</th>
+<th align="center">eta</th>
+<th align="center">gamma</th>
+<th align="center">Value</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="center">6</td>
+<td align="center">0.8000000</td>
+<td align="center">0.8000000</td>
+<td align="center">3</td>
+<td align="center">0.0100000</td>
+<td align="center">0.000000</td>
+<td align="center">0.5161770</td>
+</tr>
+<tr class="even">
+<td align="center">4</td>
+<td align="center">0.3697140</td>
+<td align="center">0.7176482</td>
+<td align="center">3</td>
+<td align="center">0.0447509</td>
+<td align="center">0.000000</td>
+<td align="center">0.5104687</td>
+</tr>
+<tr class="odd">
+<td align="center">5</td>
+<td align="center">0.7213390</td>
+<td align="center">0.8263462</td>
+<td align="center">5</td>
+<td align="center">0.0259997</td>
+<td align="center">0.000000</td>
+<td align="center">0.5135350</td>
+</tr>
+<tr class="even">
+<td align="center">7</td>
+<td align="center">0.3004441</td>
+<td align="center">0.6424290</td>
+<td align="center">4</td>
+<td align="center">0.0215211</td>
+<td align="center">0.000000</td>
+<td align="center">0.5142750</td>
+</tr>
+<tr class="odd">
+<td align="center">4</td>
+<td align="center">0.4137765</td>
+<td align="center">0.6237757</td>
+<td align="center">7</td>
+<td align="center">0.0474252</td>
+<td align="center">0.000000</td>
+<td align="center">0.5100350</td>
+</tr>
+<tr class="even">
+<td align="center">7</td>
+<td align="center">0.5088913</td>
+<td align="center">0.8314850</td>
+<td align="center">3</td>
+<td align="center">0.0141615</td>
+<td align="center">0.000000</td>
+<td align="center">0.5154890</td>
+</tr>
+<tr class="odd">
+<td align="center">7</td>
+<td align="center">0.2107123</td>
+<td align="center">0.2186650</td>
+<td align="center">5</td>
+<td align="center">0.0446673</td>
+<td align="center">0.000000</td>
+<td align="center">0.5104473</td>
+</tr>
+<tr class="even">
+<td align="center">6</td>
+<td align="center">0.5059104</td>
+<td align="center">0.5817841</td>
+<td align="center">8</td>
+<td align="center">0.0093015</td>
+<td align="center">0.000000</td>
+<td align="center">0.5162917</td>
+</tr>
+<tr class="odd">
+<td align="center">6</td>
+<td align="center">0.8957527</td>
+<td align="center">0.7858510</td>
+<td align="center">1</td>
+<td align="center">0.0167293</td>
+<td align="center">0.000000</td>
+<td align="center">0.5150617</td>
+</tr>
+<tr class="even">
+<td align="center">3</td>
+<td align="center">0.4722792</td>
+<td align="center">0.7541852</td>
+<td align="center">9</td>
+<td align="center">0.0105983</td>
+<td align="center">0.000000</td>
+<td align="center">0.5160767</td>
+</tr>
+<tr class="odd">
+<td align="center">4</td>
+<td align="center">0.5856641</td>
+<td align="center">0.5820957</td>
+<td align="center">4</td>
+<td align="center">0.0163778</td>
+<td align="center">0.000000</td>
+<td align="center">0.5151200</td>
+</tr>
+<tr class="even">
+<td align="center">3</td>
+<td align="center">0.6796527</td>
+<td align="center">0.8889676</td>
+<td align="center">9</td>
+<td align="center">0.0055361</td>
+<td align="center">3.531973</td>
+<td align="center">0.5169180</td>
+</tr>
+<tr class="odd">
+<td align="center">6</td>
+<td align="center">0.5948330</td>
+<td align="center">0.5504777</td>
+<td align="center">4</td>
+<td align="center">0.0405373</td>
+<td align="center">2.702602</td>
+<td align="center">0.5111533</td>
+</tr>
+<tr class="even">
+<td align="center">4</td>
+<td align="center">0.3489741</td>
+<td align="center">0.3958378</td>
+<td align="center">4</td>
+<td align="center">0.0545762</td>
+<td align="center">9.926841</td>
+<td align="center">0.5088507</td>
+</tr>
+<tr class="odd">
+<td align="center">6</td>
+<td align="center">0.8618987</td>
+<td align="center">0.2565432</td>
+<td align="center">5</td>
+<td align="center">0.0487349</td>
+<td align="center">6.334933</td>
+<td align="center">0.5097950</td>
+</tr>
+<tr class="even">
+<td align="center">5</td>
+<td align="center">0.7347734</td>
+<td align="center">0.2795729</td>
+<td align="center">9</td>
+<td align="center">0.0498385</td>
+<td align="center">2.132081</td>
+<td align="center">0.5096150</td>
+</tr>
+<tr class="odd">
+<td align="center">6</td>
+<td align="center">0.8353919</td>
+<td align="center">0.4530174</td>
+<td align="center">9</td>
+<td align="center">0.0293165</td>
+<td align="center">1.293724</td>
+<td align="center">0.5129903</td>
+</tr>
+<tr class="even">
+<td align="center">7</td>
+<td align="center">0.2863549</td>
+<td align="center">0.6149074</td>
+<td align="center">4</td>
+<td align="center">0.0266050</td>
+<td align="center">4.781180</td>
+<td align="center">0.5134367</td>
+</tr>
+<tr class="odd">
+<td align="center">4</td>
+<td align="center">0.7789688</td>
+<td align="center">0.7296041</td>
+<td align="center">8</td>
+<td align="center">0.0506522</td>
+<td align="center">9.240745</td>
+<td align="center">0.5095087</td>
+</tr>
+<tr class="even">
+<td align="center">6</td>
+<td align="center">0.5290195</td>
+<td align="center">0.5254641</td>
+<td align="center">10</td>
+<td align="center">0.0382960</td>
+<td align="center">5.987610</td>
+<td align="center">0.5115177</td>
+</tr>
+<tr class="odd">
+<td align="center">7</td>
+<td align="center">0.8567570</td>
+<td align="center">0.9303007</td>
+<td align="center">5</td>
+<td align="center">0.0412834</td>
+<td align="center">9.761707</td>
+<td align="center">0.5110477</td>
+</tr>
+</tbody>
+</table>
+<pre class="r"><code>bayesian_results_continued_from_randomgrid &lt;- 
+  BayesianOptimization(xgb_cv_bayes,
+                       bounds = list(max_depth = c(2L, 10L),
+                                     colsample_bytree = c(0.3, 1),
+                                     subsample = c(0.3,1),
+                                     min_child_weight = c(1L, 10L),
+                                     eta = c(0.001, 0.03),
+                                     gamma = c(0, 5)),
+                       init_grid_dt = init_grid, init_points = 0, 
+                       n_iter = 5,
+                       acq = &quot;ucb&quot;, kappa = 2.576, eps = 0.0,
+                       verbose = TRUE)
+write_rds(bayesian_results_continued_from_randomgrid,
+          &quot;temp_files/bayesian_results_continued_from_randomgrid.rds&quot;)</code></pre>
+<pre class="r"><code>bayesian_results_continued_from_randomgrid &lt;- read_rds(
+  &quot;temp_files/bayesian_results_continued_from_randomgrid.rds&quot;)</code></pre>
+</div>
+<div id="resuming-from-previous-rbayesianoptimization" class="section level3">
+<h3>… resuming from previous rBayesianOptimization</h3>
+<p>We can also resume from a brevious rBayesianOptimization run using the <code>$History</code> value it returns. In the example below, we will resume from the previous bayesian search that was itself build upon the random grid search.</p>
+<pre class="r"><code>init_grid &lt;- bayesian_results_continued_from_randomgrid$History %&gt;% select(-Round)
+kable(init_grid)</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="center">max_depth</th>
+<th align="center">colsample_bytree</th>
+<th align="center">subsample</th>
+<th align="center">min_child_weight</th>
+<th align="center">eta</th>
+<th align="center">gamma</th>
+<th align="center">Value</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="center">6</td>
+<td align="center">0.8000000</td>
+<td align="center">0.8000000</td>
+<td align="center">3</td>
+<td align="center">0.0100000</td>
+<td align="center">0.000000</td>
+<td align="center">0.5161770</td>
+</tr>
+<tr class="even">
+<td align="center">4</td>
+<td align="center">0.3697140</td>
+<td align="center">0.7176482</td>
+<td align="center">3</td>
+<td align="center">0.0447509</td>
+<td align="center">0.000000</td>
+<td align="center">0.5104687</td>
+</tr>
+<tr class="odd">
+<td align="center">5</td>
+<td align="center">0.7213390</td>
+<td align="center">0.8263462</td>
+<td align="center">5</td>
+<td align="center">0.0259997</td>
+<td align="center">0.000000</td>
+<td align="center">0.5135350</td>
+</tr>
+<tr class="even">
+<td align="center">7</td>
+<td align="center">0.3004441</td>
+<td align="center">0.6424290</td>
+<td align="center">4</td>
+<td align="center">0.0215211</td>
+<td align="center">0.000000</td>
+<td align="center">0.5142750</td>
+</tr>
+<tr class="odd">
+<td align="center">4</td>
+<td align="center">0.4137765</td>
+<td align="center">0.6237757</td>
+<td align="center">7</td>
+<td align="center">0.0474252</td>
+<td align="center">0.000000</td>
+<td align="center">0.5100350</td>
+</tr>
+<tr class="even">
+<td align="center">7</td>
+<td align="center">0.5088913</td>
+<td align="center">0.8314850</td>
+<td align="center">3</td>
+<td align="center">0.0141615</td>
+<td align="center">0.000000</td>
+<td align="center">0.5154890</td>
+</tr>
+<tr class="odd">
+<td align="center">7</td>
+<td align="center">0.2107123</td>
+<td align="center">0.2186650</td>
+<td align="center">5</td>
+<td align="center">0.0446673</td>
+<td align="center">0.000000</td>
+<td align="center">0.5104473</td>
+</tr>
+<tr class="even">
+<td align="center">6</td>
+<td align="center">0.5059104</td>
+<td align="center">0.5817841</td>
+<td align="center">8</td>
+<td align="center">0.0093015</td>
+<td align="center">0.000000</td>
+<td align="center">0.5162917</td>
+</tr>
+<tr class="odd">
+<td align="center">6</td>
+<td align="center">0.8957527</td>
+<td align="center">0.7858510</td>
+<td align="center">1</td>
+<td align="center">0.0167293</td>
+<td align="center">0.000000</td>
+<td align="center">0.5150617</td>
+</tr>
+<tr class="even">
+<td align="center">3</td>
+<td align="center">0.4722792</td>
+<td align="center">0.7541852</td>
+<td align="center">9</td>
+<td align="center">0.0105983</td>
+<td align="center">0.000000</td>
+<td align="center">0.5160767</td>
+</tr>
+<tr class="odd">
+<td align="center">4</td>
+<td align="center">0.5856641</td>
+<td align="center">0.5820957</td>
+<td align="center">4</td>
+<td align="center">0.0163778</td>
+<td align="center">0.000000</td>
+<td align="center">0.5151200</td>
+</tr>
+<tr class="even">
+<td align="center">3</td>
+<td align="center">0.6796527</td>
+<td align="center">0.8889676</td>
+<td align="center">9</td>
+<td align="center">0.0055361</td>
+<td align="center">3.531973</td>
+<td align="center">0.5169180</td>
+</tr>
+<tr class="odd">
+<td align="center">6</td>
+<td align="center">0.5948330</td>
+<td align="center">0.5504777</td>
+<td align="center">4</td>
+<td align="center">0.0405373</td>
+<td align="center">2.702602</td>
+<td align="center">0.5111533</td>
+</tr>
+<tr class="even">
+<td align="center">4</td>
+<td align="center">0.3489741</td>
+<td align="center">0.3958378</td>
+<td align="center">4</td>
+<td align="center">0.0545762</td>
+<td align="center">9.926841</td>
+<td align="center">0.5088507</td>
+</tr>
+<tr class="odd">
+<td align="center">6</td>
+<td align="center">0.8618987</td>
+<td align="center">0.2565432</td>
+<td align="center">5</td>
+<td align="center">0.0487349</td>
+<td align="center">6.334933</td>
+<td align="center">0.5097950</td>
+</tr>
+<tr class="even">
+<td align="center">5</td>
+<td align="center">0.7347734</td>
+<td align="center">0.2795729</td>
+<td align="center">9</td>
+<td align="center">0.0498385</td>
+<td align="center">2.132081</td>
+<td align="center">0.5096150</td>
+</tr>
+<tr class="odd">
+<td align="center">6</td>
+<td align="center">0.8353919</td>
+<td align="center">0.4530174</td>
+<td align="center">9</td>
+<td align="center">0.0293165</td>
+<td align="center">1.293724</td>
+<td align="center">0.5129903</td>
+</tr>
+<tr class="even">
+<td align="center">7</td>
+<td align="center">0.2863549</td>
+<td align="center">0.6149074</td>
+<td align="center">4</td>
+<td align="center">0.0266050</td>
+<td align="center">4.781180</td>
+<td align="center">0.5134367</td>
+</tr>
+<tr class="odd">
+<td align="center">4</td>
+<td align="center">0.7789688</td>
+<td align="center">0.7296041</td>
+<td align="center">8</td>
+<td align="center">0.0506522</td>
+<td align="center">9.240745</td>
+<td align="center">0.5095087</td>
+</tr>
+<tr class="even">
+<td align="center">6</td>
+<td align="center">0.5290195</td>
+<td align="center">0.5254641</td>
+<td align="center">10</td>
+<td align="center">0.0382960</td>
+<td align="center">5.987610</td>
+<td align="center">0.5115177</td>
+</tr>
+<tr class="odd">
+<td align="center">7</td>
+<td align="center">0.8567570</td>
+<td align="center">0.9303007</td>
+<td align="center">5</td>
+<td align="center">0.0412834</td>
+<td align="center">9.761707</td>
+<td align="center">0.5110477</td>
+</tr>
+<tr class="even">
+<td align="center">2</td>
+<td align="center">1.0000000</td>
+<td align="center">0.4379387</td>
+<td align="center">1</td>
+<td align="center">0.0010000</td>
+<td align="center">0.000000</td>
+<td align="center">0.5176697</td>
+</tr>
+<tr class="odd">
+<td align="center">2</td>
+<td align="center">0.3000000</td>
+<td align="center">0.4333099</td>
+<td align="center">1</td>
+<td align="center">0.0010000</td>
+<td align="center">5.000000</td>
+<td align="center">0.5176700</td>
+</tr>
+<tr class="even">
+<td align="center">6</td>
+<td align="center">0.6074937</td>
+<td align="center">0.4577533</td>
+<td align="center">9</td>
+<td align="center">0.0020220</td>
+<td align="center">1.552954</td>
+<td align="center">0.5175003</td>
+</tr>
+<tr class="odd">
+<td align="center">10</td>
+<td align="center">0.6074937</td>
+<td align="center">0.4881069</td>
+<td align="center">6</td>
+<td align="center">0.0010000</td>
+<td align="center">1.552905</td>
+<td align="center">0.5176703</td>
+</tr>
+<tr class="even">
+<td align="center">5</td>
+<td align="center">0.7371901</td>
+<td align="center">0.7605852</td>
+<td align="center">5</td>
+<td align="center">0.0036787</td>
+<td align="center">3.620829</td>
+<td align="center">0.5172250</td>
+</tr>
+</tbody>
+</table>
+<pre class="r"><code>bayesian_results_continued_from_bayesian &lt;- 
+  BayesianOptimization(xgb_cv_bayes,
+                       bounds = list(max_depth = c(2L, 10L),
+                                     colsample_bytree = c(0.3, 1),
+                                     subsample = c(0.3,1),
+                                     min_child_weight = c(1L, 10L),
+                                     eta = c(0.001, 0.03),
+                                     gamma = c(0, 5)),
+                       init_grid_dt =init_grid , init_points = 0,
+                       n_iter = 5,
+                       acq = &quot;ucb&quot;, kappa = 2.576, eps = 0.0,
+                       verbose = TRUE)
+write_rds(bayesian_results_continued_from_bayesian, &quot;temp_files/bayesian_results_continued_from_bayesian.rds&quot;)</code></pre>
+<pre class="r"><code>bayesian_results_continued_from_bayesian &lt;- read_rds(
+  &quot;temp_files/bayesian_results_continued_from_bayesian.rds&quot;)</code></pre>
+<pre class="r"><code>bayesian_results_continued_from_bayesian$History  %&gt;% 
+  mutate(type = case_when(
+    Round==1  ~ &quot;1- hardcoded&quot;,
+    Round&lt;= 21 ~ &quot;2 -random grid &quot;,
+    Round &lt;= 26 ~ &quot;3 - rbayesianoptimization run #1 resuming from random grid&quot;,
+    TRUE ~ &quot;4 - rbayesianoptimization run #2 resuming from bayesian run 1&quot;)) %&gt;%
+  ggplot(aes(x= Round, y= Value, color= type)) + 
+  geom_point()+ 
+  labs(title = &quot;rBayesianOptimization&quot;)+
+  ylab(&quot;loglikelihood&quot;)</code></pre>
+<p><img src="/post/2019-01-09-mlrmbo_poisson_files/figure-html/results-1.png" width="960" style="display: block; margin: auto;" /></p>
+</div>
+</div>
+</div>
+<div id="conclusion-1" class="section level1">
+<h1>Conclusion</h1>
+<p>The table below shows the loglikelihood and hyperparameters for the hardcoded <code>simon_param</code> model, and the best models found by random search, mlrMBO and rBayesianOptimisation.</p>
+<p>Bayesian optimization using mlrMBO and rBayesianOptimization both yield the best results. The gain in loglikelihood above the “hardcoded” <code>simon_param</code> or the random search isnt that great, however, so it may not be necessary to implement <code>mlrMBO</code> in a non-kaggle setting.</p>
+<pre class="r"><code>hardcoded &lt;- random_grid_results[1,] %&gt;%
+  pull(data) %&gt;% .[[1]] %&gt;%
+  mutate(type = &quot;hardcoded&quot;) %&gt;%
+  mutate(loglikelihood= random_grid_results[1,&quot;Score&quot;] %&gt;% as.numeric())
+best_random &lt;- random_grid_results %&gt;% 
+  filter(Score == max(Score)) %&gt;% pull(data) %&gt;% .[[1]] %&gt;% 
+  mutate(type = &quot;random_grid&quot;) %&gt;%
+  mutate(loglikelihood = max(random_grid_results$Score))
+
+best_mlrMBO &lt;- run$opt.path$env$path  %&gt;% 
+  filter(y == max(y))  %&gt;%
+  mutate(type = &quot;mlrMBO&quot;) %&gt;%
+  mutate(loglikelihood= run$y ) %&gt;%
+  head(1)
+best_rBayesianOptimization &lt;- 
+  bayesian_results_continued_from_bayesian$History %&gt;%
+  filter(Value == max(Value)) %&gt;%
+  mutate(type = &quot;rBayesianOptimization&quot;) %&gt;%
+  mutate(loglikelihood = max(bayesian_results_continued_from_bayesian$History$Value))
+hardcoded %&gt;% 
+  bind_rows(best_random) %&gt;% 
+  bind_rows(best_mlrMBO) %&gt;%
+  bind_rows(best_rBayesianOptimization) %&gt;%
+  select(type,loglikelihood, max_depth, colsample_bytree, subsample,min_child_weight,eta, gamma) %&gt;% kable</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="center">type</th>
+<th align="center">loglikelihood</th>
+<th align="center">max_depth</th>
+<th align="center">colsample_bytree</th>
+<th align="center">subsample</th>
+<th align="center">min_child_weight</th>
+<th align="center">eta</th>
+<th align="center">gamma</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="center">hardcoded</td>
+<td align="center">0.5161770</td>
+<td align="center">6</td>
+<td align="center">0.8000000</td>
+<td align="center">0.8000000</td>
+<td align="center">3</td>
+<td align="center">0.0100000</td>
+<td align="center">0.000000</td>
+</tr>
+<tr class="even">
+<td align="center">random_grid</td>
+<td align="center">0.5169180</td>
+<td align="center">3</td>
+<td align="center">0.6796527</td>
+<td align="center">0.8889676</td>
+<td align="center">9</td>
+<td align="center">0.0055361</td>
+<td align="center">3.531973</td>
+</tr>
+<tr class="odd">
+<td align="center">mlrMBO</td>
+<td align="center">0.5176700</td>
+<td align="center">7</td>
+<td align="center">0.6969516</td>
+<td align="center">0.6896607</td>
+<td align="center">6</td>
+<td align="center">0.0010039</td>
+<td align="center">4.540463</td>
+</tr>
+<tr class="even">
+<td align="center">rBayesianOptimization</td>
+<td align="center">0.5176703</td>
+<td align="center">10</td>
+<td align="center">0.6074937</td>
+<td align="center">0.4881069</td>
+<td align="center">6</td>
+<td align="center">0.0010000</td>
+<td align="center">1.552905</td>
+</tr>
+</tbody>
+</table>
+</div>

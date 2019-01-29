@@ -97,8 +97,7 @@ Data tables are displayed using the `DT` package.
 
 # Code
 The code that generated this document is located in 
-https://raw.githubusercontent.com/SimonCoulombe/snippets/content/post/2018-1-16-saaqmtq.Rmd
-
+https://github.com/SimonCoulombe/snippets/blob/master/content/post/2018-1-16-saaqmtq.Rmd
 
 ## Define functions, downloads files
 ```{r functions_download, include = F}
