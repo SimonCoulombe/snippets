@@ -1,0 +1,234 @@
+---
+title: "Geocoding police reports to find the spot where the most bike crashes occur"
+author: "Simon Coulombe"
+date: 2017-11-05
+slug: "bike-crashes"
+output:
+  html_document:
+    code_folding: hide
+    number_sections: true
+    theme: simplex
+    toc: true
+    toc_depth: 3
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+    editor_options:   
+      chunk_output_type: console
+categories: ["R"]
+tags: ["sf", "open data", "rstats"]
+---
+
+<script src="/rmarkdown-libs/htmlwidgets/htmlwidgets.js"></script>
+<script src="/rmarkdown-libs/pymjs/pym.v1.js"></script>
+<script src="/rmarkdown-libs/widgetframe-binding/widgetframe.js"></script>
+
+
+<div id="objective" class="section level1">
+<h1>Objective</h1>
+<p>In this project, we will geocode the crash data to identify the spots where the accidents involving bikes in province. This will allow us to determine in which areas an intervention to reduce the risk to active transportation would be most useful.</p>
+</div>
+<div id="data-sources" class="section level1">
+<h1>Data sources</h1>
+<p>Open data about the <a href="https://www.donneesquebec.ca/recherche/fr/dataset/rapports-d-accident">2011-2016 car crashes reported to the police</a> come from the province of Québec’s open data portal.<br />
+<a href="https://saaq.gouv.qc.ca/donnees-ouvertes/rapports-accident/rapports-accident-documentation.pdf">The data dictionary</a> is also available on-line.</p>
+</div>
+<div id="packages-used" class="section level1">
+<h1>Packages used</h1>
+<p>Data wrangling is done using packages from the <code>tidyverse</code>. Geospatial data is geocoded using the <code>ggmap</code> package and treated using <code>sf</code>.<br />
+Data visualisations are done using <code>ggplot2</code> and <code>leaflet</code>. If I remember correctly, the <code>leaflet.extras</code> package is used to the leaflet heatmap.<br />
+Color palettes for the maps are generated using the <code>viridis</code> package.<br />
+Data tables are displayed using the <code>DT</code> package.</p>
+</div>
+<div id="code" class="section level1">
+<h1>Code</h1>
+<p>The code that generated this document is located in <a href="https://raw.githubusercontent.com/SimonCoulombe/snippets/content/post/2018-1-16-saaqmtq.Rmd" class="uri">https://raw.githubusercontent.com/SimonCoulombe/snippets/content/post/2018-1-16-saaqmtq.Rmd</a></p>
+<div id="define-functions-downloads-files" class="section level2">
+<h2>Define functions, downloads files</h2>
+</div>
+<div id="clean-data-and-prepare-for-geocoding" class="section level2">
+<h2>Clean data and prepare for geocoding</h2>
+<p>Here is a snapshot of the data as it was received <div id="htmlwidget-1" style="width:95%;height:480px;" class="widgetframe html-widget"></div>
+<script type="application/json" data-for="htmlwidget-1">{"x":{"url":"/post/2018-1-16-saaqmtq_files/figure-html//widgets/widget_snapshot.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script></p>
+<p>When preparing the car crash (“accidents”) data, we generate a factor variable of the seriousness (“gravité”) of the crash, from least serious to most serious.</p>
+<table>
+<thead>
+<tr class="header">
+<th>French</th>
+<th>English</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Dommages matériels seulement</td>
+<td>fender bender</td>
+</tr>
+<tr class="even">
+<td>Léger</td>
+<td>minor injuries</td>
+</tr>
+<tr class="odd">
+<td>Grave</td>
+<td>major injuries</td>
+</tr>
+<tr class="even">
+<td>Mortel</td>
+<td>deadly</td>
+</tr>
+</tbody>
+</table>
+<p>To convert the municipality codes to names, I created a tab-separated file from this <a href="https://www.mamrot.gouv.qc.ca/recherche-avancee/fiche/municipalite/">tablea</a> on the provincial government website.</p>
+<p>The dataset contains multiple variables related to the crash location, but it doesnt include the latitude and longitude of the crash. We will need to create a string variable (I called it “location”) that will be passed to the google maps API so that it can return us a latitude and a longitude.</p>
+<p>The geographical variables are as follow. They are never all filled.</p>
+<ul>
+<li>“NO_CIVIQ_ACCDN” , the street civic number<br />
+</li>
+<li>“SFX_NO_CIVIQ_ACCDN”, a suffix to the street number<br />
+</li>
+<li>“RUE_ACCDN”, the road name<br />
+</li>
+<li>“CD_MUNCP”, the city code. Here is a dictionnary to convert city code to name.<br />
+</li>
+<li>“NO_ROUTE” is the road number where the accident happened (numbered roads are typically highways). This seems to be used as a alternative to the road name RUE_ACCDN.<br />
+</li>
+<li>“CD_PNT_CDRNL_ROUTE” is the direction (North, South, East, West (Ouest) ) travelled on the road/highway.<br />
+</li>
+<li>“BORNE_KM_ACCDN” is the milestone number (used on highways and northern gravel roads)</li>
+</ul>
+<p>They also use landmarks (road crossings, etc..) to help locate the accident:</p>
+<ul>
+<li>TP_REPRR_ACCDN is the type of landmark.
+<ul>
+<li>1 means the intersection of two roads,<br />
+</li>
+<li>2 &quot; means “other landmark”<br />
+</li>
+<li>0 means the type is not specified.</li>
+</ul></li>
+<li>“ACCDN_PRES_DE” is the landmark that the type refers to. It can be the road that intersects the road named under “RUE_ACCDN”, a bridge, a school name, etc.<br />
+</li>
+<li>“NB_METRE_DIST_ACCD” is the distance in meters between the landmark and the accident.<br />
+</li>
+<li>“CD_PNT_CDRNL_REPRR” is the direction (North,South, East, Ouest) from the landmark to the accident.</li>
+</ul>
+<p>Since most crashes involving pedestrians and bikes are located in the cities, the data typically contains the street civic number + street name or the name of the two streets at the road crossing. I didnt try to geocode the more complicated cases involving the milestone number.</p>
+<p>Before creating the string that would be passed to the google maps API, I first had to replace a lot of abbreviations using regular expressions. For example, “BD” is actually “Boulevard” and “ST” usually stands for “Saint”. The regular expression tool of choice was , which is the boundary of a word.</p>
+</div>
+<div id="geocoding-using-ggmap" class="section level2">
+<h2>Geocoding using <code>ggmap</code></h2>
+<p>I used the <code>ggmap</code>package to geocode the car crashes through the google maps API. The free version of the API is limited to 2 500 calls per day, so I had to get a premium API key. This project didnt cost me anything since I had some google credit from I dont know when.</p>
+<p>11639 crashes involving bikes occurred in province de Québec between 2011 and 2016.</p>
+<p>I didnt attempt to geocode 213 of them because I wasnt able to generate a satisfying “location” string. These crashes are listed in the appendix.</p>
+<p>The API couldnt return a latitude/longitude for 392 of the 11426 that I tried to geocode. These are also listed in the appendix.</p>
+<!-- #Le reste de l'analyse portera sur les 11034 accidents qui ont été géocodés avec succès. -->
+</div>
+</div>
+<div id="exploratory-data-analysis-pre-geocoding" class="section level1">
+<h1>Exploratory data analysis (pre-geocoding)</h1>
+<p>I generate some tables and graphs here before moving toward our goal of listing the locations with the most crashes. The goal is the make sure that the data is sane and maybe to generate additional questions for future projects.</p>
+<div id="crashes-by-year" class="section level2">
+<h2>Crashes by year</h2>
+<p><img src="/post/2018-1-16-saaqmtq_files/figure-html/evol_temps-1.png" width="960" style="display: block; margin: auto;" /></p>
+</div>
+<div id="crashes-by-month-of-the-year" class="section level2">
+<h2>Crashes by month of the year</h2>
+<p><img src="/post/2018-1-16-saaqmtq_files/figure-html/evol_mois-1.png" width="960" style="display: block; margin: auto;" /></p>
+</div>
+<div id="crashes-by-time-of-the-day" class="section level2">
+<h2>Crashes by time of the day</h2>
+<p><img src="/post/2018-1-16-saaqmtq_files/figure-html/evol_heure-1.png" width="960" style="display: block; margin: auto;" /></p>
+</div>
+<div id="crashes-by-weather-conditions" class="section level2">
+<h2>Crashes by weather conditions</h2>
+<p><img src="/post/2018-1-16-saaqmtq_files/figure-html/CD_COND_METEO-1.png" width="960" style="display: block; margin: auto;" /></p>
+</div>
+<div id="crashes-by-administrative-area" class="section level2">
+<h2>Crashes by administrative area</h2>
+<div id="htmlwidget-2" style="width:95%;height:480px;" class="widgetframe html-widget"></div>
+<script type="application/json" data-for="htmlwidget-2">{"x":{"url":"/post/2018-1-16-saaqmtq_files/figure-html//widgets/widget_evol_regadm.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script>
+</div>
+<div id="crashes-by-city-top-10" class="section level2">
+<h2>Crashes by city (top 10)</h2>
+<div id="htmlwidget-3" style="width:95%;height:480px;" class="widgetframe html-widget"></div>
+<script type="application/json" data-for="htmlwidget-3">{"x":{"url":"/post/2018-1-16-saaqmtq_files/figure-html//widgets/widget_evol_city.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script>
+</div>
+<div id="crashes-by-seriousness" class="section level2">
+<h2>Crashes by seriousness</h2>
+<p><img src="/post/2018-1-16-saaqmtq_files/figure-html/evol_gravite-1.png" width="960" style="display: block; margin: auto;" /></p>
+</div>
+</div>
+<div id="results---geocoded-data" class="section level1">
+<h1>Résults - geocoded data</h1>
+<p>The rest of the analysis only involves the crashes that were successfully geocoded.</p>
+<div id="top-15-locations-with-the-most-crashes" class="section level2 tabset">
+<h2>Top 15 locations with the most crashes</h2>
+<p>The table below shoes the top 15 of the locations with the most crashes involving bikes in province de Québec between 2011 and 2016.</p>
+<div id="htmlwidget-4" style="width:95%;height:480px;" class="widgetframe html-widget"></div>
+<script type="application/json" data-for="htmlwidget-4">{"x":{"url":"/post/2018-1-16-saaqmtq_files/figure-html//widgets/widget_table_most_dangerous_spot.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script>
+<!-- this code only works in a normal .Rmd, not a blog post.  Two bad, it created a top 10 for the 10 worst cities -->
+<!-- ```{r liste_citys, include = F} -->
+<!-- input <- geocode_this %>% count(NAME_MUNCP) %>% arrange(desc(n)) %>% top_n(10)   -->
+<!-- ``` -->
+<!-- ```{r do_i_really_need_this, include=FALSE} -->
+<!-- # Why, oh why do I need this chunk? -->
+<!-- datatable(geocode_this[1,]) -->
+<!-- ``` -->
+<!-- ```{r intersections_par_citys,  results= "asis"} -->
+<!-- # https://stackoverflow.com/questions/39732560/why-does-datatable-not-print-when-looping-in-rmarkdown -->
+<!-- for (i in seq(nrow(input))) { -->
+<!--   current <- input[i, ] -->
+<!--   cat(paste("\n\n### city of ", current$NAME_MUNCP, "##\n")) -->
+<!-- worst10sub <- geocode_this %>%  filter(NAME_MUNCP == current$NAME_MUNCP)  %>% group_by(lat,lon) %>% slice(1:1) %>% ungroup() %>% select(accidents, location, lon, lat)  %>% arrange(desc(accidents))   %>% slice(1:10)   -->
+<!-- print( htmltools::tagList(datatable(data = worst10sub  %>% select(-lat, -lon), -->
+<!--           rownames = F, -->
+<!--           options = list(dom = 't', ordering = F, pageLength=10) ,           -->
+<!--           caption = paste0("Top  10 locations with the most geocoded crashes involving ", type, " for the city of ", current$NAME_MUNCP," between 2011 and 2016)"))%>% -->
+<!--   widgetframe::frameWidget(., width = '95%') -->
+<!-- )) -->
+<!-- } -->
+<!-- ``` -->
+</div>
+</div>
+<div id="results---leaflets" class="section level1">
+<h1>Résults - leaflets</h1>
+<div id="map-of-deadly-crashes" class="section level2">
+<h2>Map of deadly crashes</h2>
+<p>This map shows all the 66deadly crashes involving bikesin province de Québec between 2011-2016 that were successfully geocoded. If multiple crashes occurred at the same spot then we will only see the most recent one. <div id="htmlwidget-5" style="width:95%;height:480px;" class="widgetframe html-widget"></div>
+<script type="application/json" data-for="htmlwidget-5">{"x":{"url":"/post/2018-1-16-saaqmtq_files/figure-html//widgets/widget_map_circles.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script></p>
+</div>
+<div id="heatmap" class="section level2">
+<h2>Heatmap</h2>
+<p>The following heatmap allows us to easily dangerous areas even if the crases didnt occur at the exact coordinnates.</p>
+<div id="htmlwidget-6" style="width:95%;height:480px;" class="widgetframe html-widget"></div>
+<script type="application/json" data-for="htmlwidget-6">{"x":{"url":"/post/2018-1-16-saaqmtq_files/figure-html//widgets/widget_heapmap.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script>
+</div>
+<div id="markercluster" class="section level2">
+<h2>MarkerCluster</h2>
+<p>This last map shows clusters of accidents. If you zoom to the maximum, you will be able to see the details of all crashes that occurrend at the intersection of 3e avenue and 4e rue in Québec city, but also the crash that occurred right next to it at “410 3e avenue”.</p>
+<div id="htmlwidget-7" style="width:95%;height:480px;" class="widgetframe html-widget"></div>
+<script type="application/json" data-for="htmlwidget-7">{"x":{"url":"/post/2018-1-16-saaqmtq_files/figure-html//widgets/widget_spiderfy.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script>
+</div>
+</div>
+<div id="ideas" class="section level1">
+<h1>Ideas</h1>
+<p>The City of Montreal is the largest city in the province. They have released three datasets that I believe could be very useful for pushing this analysis forward.</p>
+<p>The <a href="http://donnees.ville.montreal.qc.ca/dataset/f170fecc-18db-44bc-b4fe-5b0b6d2c7297/resource/6caecdd0-e5ac-48c1-a0cc-5b537936d5f6/download/comptagevelo20162.csv">counts of bike travelling on bike paths</a>, the <a href="http://donnees.ville.montreal.qc.ca/dataset/f170fecc-18db-44bc-b4fe-5b0b6d2c7297/resource/c7d0546a-a218-479e-bc9f-ce8f13ca972c/download/localisationcompteursvelo2015.csv">location of the counters</a>, a <a href="http://donnees.ville.montreal.qc.ca/dataset/5ea29f40-1b5b-4f34-85b3-7c67088ff536/resource/234c8ee4-d9d8-4bb1-b957-3e5cd495a5aa/download/reseaucyclable2017juin2017shp.zip">shapefile of the bike paths</a> and <a href="http://donnees.ville.montreal.qc.ca/dataset/mtl-trajet">telemetry data</a> are all availables.</p>
+<p>It is extremely useful to know at which spot there are the most crashes because this is why the city should work to improve the safety of the users first.<br />
+It would also be very interesting to know at which spots the ratio of crashes per trip is high. Low traffic spots with higher crashes count indicate a dangerous road configuration that shouldnt be replicated.</p>
+<p>That’s it folks!</p>
+<!-- # Appendix -->
+<!-- The program didnt try to geocode the following crashes -->
+<!-- ```{r geocode_notry, echo = F} -->
+<!-- datatable(data = drop_no_word_location, -->
+<!--           rownames = F, -->
+<!--           options = list(dom = 'tp', ordering = F, pageLength=10) ,           -->
+<!--           caption = "Crashes that we didnt attempt to geocode") -->
+<!-- ``` -->
+<!-- Google couldnt geocode the following crashes: -->
+<!-- ```{r geocode_fail, echo = F} -->
+<!-- datatable(data = drop_no_latlon_location, -->
+<!--           rownames = F, -->
+<!--           options = list(dom = 'tp', ordering = F, pageLength=10) ,           -->
+<!--           caption = "Crashes that couldnt be geocoded") -->
+<!-- ``` -->
+</div>
