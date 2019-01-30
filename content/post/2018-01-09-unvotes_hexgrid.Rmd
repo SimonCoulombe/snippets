@@ -3,7 +3,13 @@ title: "Mapping UN Votes on a hex grid"
 author: "Simon Coulombe"
 slug: "unvotes_hexgrid"
 date: 2018-01-09
+output:
+  blogdown::html_page:
+    toc: true
 categories: ["R"]
+thumbnailImage: "/post/2018-01-09-unvotes_hexgrid_files/convert_map_to_hex_grid-1.png"
+thumbnailImagePosition: left
+
 tags: ["R Markdown", "plot", "regression", "hexmapr","unvotes", "rworldmap"]
 ---
   

@@ -4,25 +4,48 @@ author: "Simon Coulombe"
 date: 2017-11-05
 slug: "bike-crashes"
 output:
-  html_document:
-    code_folding: hide
-    number_sections: true
-    theme: simplex
+  blogdown::html_page:
     toc: true
-    toc_depth: 3
-    toc_float:
-      collapsed: false
-      smooth_scroll: true
-    editor_options:   
-      chunk_output_type: console
 categories: ["R"]
 tags: ["sf", "open data", "rstats"]
+thumbnailImage: "/post/2018-1-16-saaqmtq_files/heatmap_crash.png" 
+thumbnailImagePosition: left
 ---
 
 <script src="/rmarkdown-libs/htmlwidgets/htmlwidgets.js"></script>
 <script src="/rmarkdown-libs/pymjs/pym.v1.js"></script>
 <script src="/rmarkdown-libs/widgetframe-binding/widgetframe.js"></script>
 
+<div id="TOC">
+<ul>
+<li><a href="#objective">Objective</a></li>
+<li><a href="#data-sources">Data sources</a></li>
+<li><a href="#packages-used">Packages used</a></li>
+<li><a href="#code">Code</a><ul>
+<li><a href="#define-functions-downloads-files">Define functions, downloads files</a></li>
+<li><a href="#clean-data-and-prepare-for-geocoding">Clean data and prepare for geocoding</a></li>
+<li><a href="#geocoding-using-ggmap">Geocoding using <code>ggmap</code></a></li>
+</ul></li>
+<li><a href="#exploratory-data-analysis-pre-geocoding">Exploratory data analysis (pre-geocoding)</a><ul>
+<li><a href="#crashes-by-year">Crashes by year</a></li>
+<li><a href="#crashes-by-month-of-the-year">Crashes by month of the year</a></li>
+<li><a href="#crashes-by-time-of-the-day">Crashes by time of the day</a></li>
+<li><a href="#crashes-by-weather-conditions">Crashes by weather conditions</a></li>
+<li><a href="#crashes-by-administrative-area">Crashes by administrative area</a></li>
+<li><a href="#crashes-by-city-top-10">Crashes by city (top 10)</a></li>
+<li><a href="#crashes-by-seriousness">Crashes by seriousness</a></li>
+</ul></li>
+<li><a href="#results---geocoded-data">Résults - geocoded data</a><ul>
+<li><a href="#top-15-locations-with-the-most-crashes">Top 15 locations with the most crashes</a></li>
+</ul></li>
+<li><a href="#results---leaflets">Résults - leaflets</a><ul>
+<li><a href="#map-of-deadly-crashes">Map of deadly crashes</a></li>
+<li><a href="#heatmap">Heatmap</a></li>
+<li><a href="#markercluster">MarkerCluster</a></li>
+</ul></li>
+<li><a href="#ideas">Ideas</a></li>
+</ul>
+</div>
 
 <div id="objective" class="section level1">
 <h1>Objective</h1>

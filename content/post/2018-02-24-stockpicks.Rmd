@@ -4,21 +4,13 @@ author: "Simon Coulombe"
 date: 2018-02-24
 slug: "stockpicks"
 output:
-  html_document:
-    code_folding: hide
-    number_sections: true
-    theme: simplex
+  blogdown::html_page:
     toc: true
-    toc_depth: 3
-    toc_float:
-      collapsed: false
-      smooth_scroll: true
-    editor_options:   
-      chunk_output_type: console
 categories: ["R"]
+thumbnailImage: "/post/2018-02-24-stockpicks_files/liste2017.jpg" 
+thumbnailImagePosition: left
 tags: ["stocks", "tidyquant", "rstats"]
 ---
-
 
 
 ```{r setup, include =F}
@@ -49,7 +41,6 @@ The adjusted returns are evaluated between the date the article is released (in 
 This notebook will use the development version of package `tidyquant`to retrieve the data on yahoo and google services, the tidyverse packages for wrangling and plotting and the `DT`package for displaying tables.
 
 ```{r libraries}
-
 #devtools::install_github("business-science/tidyquant")  #development version required for google finance stocks. tq_get(get  = "stock.prices.google",
 library(tidyquant)
 library(tidyverse)

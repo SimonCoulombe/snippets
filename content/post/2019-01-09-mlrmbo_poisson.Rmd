@@ -4,17 +4,8 @@ author: "Simon Coulombe"
 date: 2019-01-09
 slug: "bayesian"
 output:
-  html_document:
-    code_folding: hide
-    number_sections: true
-    theme: simplex
+  blogdown::html_page:
     toc: true
-    toc_depth: 3
-    toc_float:
-      collapsed: false
-      smooth_scroll: true
-    editor_options:   
-      chunk_output_type: console
 categories: ["R"]
 tags: ["bayesian", "optimization", "rstats", "mlrMBO", "caret", "mlr" ,"poisson", "rBayesianOptimization"]
 ---

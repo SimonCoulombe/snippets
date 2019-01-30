@@ -1,0 +1,722 @@
+---
+title: "Federal elections results by poll section part 1 : tidying data"
+author: "Simon Coulombe"
+date: 2018-01-14
+slug: "election_part1"
+output:
+  blogdown::html_page:
+    toc: true
+categories: ["R"]
+tags: ["sf", "open data", "rstats"]
+thumbnailImage: "/post/2018-01-15-elect2015-part1_files/poll_results_my_riding.png"
+thumbnailImagePosition: left
+
+---
+
+
+
+```{r setup, include =F}
+# TODO : valider ceci : Chunk options must be written in one line; no line breaks are allowed inside chunk options;
+# https://yihui.name/knitr/options/
+
+knitr::opts_chunk$set(echo = FALSE,
+                      collapse = TRUE,
+                      warning = FALSE,
+                      error = FALSE,
+                      message = FALSE,
+                      fig.align= "center",
+                      fig.width = 10,
+                      highlight = TRUE,
+                      cache = FALSE,
+                      cache.lazy = FALSE) # fixes long vector not supported quand on cache des gros éléments https://stackoverflow.com/questions/39417003/long-vectors-not-supported-yet-error-in-rmd-but-not-in-r-script
+```
+
+
+
+
+# Intro
+The goal of this project is to study how the voting patterns in the  42nd Canadian General Election of 2015 was influenced by socioeconomic characteristics of voters
+at the poll level.   
+
+The project will be split in two (lengthy) posts.  
+  
+In the first post, we will clean the election results and the election shapefiles and create a map of the results.  Our goal is to create a `sf`data frame that will allow us to recreate this [interactive
+map by CBC](http://ici.radio-canada.ca/nouvelles/special/2016/3/vote-par-bureaux-voisins-election-federale-2015/). The polygons and the results data come as open data respectively from the Open Canada and the Elections Canada websites. 
+
+Data will be downloaded and binded using the `purrr`and `httr`packages.  Data tables will be created using the `DT`package and I will make sure that all the final databases are correct using the `testthat` package.  
+ 
+ In the second post, we will download the Census 2016 data at the dissemination area (DA) level.  Dissemination areas are the smallest geographical unit for which statistics canada releases census data to the public and they have a population of around 400 and 700 persons.  The census data and polygons will be downloaded using the excellent `cancensus` package.  We will  then convert the dissemination areas to polls using  the `sf`package to identify the intersections and distribute voters 
+ from the dissemination areas to the polling division by assuming that the population  density is uniforme across the DA.
+ 
+The relationship between different socioeconomic characteristics and the election results will then be visualised using `ggplot2`, `patchwork`, `leaflet` and `htmltools` packages.
+  
+```{r libs}
+library(sf)
+library(tidyverse)
+#library(lwgeom)
+library(leaflet)
+library(viridis)
+library(purrr)
+library(DT)
+library(leaflet)
+library(httr)
+library(forcats)
+library(htmltools)
+library(widgetframe) # for inserting datatables and leaflets inside the blog 
+download_and_extract_files <- FALSE  #flag to specify if we wantto download the data
+gen_aggregate <- FALSE
+
+```
+
+# Code snippets I will be coming back to this script for, and remaining questions
+
+Here are some of the code snippets I see myself coming back to this notebook for:  
+- union-ing polygons is done using sf::aggregate.  Is there a better way to do it than my 2-steps aggregate detailed below?
+- Finding the intersection area of polygons is done using sf::st_intersection and may require st_buffer or st_make_valid, the latter requires installing RTools.
+- When using read_csv with unknown variable type, read everything as character then convert using type_convert() to prevent wrong guesses and NA's.
+- Use single quotes when dealing with column names that have apostrophes.
+- colorFactor:  pass the string *value* (domain = df$value), but the factor *level* (domain = levels(df$value))
+- color palette for the federal parties
+
+Somes questions surviving this analysis:  
+- Why is applying count() on  sf data.frame so slow?  In this project, I convert is using as.data.frame before hand to speed up the process.
+- union-ing polygons is done using sf::aggregate.  Is there a better way to do it than my 2-steps aggregate detailed below?
+- Are my hypothesis related to the data correct ? What does poll_name == "SVR Group 1/RÉS Groupe 1" mean?
+
+
+
+# Getting the data and deciphering it
+
+## Polling divisions shapefile
+The polling divisions shapefile is downloaded from [Open Canada](http://open.canada.ca/data/en/dataset/157fcaf7-e1f7-4f6d-8fc9-564ec925c1ee).
+
+```{r download_poll_shapefile, cache=T}
+if(download_and_extract_files){
+download.file("http://ftp.geogratis.gc.ca/pub/nrcan_rncan/vector/electoral/2015/pd338.2015.zip",
+               destfile = "temp_files/pd338.2015.zip")
+  utils::unzip("temp_files/pd338.2015.zip", 
+             exdir ="temp_files")
+}
+```
+The zip contains multiple files, including a shapefile (PD_A.shp)  and a data 
+dictionary (Data Dictionary.pdf). A cursory look at the dictionnary gives us the 
+following variable definitions.  
+
+We will see that together, the FED_NUM, PD_NUM and PD_NBR_SFX variables give us the smallest area for which the election results are available.  They represent respectively the Federal Electoral District number, the Polling Division (PD) number and the Polling Division suffix.  
+
+The "ADV_POLL" variable is the number of the Advance Poll where people in the given 
+polling division could vote before election day.  There is no polygon for the advance poll,
+but once could reconstruct it by unioning  the multiple PD that are included in it.  We will not use distribute the votes from the advance poll to the polls that are part of it because this would add more noise.  
+
+The PD_TYPE variable denotes the type of the polling division.  Value "N" is for Normal, "S" for single building polling division and "M" for "Mobile Poll".  As far
+as I can tell, this doesnt have an impact.
+
+![](/post/2018-01-15-elect2015-part1_files/poll_shp_dictionnary.png)
+
+
+I create a "pollid" variable by concatenating FED_NUM and EMRP_NAME, where EMRP_NAME is already available in the shapefile and is the result of concatenating PD_NUM and PD_NBR_SFX.  Since I will be merging the shapefile with the election results, I want to have a single row for each pollid values.  Note that while PD_NBR_SFX is never missing, it is not added to EMRP_NAME if its value is 0.  For example,  if PD_NUM is 10 and PD_NBR_SFX is 0, then EMRP_NAME is "10".  However, if PD_NBR_SFX was 1, then EMRP_NAME would have been "10-1".  
+
+We already have bad news.  The "pollid" variable is not unique:
+
+```{r poll_shp, cache=T}
+poll_shp_bak <- sf::st_read("temp_files/PD_A.shp", 
+                         options = "ENCODING=Windows-1252")  %>%
+   mutate(pollid = str_c(FED_NUM,EMRP_NAME, sep= "_")) 
+
+poll_shp_bak %>% as.data.frame %>% count(pollid) %>% filter(n > 1) %>% 
+  arrange(desc(n)) %>% slice(1:5) %>% 
+  datatable(., 
+            rownames = F,
+            options = list(dom = 't', ordering = F, pageLength=5),
+            caption = "Pollid's  with the most rows in the shapefile")  %>%  
+  widgetframe::frameWidget(., width= "100%") 
+  
+```
+
+What is going on?  Let's look at the case with the most rows.
+
+```{r pollid_with_multiple_polygons, cache=T}
+poll_shp_bak %>% semi_join(
+  poll_shp_bak %>% as.data.frame %>% count(pollid) %>% filter(n > 1) %>% 
+  arrange(desc(n)) %>% slice(1)) %>% 
+  datatable(., 
+            rownames = F,
+            options = list(dom = 't', ordering = F, pageLength=5),
+            caption = "Number of rows in the shapefile for the pollid's with the most rows") %>%  
+  widgetframe::frameWidget(., width= "100%") 
+
+```
+
+They apparently decided to create a row for each of the polygons of this poll.  
+We can "union" all the polygons in the shapefile so that we only have 1 row per pollid.
+This can be done using the sf::aggregate function.
+```{r leaflet_most_polygon}
+leaflet(poll_shp_bak %>% semi_join(
+  poll_shp_bak %>% as.data.frame %>% count(pollid) %>% filter(n > 1) %>% 
+  arrange(desc(n)) %>% slice(1)) %>% st_transform("+proj=longlat +datum=WGS84" ))  %>% 
+  addProviderTiles(providers$Stamen.TonerLines) %>%
+  addProviderTiles(providers$Stamen.TonerLabels) %>%
+  addPolygons(
+    label=  ~ paste0(pollid),
+    color = "red",
+    weight =1,
+    fillColor = "red",
+    fillOpacity = 0.8) %>%
+  addLegend("bottomleft", title = "Polygons for the pollid with the most rows", color = "transparent", labels = "")%>%  
+  widgetframe::frameWidget(.)
+  
+```
+
+I had to do the aggregation  process in two steps because I couldnt find a way to do it in 
+one step without generating huge files that would break my RAM.  
+
+Instead, I created an aggregated  sf data.frame after dropping all variables.  
+Only then would the variables for the polling divisions be added.  I had to drop the variables related to the address and name of the mobile poll buildings because each building in the mobile poll had its own polygon with its own address and building name.
+
+```{r aggregate_poll_polygons, cache=T}
+if(gen_aggregate){
+poll_shp_agg <- aggregate(x = poll_shp_bak %>% select(),
+                          by = list(poll_shp_bak %>% pull(pollid)),
+                          FUN = function(x) x)
+
+## can't keep BLDG_NAMEF , as each building of the mobile poll has its own line 
+#with a different building name
+poll_shp_vars <- poll_shp_bak %>% 
+  as.data.frame %>% 
+  select(FED_NUM, PD_NUM, PD_NBR_SFX, EMRP_NAME, POLL_NAME, pollid, PD_TYPE, ADV_POLL) %>%
+  distinct()
+poll_shp <- poll_shp_agg %>% rename(pollid = Group.1) %>%
+  left_join(poll_shp_vars)
+save(poll_shp, file="temp_files/poll_shp.rdata")
+} else {load("temp_files/poll_shp.rdata")}
+```
+Below is test made using `testthat` that ensures that poll_shp, our final sf data.frame, only has 1 row per pollid.
+
+```{r testthat_poll_shp_unique_pollid, cache=T}
+ testthat::test_that(" poll_shp : No pollid has more than 1 row", {
+   testthat::expect_equal(poll_shp %>% as.data.frame %>% count(pollid) %>% filter(n > 1) %>% count()  %>% pull(nn), 
+                          0)})
+```
+
+
+## Election results at the poll level
+
+### The data source
+Getting this data to be compatible with the shapefile (one row per pollid) turned
+out to be much more of a pain than I first thought.  
+
+The data we use is downloaded from  [Election Canada website](http://www.elections.ca/content.aspx?section=res&dir=rep/off/42gedata&document=byed&lang=e) 
+rather than the Open Canada website.  There are two formats, with "format 2" being
+tidier.
+
+There is one csv for each riding, and then there is 1 row per poll station*candidate as per this [data dictionnary](http://www.elections.ca/content.aspx?section=res&dir=rep/off/42gedata&document=pollresults&lang=e):
+
+Field Name |Description|
+|---------------------|-----------------------------------------------------|
+Electoral District Number |The electoral district number.
+Electoral District Name_English |The English name of the electoral district.
+Electoral District Name_French |The French name of the electoral district.
+Polling Station Number |The number assigned to the polling station,
+for example: 3, 45A, 48-3, 601.|
+Polling Station Name |A name that generally represents the locality of the polling division boundary.
+Void Poll Indicator |Indicates that a poll exists but has no electors.
+No Poll Held Indicator |Indicates that the returning officer intended to hold this poll, but unforeseen circumstances prevented it.
+Merge With |Indicates the number of the polling station with which the results of this poll were merged.
+Rejected Ballots for Polling Station |The number of rejected ballots at this polling station.
+Electors for Polling Station |The number of electors on the list of electors for this polling station.
+Candidate’s Family Name |The family name of the candidate.
+Candidate’s Middle Name |The middle name of the candidate.
+Candidate’s First Name |The first name of the candidate.
+Political Affiliation Name_English |The short-form English name of the candidate’s political affiliation.
+Political Affiliation Name_French |The short-form French name of the candidate’s political affiliation.
+Incumbent Indicator |“Y” if candidate was the incumbent, “N” otherwise.
+Elected Candidate Indicator |“Y” if candidate was elected, “N” otherwise.
+Candidate Poll Votes Count |The number of valid votes the candidate obtained at this polling station.
+
+If you pay attention more attention than I did at first, you will notice that 
+the "Polling Station Number" is not the same thing than the PD_NUM in the shapefile.
+"48-3" is actually the EMRP_NAME.  Also, what is the letter doing in "45A"?  This
+appears to be because polls were sometimes broken down in "subpools".
+
+The "Merge With" column is another indicator of incoming trouble.  When this column
+is not missing the votes and rejected ballots for the pool (or subpool) are 0.  My
+best bet is that pools (or subpools) were sometimes merged with other pools before the ballots were counted.
+
+
+### a painful alternative source (keep away!)
+The first dataset that I found is the one on the [Open Canada](http://open.canada.ca/data/en/dataset/6a919bd5-491e-466e-a279-00cbf7a8e02c) website.  To say that it isnt tidy data is an euphemism.  
+
+Like "format 2", there are  over 300 CSV files, one per riding. However, we have 1 single row per polling station,
+instead of one per polling station times the number of candidates.  Instead, there is one column for each candidate, 
+such as "Lorraine E. Barnett" in riding 10001 in Newfoundland.  
+
+If you want to map the results by party, like I do, you would have to fetch the information 
+in a second CSV file that records the candidate information. This CSV file, named 
+table_tableau12.csv has a column "Candidate".  However, the content of this column
+is  NOT the name of the candidate as shown in the first csv, but rather the concatenation 
+of  candidate and his affiliation.  The record for Lorraine e. Barnett reads as 
+follow : "Lorraine E. Barnett Conservative/Conservateur".  Sometimes, there would 
+be double asterisks included between the name of the candidate and the party, 
+such as for "Judy M. Foote ** Liberal/Libéral" in riding 10002.  I initally used 
+regular expressions to remove all the 25-ish possible affiliations, then strip 
+the trailing space and the eventual "**" to be able to separate the candidate name 
+from the party and merge it back to the results-by-poll table.   
+
+Then, I realised that Format 2 existed outside the Open Data portal.  I was not impressed.
+
+### Downloading election results at the poll level
+
+
+Since there are 328 district and one CSV file for each of them, I used the `map`
+function to generate a list of each district and download them. 
+
+I first tried to download them using download.file() but I got an http error.  I believe this is because the government doesnt let robots download from its website.  The solution was to use the  `httr::GET` function, which can fake being a web browser to download the files.
+
+```{r download_election_results}
+
+
+pr <- c(10,11,12,13,24,35,46,47,48, 59, 60, 61, 62 )  # list of provinces
+nb <- c(7, 4, 11, 10, 78, 121, 14, 14,34, 42, 1, 1, 1) # how many districts in each province
+maps <- data.frame(pr, nb)
+districts <- map2(maps$pr, 
+                  maps$nb,
+                  ~ paste0(.x, 
+                           stringr::str_pad(seq(1:.y), 3, pad=0))) %>%
+             unlist() 
+districts <- data.frame(districts ) %>% 
+  mutate(districts = as.numeric(as.character(districts)))
+
+if(download_and_extract_files){
+  purrr::map( districts$districts ,
+              ~httr::GET(
+                 url = paste0(
+                   "http://www.elections.ca/res/rep/off/ovr2015app/41/data_donnees/",
+                   "pollresults_resultatsbureau",
+                   .x,
+                   ".csv"),
+                 write_disk(paste0(
+                   "temp_files//pollresults_resultatsbureau", 
+                   .x ,
+                   ".csv"), 
+                   overwrite = T),
+                 user_agent("Mozilla/5.0")))
+}  
+```
+
+### Reading and EDA of  poll results
+
+I read all the csv files and concatenated them using `purrr:map_df`.  I ran into
+a few issues:
+
+- a character variable ("Polling Station Number", or "poll_merged_with") is wrongly guessed as integer. This means that some polling station numbers, such as 142A and 142B in district 24015 would be incorrectly read as NA.  This was solved by reading all variables as characters then  converting them using type_convert()
+- Depending on which of the 328 district is being read, the columns poll_num and 
+poll_merged_with could be integer or character. I mutate both of them to characters before binding the rows using map_df().
+- Column names with apostrophes, such as `Candidate’s Middle Name/Second prénom du candidat`, need to be surrounded by single quotes when wrangling them using `dplyr` to prevent errors.
+- Letters are sometimes appended as suffix to the "polling station number" or
+the "poll merged with".  I couldnt find an explanation in the documentation, but I believe these are "subpools"
+- Some polls are named "SVR Group 1/RÉS Groupe 1" and "SVR Group 2 /RÉS Groupe 2",
+I am not sure how to deal with them, so I ended up filtering them out.  
+
+
+
+```{r read_poll_results, cache = TRUE} 
+
+poll_results_bak2 <- purrr::map_df( districts$districts ,
+                                    ~ read_csv(paste0("temp_files/pollresults_resultatsbureau", .x ,".csv"),
+                               col_types = cols(.default = col_character()),
+                               locale = locale(encoding = "UTF-8")
+                    ) %>%
+                      type_convert() %>%
+                      rename(
+                        FED_NUM = "Electoral District Number/Numéro de circonscription",
+                        dist_name = "Electoral District Name_English/Nom de circonscription_Anglais",
+                        dist_nom = "Electoral District Name_French/Nom de circonscription_Français",
+                        poll_num = "Polling Station Number/Numéro du bureau de scrutin",
+                        poll_name = "Polling Station Name/Nom du bureau de scrutin",
+                        poll_void_flag = "Void Poll Indicator/Indicateur de bureau supprimé",
+                        no_poll_flag = "No Poll Held Indicator/Indicateur de bureau sans scrutin",
+                        poll_merged_with = "Merge With/Fusionné avec",
+                        poll_ballot_reject = "Rejected Ballots for Polling Station/Bulletins rejetés du bureau",
+                        poll_electors = "Electors for Polling Station/Électeurs du bureau",
+                        cand_last_name = `Candidate’s Family Name/Nom de famille du candidat`,
+                        cand_middle_name= `Candidate’s Middle Name/Second prénom du candidat`,
+                        cand_first_name = `Candidate’s First Name/Prénom du candidat`,
+                        party = "Political Affiliation Name_English/Appartenance politique_Anglais",
+                        parti = "Political Affiliation Name_French/Appartenance politique_Français",
+                        incumbent_flag = "Incumbent Indicator/Indicateur_Candidat sortant",
+                        elected_flag = "Elected Candidate Indicator/Indicateur du candidat élu",
+                        votes = "Candidate Poll Votes Count/Votes du candidat pour le bureau") %>%
+                      mutate(
+                        cand = str_c(
+                          str_replace_na(cand_first_name,replacement = ""),
+                          str_replace_na(cand_middle_name,replacement = ""),
+                          str_replace_na(cand_last_name,replacement = ""),
+                          sep =" "),
+                        poll_num = as.character(poll_num),
+                        poll_merged_with = as.character(poll_merged_with),
+                        parti2 = case_when(
+                          parti == "Libéral" ~ "libéral",
+                          parti == "Conservateur" ~ "conservateur",
+                          parti == "NPD-Nouveau Parti démocratique" ~ "npd",
+                          parti == "Parti Vert" ~ "vert",
+                          parti == "Bloc Québécois" ~ "bloc",
+                          TRUE ~ "autre"  ),
+                        incumbent_flag = case_when(
+                          incumbent_flag == "Y" ~ 1,
+                          incumbent_flag == "N" ~ 0),
+                        elected_flag = case_when(
+                          elected_flag == "Y" ~ 1,
+                          elected_flag == "N" ~ 0)))  %>%
+  mutate(EMRP_NAME = str_extract(poll_num,"^[\\d-]+" ),  #select digits and "-", no letters
+         pollid = str_c(FED_NUM,EMRP_NAME, sep= "_"),
+         PD_NUM = as.numeric(str_extract(EMRP_NAME, "^\\d+"))  , #tous les chiffres jusqu'à un nom chiffre (donc avant le "-")
+         PD_NBR_SFX = ifelse(
+           str_detect(EMRP_NAME, "-") == FALSE, 0, # si pas de "-", alors 0
+           as.numeric(str_extract(EMRP_NAME, "\\d+$"))),  # si présence de "-", alors tous les chiffres parès le -
+         poll_merged_with_bak = poll_merged_with,
+         poll_merged_with = str_extract(poll_merged_with,"^[\\d-]+" )) 
+
+
+poll_results_bak <- poll_results_bak2 %>%
+  filter(poll_name != "SVR Group 1/RÉS Groupe 1",
+         poll_name != "SVR Group 2/RÉS Groupe 2")
+```
+
+Trailing letters in the poll name are a common occurrence: 
+`r poll_results_bak %>% filter(EMRP_NAME != poll_num) %>% count() %>% pull(n)` 
+of the 
+`r poll_results_bak %>% count() %>% pull(n) ` 
+observations have a trailing letter in the poll name.   
+
+- Each "subpoll" has a different number of electors.  
+- Some of them may subpolls may or may not have been merged to another poll. (ex1 to 3)  
+- Some polls have had their subpolls merged to multiple different polls. (ex4)  
+- A poll doesnt have to be broken into subpools to be merged to another poll. (ex5)
+```{r subpools_doesnt_implymerge}
+
+z <-  poll_results_bak %>% filter(EMRP_NAME != poll_num) %>% group_by (FED_NUM, EMRP_NAME) %>%
+  summarise(max_merged = max(!is.na(poll_merged_with)),
+            min_merged = min(!is.na(poll_merged_with))) %>%
+  ungroup() %>%
+  mutate(same_merged = ifelse(max_merged == min_merged,1,0))
+
+poll_results_bak %>% semi_join(z %>% filter(same_merged ==1, max_merged==1) %>% slice(1))  %>%
+  datatable(., 
+            rownames = F,
+            options = list(dom = 'tp', ordering = F),
+            caption = "Example 1 / 5: all subpolls have been merged to another poll") %>%  
+  widgetframe::frameWidget(., width= "100%") 
+
+
+poll_results_bak %>% semi_join(z %>% filter(same_merged ==0) %>% slice(1)) %>%
+  datatable(., 
+            rownames = F,
+            options = list(dom = 'tp', ordering = F),
+            caption = "Example 2 / 5: some subpolls have been merged to another poll")  %>%  
+  widgetframe::frameWidget(., width= "100%") 
+
+poll_results_bak %>% semi_join(z %>% filter(same_merged ==1, max_merged==0) %>% slice(1)) %>%
+  datatable(., 
+            rownames = F,
+            options = list(dom = 't', ordering = F),
+            caption = "Example 3 / 5 : no subpoll has been merged to another poll")  %>%  
+  widgetframe::frameWidget(., width= "100%") 
+
+
+z <-  poll_results_bak %>% filter(EMRP_NAME != poll_num, !is.na(poll_merged_with)) %>% 
+  group_by (FED_NUM, EMRP_NAME) %>% select(poll_merged_with) %>%
+  distinct() %>% count() %>% ungroup() %>% filter(n>1)
+
+
+poll_results_bak %>% semi_join(z %>% slice(1))   %>%
+  datatable(., 
+            rownames = F,
+            options = list(dom = 'tp', ordering = F, pageLength= 50),
+            caption = "Example 4 / 5: subpolls merged to multiple polls") %>%  
+  widgetframe::frameWidget(., width= "100%") 
+
+z <-  poll_results_bak %>% filter(EMRP_NAME == poll_num) %>% group_by (FED_NUM, EMRP_NAME) %>%
+  summarise(max_merged = max(!is.na(poll_merged_with)),
+            min_merged = min(!is.na(poll_merged_with))) %>%
+  ungroup() %>%
+  mutate(same_merged = ifelse(max_merged == min_merged,1,0))
+
+poll_results_bak %>% semi_join(z %>% filter(same_merged ==1, max_merged==1) %>% slice(1))  %>%
+  datatable(., 
+            rownames = F,
+            options = list(dom = 'tp', ordering = F),
+            caption = "Example 5 / 5: Poll with no subpoll can be merged to another poll") %>%  
+  widgetframe::frameWidget(., width= "100%") 
+
+rm(z)
+```
+
+Another important note mentionned before:  when a poll is merged to another poll, the number of votes for each candidates and the number of rejected ballots is set to 0.  This leads me to believe that they simply took the box containing the ballots and mixed it with the box from another poll before counting it.
+```{r merged_means_no_vote_data }
+poll_results_bak %>% 
+  filter(!is.na(poll_merged_with)) %>% 
+  summarise(poll_ballot_reject= sum(poll_ballot_reject),
+            votes = sum(votes)) %>%
+    datatable(., 
+            rownames = F,
+            options = list(dom = 't', ordering = F, pageLength=5),
+            caption = "Sum of rejected ballots and votes for all merged polls is 0.")  %>%  
+  widgetframe::frameWidget(., width= "100%") 
+  
+```
+
+### Cleaning the poll results
+Our desired output is a data frame containing one row per poll id, defined as the concatenation of FED_NUM and EMRP_NAME.   
+
+For each poll, we want to know the  percentage of the total vote that was allocated to each of the main partys: Libéral, Convervateur, NPD, Bloc Québécois and Green Party.
+
+I used a 2 step process: 
+
+1 -  If the poll was not entirely merged to some other poll, then I use the data from the remaining subpoll(s) to know the vote distribution of that poll.  
+2 - If the poll was entirely merged to other poll(s), then I fetch the results of the poll where the most electors were sent.
+
+```{r results_for_poll_not_entirely_merged}
+poll_rejects <- poll_results_bak %>% 
+  filter(is.na(poll_merged_with))%>%
+  select(
+    FED_NUM, dist_name, EMRP_NAME,
+    poll_ballot_reject) %>%
+  distinct() %>% #avant ce distinct on a des lignes multiples( 1 ligne par candidat x sous-poll (genre 10001-34A et 10001-34B..)
+  group_by(FED_NUM, dist_name, EMRP_NAME) %>%
+  summarise(poll_ballot_reject = sum(poll_ballot_reject)) %>%
+  ungroup()
+
+poll_votes  <- poll_results_bak %>% 
+  filter(is.na(poll_merged_with))%>%
+  select(FED_NUM, dist_name, EMRP_NAME,   cand, votes) %>%
+  group_by(FED_NUM, dist_name, EMRP_NAME) %>%
+  summarise(poll_votes = sum(votes)) %>%
+  ungroup()
+
+# 1 row per poll (FED_NUM * EMRP_NAME)
+results_poll_unmerged <- poll_rejects %>%
+  left_join(poll_votes) %>%
+  ungroup()   
+rm(poll_votes, poll_rejects)
+
+
+# 1 row per candidate-poll
+results_poll_cand_unmerged  <- poll_results_bak %>%
+  filter(is.na(poll_merged_with)) %>%
+  select(FED_NUM, EMRP_NAME, cand, votes) %>%
+  group_by(FED_NUM, EMRP_NAME, cand) %>%
+  summarise(votes = sum(votes)) %>%
+  ungroup()
+
+testthat::test_that(" results_poll_cand_unmerged : 1 seule ligne par candidate-FED_NUM- EMRP-nae", {
+  testthat::expect_equal(results_poll_cand_unmerged %>% count(FED_NUM, EMRP_NAME,  cand) %>% filter(n > 1) %>% 
+                           count()  %>% pull(nn), 
+                         0)})
+
+#1 row per candidate 
+cand  <- poll_results_bak %>%  ## mais non pas bak2
+  select(FED_NUM, cand, incumbent_flag, elected_flag, 
+                    party, parti, parti2, votes) %>%
+  group_by(FED_NUM, cand, incumbent_flag, elected_flag, 
+           party, parti, parti2) %>%
+  summarise(cand_votes = sum(votes)) %>%
+  ungroup() 
+
+testthat::test_that(" cand : 1 seule ligne par cand", {
+  testthat::expect_equal(cand %>% count(FED_NUM, cand) %>% filter(n > 1) %>% 
+                           count()  %>% pull(nn), 
+                         0)})
+
+# 1 row per party-poll
+
+result_parti_poll <- results_poll_cand_unmerged %>% 
+  left_join(cand %>% select(cand, FED_NUM, parti2)) %>%  #candidate names are not unique canada wide, but they are unique at the district level
+  group_by(FED_NUM, EMRP_NAME, parti2) %>%
+  summarise(votes = sum(votes)) %>%
+  ungroup() %>%
+  left_join(results_poll_unmerged %>% 
+              select(FED_NUM, EMRP_NAME,  poll_votes)) %>%
+  mutate(pct_votes = 100 * votes / poll_votes) %>%
+  select(FED_NUM, EMRP_NAME,  parti2,  votes, pct_votes)
+
+testthat::test_that(" result_parti_poll: 1 seule ligne par parti-poll", {
+  testthat::expect_equal(result_parti_poll %>% count(FED_NUM, EMRP_NAME, parti2) %>% filter(n > 1) %>% 
+                           count()  %>% pull(nn), 
+                         0)})
+
+# 1 row per poll
+poll_winner <- result_parti_poll %>% 
+  group_by(FED_NUM, EMRP_NAME) %>%
+  slice(which.max(votes)) %>%
+  ungroup() %>%
+  #mutate(winner = as_factor(parti2)) %>%
+  mutate(winner =parti2) %>%
+  select(FED_NUM, EMRP_NAME, winner, pct_winner = pct_votes) 
+
+# 1 row per poll
+
+result_poll_parti_wide_unmerged <- 
+  results_poll_unmerged %>% 
+  left_join(poll_winner) %>%
+  left_join(
+    result_parti_poll %>%  
+      select(FED_NUM, EMRP_NAME, parti2, pct_votes) %>%
+      spread(key= parti2, value = pct_votes) %>%
+      mutate(
+        vert = case_when(
+          !is.na(vert) ~ vert,
+          !is.na(libéral) ~ 0,
+          TRUE ~ vert),
+        bloc = case_when(
+          !is.na(bloc) ~ bloc,
+          !is.na(libéral) ~ 0,
+          TRUE ~ bloc),        
+        autre = case_when(
+          !is.na(autre) ~ autre,
+          !is.na(libéral) ~ 0,
+          TRUE ~ autre)))
+
+rm(poll_winner)
+```
+
+
+```{r results_for_poll_entirely_merged}
+list_entirely_merged_polls <-  poll_results_bak  %>% select(FED_NUM, EMRP_NAME) %>%
+  anti_join(poll_results_bak  %>% 
+              filter(is.na(poll_merged_with)) %>%
+              select(FED_NUM, EMRP_NAME)) %>%
+  distinct()
+
+# for the entirely merged polls, fetch the results of the poll where it sent
+# the most electors
+results_entirely_merged_polls <- poll_results_bak %>% 
+  inner_join(list_entirely_merged_polls) %>% 
+  select(FED_NUM, EMRP_NAME, poll_electors, poll_merged_with) %>%
+  group_by(FED_NUM, EMRP_NAME) %>%
+  arrange(desc(poll_electors)) %>%
+  slice(1) %>%
+  ungroup() %>%
+  select(FED_NUM , EMRP_NAME, poll_merged_with)  %>%
+  left_join(result_poll_parti_wide_unmerged %>% 
+              select(FED_NUM, 
+                     poll_merged_with = EMRP_NAME,
+                     everything()))
+
+```
+
+
+```{r combine_both_steps}
+poll_results <- bind_rows(result_poll_parti_wide_unmerged, 
+                          results_entirely_merged_polls) %>%
+  mutate(pollid = str_c(FED_NUM,EMRP_NAME, sep= "_"))
+
+ testthat::test_that(" poll_results : No pollid has more than 1 row", {
+   testthat::expect_equal(poll_results %>% count(pollid) %>% filter(n > 1) %>% count()  %>% pull(nn), 
+                          0)})
+```
+
+How good is my link between poll_results and poll_shp?
+
+Amazingly, we have results for ALL polls defined in the shapefile!  
+But what are these polls for which we dont have a shape?  Mostly, this is the advance poll (numbers 600-630) for which we didnt expect to have a shapefile.  There are a few exceptions.  For example, why is there no PD_NUM==4 in FED_NUM 35058 in the shape file?    
+  
+The really important thing for our purpose is to have results covering the whole map of Canada, which is the case.
+
+```{r}
+shp_not_results <- poll_shp %>% anti_join(poll_results)
+results_not_shp <- poll_results %>% anti_join(poll_shp)
+both <-  poll_results %>% inner_join(poll_shp)
+  
+results_not_shp %>% filter(EMRP_NAME==4)
+results_not_shp %>% count(EMRP_NAME) %>% arrange(desc(n)) 
+```
+
+# Conclusion
+Our link is pretty good. The final output of this notebook is a data frame named poll_final, which is basically the the initial shapefile to which we added the voting results.  I exported it as a shapefile using sf::st_write and put it [here on google drive](https://drive.google.com/open?id=12sOpAdD30myIfEqrHcR1Fmo6IEhfAYO-).
+
+Our results are the same than CBC, with one improvement: where they simply allowed the merged  pools to be "not applicable", we fetched the results from the poll it was merged to.  I haven't checked because I dropped the elector variable, but I suppose that CBC didnt some up the number of electors from the "mergee" and the "merged" in its shapefile.  This may lead to an exagerated participation rate, where the votes of 2+ polling divisions are divided by the number of electors from a single polling division.  
+
+Below are some leaflets generated using this final data set
+```{r leaflet_my_riding}
+
+poll_final <- poll_shp %>% 
+  left_join(poll_results) %>%  
+  st_transform("+proj=longlat +datum=WGS84" )
+
+save(poll_final, file= "temp_files/poll_final.rdata")
+
+st_write(poll_final, "temp_files/poll_final.shp",delete_dsn = TRUE)
+
+myfednum <- cand %>% filter(str_detect(cand,"Lightbound")) %>% pull(FED_NUM) 
+
+mypal <- leaflet::colorFactor(
+  palette= c("#D71920","#1A4782", "#F37021", "#33B2CC", "#3D9B35","#FECE0A"),
+  domain = c("libéral", "conservateur", "npd", "bloc", "vert", "autre"),
+  ordered =T
+)
+# source https://www.reddit.com/r/CanadaPolitics/comments/3qibmy/resource_hex_codes_for_all_party_colours/
+
+text <- "<b>FED_NUM %s</b><hr noshade size='1'/> <br> EMRP_NAME: %s<br> Winner: %s  %s <br> libéral %s <br> conservateur %s <br> npd %s <br> bloc %s <br> vert %s <br> autre %s  <br>poll merged with: %s"
+
+
+ leaflet( poll_final  %>% filter( FED_NUM == myfednum) ) %>%
+  addProviderTiles(providers$Stamen.TonerLines)  %>%
+  addProviderTiles(providers$Stamen.TonerLabels) %>%
+  addPolygons(
+
+    popup =  ~sprintf(
+                text,
+                htmlEscape(FED_NUM),
+                htmlEscape(EMRP_NAME),
+                 htmlEscape(winner),
+                 htmlEscape(round(pct_winner, digits =1)),
+                 htmlEscape(round(libéral, digits =1)),
+                 htmlEscape(round(conservateur, digits =1)),
+                 htmlEscape(round(npd, digits =1)),
+                 htmlEscape(round(bloc, digits =1)),
+                 htmlEscape(round(vert, digits =1)),
+                 htmlEscape(round(autre, digits =1)),
+                htmlEscape(poll_merged_with)),
+      highlightOptions = highlightOptions(color = "white", weight = 3,
+      bringToFront = TRUE),
+    color = "black",
+    weight =1,
+    fillColor = ~mypal(winner),
+    fillOpacity = 0.5) %>%
+  addLegend("bottomleft", title = "Poll results for my riding", color = "transparent", labels = "")%>%  
+  widgetframe::frameWidget(.)
+```
+
+
+Here is a leaflet of the poll results that were merged and for which the results were
+pull from the "mergee".  
+```{r leaflet_poll_merged}
+
+ leaflet( poll_final  %>% filter(!is.na(poll_merged_with)) ) %>%
+  addProviderTiles(providers$Stamen.TonerLines)  %>%
+  addProviderTiles(providers$Stamen.TonerLabels) %>%
+  addPolygons(
+
+    popup =  ~sprintf(
+                text,
+                htmlEscape(FED_NUM),
+                htmlEscape(EMRP_NAME),
+                 htmlEscape(winner),
+                 htmlEscape(round(pct_winner, digits =1)),
+                 htmlEscape(round(libéral, digits =1)),
+                 htmlEscape(round(conservateur, digits =1)),
+                 htmlEscape(round(npd, digits =1)),
+                 htmlEscape(round(bloc, digits =1)),
+                 htmlEscape(round(vert, digits =1)),
+                 htmlEscape(round(autre, digits =1)),
+                htmlEscape(poll_merged_with)),
+      highlightOptions = highlightOptions(color = "white", weight = 3,
+      bringToFront = TRUE),
+    color = "black",
+    weight =1,
+    fillColor = ~mypal(winner),
+    fillOpacity = 0.5) %>%
+  addLegend("bottomleft", title = "Poll results for entirely merged ridings", color = "transparent", labels = "")%>%  
+  widgetframe::frameWidget(.)
+```
+

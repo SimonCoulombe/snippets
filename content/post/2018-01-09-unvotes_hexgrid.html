@@ -3,7 +3,13 @@ title: "Mapping UN Votes on a hex grid"
 author: "Simon Coulombe"
 slug: "unvotes_hexgrid"
 date: 2018-01-09
+output:
+  blogdown::html_page:
+    toc: true
 categories: ["R"]
+thumbnailImage: "/post/2018-01-09-unvotes_hexgrid_files/convert_map_to_hex_grid-1.png"
+thumbnailImagePosition: left
+
 tags: ["R Markdown", "plot", "regression", "hexmapr","unvotes", "rworldmap"]
 ---
 
@@ -11,6 +17,13 @@ tags: ["R Markdown", "plot", "regression", "hexmapr","unvotes", "rworldmap"]
 <script src="/rmarkdown-libs/pymjs/pym.v1.js"></script>
 <script src="/rmarkdown-libs/widgetframe-binding/widgetframe.js"></script>
 
+<div id="TOC">
+<ul>
+<li><a href="#get-the-votes-and-map-them-on-the-world-map">Get the votes and map them on the world map</a></li>
+<li><a href="#convert-the-world-map-to-a-hex-grid-and-map-the-votes">Convert the world map to a hex grid and map the votes</a></li>
+<li><a href="#conclusion">Conclusion</a></li>
+</ul>
+</div>
 
 <p>EDIT 2019: hexmapr has been renamed to geogrid. Also calculate_cell_size() has been deprecated to become calculate_grid() Today, David Robinson (<span class="citation">@drob</span>) tweeted about his unvotes package which contains the history of the United Nations General Assembly voting :<br />
 {{% tweet "950741750112555010" %}}</p>

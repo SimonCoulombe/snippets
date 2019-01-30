@@ -1,0 +1,282 @@
+---
+title: "Federal elections results by poll section part 1 : tidying data"
+author: "Simon Coulombe"
+date: 2018-01-14
+slug: "election_part1"
+output:
+  blogdown::html_page:
+    toc: true
+categories: ["R"]
+tags: ["sf", "open data", "rstats"]
+thumbnailImage: "/post/2018-01-15-elect2015-part1_files/poll_results_my_riding.png"
+thumbnailImagePosition: left
+
+---
+
+<script src="/rmarkdown-libs/htmlwidgets/htmlwidgets.js"></script>
+<script src="/rmarkdown-libs/pymjs/pym.v1.js"></script>
+<script src="/rmarkdown-libs/widgetframe-binding/widgetframe.js"></script>
+
+<div id="TOC">
+<ul>
+<li><a href="#intro">Intro</a></li>
+<li><a href="#code-snippets-i-will-be-coming-back-to-this-script-for-and-remaining-questions">Code snippets I will be coming back to this script for, and remaining questions</a></li>
+<li><a href="#getting-the-data-and-deciphering-it">Getting the data and deciphering it</a><ul>
+<li><a href="#polling-divisions-shapefile">Polling divisions shapefile</a></li>
+<li><a href="#election-results-at-the-poll-level">Election results at the poll level</a><ul>
+<li><a href="#the-data-source">The data source</a></li>
+<li><a href="#a-painful-alternative-source-keep-away">a painful alternative source (keep away!)</a></li>
+<li><a href="#downloading-election-results-at-the-poll-level">Downloading election results at the poll level</a></li>
+<li><a href="#reading-and-eda-of-poll-results">Reading and EDA of poll results</a></li>
+<li><a href="#cleaning-the-poll-results">Cleaning the poll results</a></li>
+</ul></li>
+</ul></li>
+<li><a href="#conclusion">Conclusion</a></li>
+</ul>
+</div>
+
+<div id="intro" class="section level1">
+<h1>Intro</h1>
+<p>The goal of this project is to study how the voting patterns in the 42nd Canadian General Election of 2015 was influenced by socioeconomic characteristics of voters at the poll level.</p>
+<p>The project will be split in two (lengthy) posts.</p>
+<p>In the first post, we will clean the election results and the election shapefiles and create a map of the results. Our goal is to create a <code>sf</code>data frame that will allow us to recreate this <a href="http://ici.radio-canada.ca/nouvelles/special/2016/3/vote-par-bureaux-voisins-election-federale-2015/">interactive map by CBC</a>. The polygons and the results data come as open data respectively from the Open Canada and the Elections Canada websites.</p>
+<p>Data will be downloaded and binded using the <code>purrr</code>and <code>httr</code>packages. Data tables will be created using the <code>DT</code>package and I will make sure that all the final databases are correct using the <code>testthat</code> package.</p>
+<p>In the second post, we will download the Census 2016 data at the dissemination area (DA) level. Dissemination areas are the smallest geographical unit for which statistics canada releases census data to the public and they have a population of around 400 and 700 persons. The census data and polygons will be downloaded using the excellent <code>cancensus</code> package. We will then convert the dissemination areas to polls using the <code>sf</code>package to identify the intersections and distribute voters from the dissemination areas to the polling division by assuming that the population density is uniforme across the DA.</p>
+<p>The relationship between different socioeconomic characteristics and the election results will then be visualised using <code>ggplot2</code>, <code>patchwork</code>, <code>leaflet</code> and <code>htmltools</code> packages.</p>
+</div>
+<div id="code-snippets-i-will-be-coming-back-to-this-script-for-and-remaining-questions" class="section level1">
+<h1>Code snippets I will be coming back to this script for, and remaining questions</h1>
+<p>Here are some of the code snippets I see myself coming back to this notebook for:<br />
+- union-ing polygons is done using sf::aggregate. Is there a better way to do it than my 2-steps aggregate detailed below? - Finding the intersection area of polygons is done using sf::st_intersection and may require st_buffer or st_make_valid, the latter requires installing RTools. - When using read_csv with unknown variable type, read everything as character then convert using type_convert() to prevent wrong guesses and NA’s. - Use single quotes when dealing with column names that have apostrophes. - colorFactor: pass the string <em>value</em> (domain = df<span class="math inline">\(value), but the factor *level* (domain = levels(df\)</span>value)) - color palette for the federal parties</p>
+<p>Somes questions surviving this analysis:<br />
+- Why is applying count() on sf data.frame so slow? In this project, I convert is using as.data.frame before hand to speed up the process. - union-ing polygons is done using sf::aggregate. Is there a better way to do it than my 2-steps aggregate detailed below? - Are my hypothesis related to the data correct ? What does poll_name == “SVR Group 1/RÉS Groupe 1” mean?</p>
+</div>
+<div id="getting-the-data-and-deciphering-it" class="section level1">
+<h1>Getting the data and deciphering it</h1>
+<div id="polling-divisions-shapefile" class="section level2">
+<h2>Polling divisions shapefile</h2>
+<p>The polling divisions shapefile is downloaded from <a href="http://open.canada.ca/data/en/dataset/157fcaf7-e1f7-4f6d-8fc9-564ec925c1ee">Open Canada</a>.</p>
+<p>The zip contains multiple files, including a shapefile (PD_A.shp) and a data dictionary (Data Dictionary.pdf). A cursory look at the dictionnary gives us the following variable definitions.</p>
+<p>We will see that together, the FED_NUM, PD_NUM and PD_NBR_SFX variables give us the smallest area for which the election results are available. They represent respectively the Federal Electoral District number, the Polling Division (PD) number and the Polling Division suffix.</p>
+<p>The “ADV_POLL” variable is the number of the Advance Poll where people in the given polling division could vote before election day. There is no polygon for the advance poll, but once could reconstruct it by unioning the multiple PD that are included in it. We will not use distribute the votes from the advance poll to the polls that are part of it because this would add more noise.</p>
+<p>The PD_TYPE variable denotes the type of the polling division. Value “N” is for Normal, “S” for single building polling division and “M” for “Mobile Poll”. As far as I can tell, this doesnt have an impact.</p>
+<div class="figure">
+<img src="/post/2018-01-15-elect2015-part1_files/poll_shp_dictionnary.png" />
+
+</div>
+<p>I create a “pollid” variable by concatenating FED_NUM and EMRP_NAME, where EMRP_NAME is already available in the shapefile and is the result of concatenating PD_NUM and PD_NBR_SFX. Since I will be merging the shapefile with the election results, I want to have a single row for each pollid values. Note that while PD_NBR_SFX is never missing, it is not added to EMRP_NAME if its value is 0. For example, if PD_NUM is 10 and PD_NBR_SFX is 0, then EMRP_NAME is “10”. However, if PD_NBR_SFX was 1, then EMRP_NAME would have been “10-1”.</p>
+<p>We already have bad news. The “pollid” variable is not unique:</p>
+<pre><code>## options:        ENCODING=Windows-1252 
+## Reading layer `PD_A&#39; from data source `C:\Users\Simon\Desktop\git\snippets\content\post\temp_files\PD_A.shp&#39; using driver `ESRI Shapefile&#39;
+## Simple feature collection with 69534 features and 18 fields
+## geometry type:  POLYGON
+## dimension:      XY
+## bbox:           xmin: 3658201 ymin: 658873 xmax: 9019157 ymax: 6083005
+## epsg (SRID):    NA
+## proj4string:    +proj=lcc +lat_1=49 +lat_2=77 +lat_0=63.390675 +lon_0=-91.86666666666666 +x_0=6200000 +y_0=3000000 +datum=NAD83 +units=m +no_defs</code></pre>
+<div id="htmlwidget-1" style="width:100%;height:480px;" class="widgetframe html-widget"></div>
+<script type="application/json" data-for="htmlwidget-1">{"x":{"url":"/post/2018-01-15-elect2015-part1_files/figure-html//widgets/widget_poll_shp.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script>
+<p>What is going on? Let’s look at the case with the most rows.</p>
+<div id="htmlwidget-2" style="width:100%;height:480px;" class="widgetframe html-widget"></div>
+<script type="application/json" data-for="htmlwidget-2">{"x":{"url":"/post/2018-01-15-elect2015-part1_files/figure-html//widgets/widget_pollid_with_multiple_polygons.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script>
+<p>They apparently decided to create a row for each of the polygons of this poll.<br />
+We can “union” all the polygons in the shapefile so that we only have 1 row per pollid. This can be done using the sf::aggregate function. <div id="htmlwidget-3" style="width:100%;height:480px;" class="widgetframe html-widget"></div>
+<script type="application/json" data-for="htmlwidget-3">{"x":{"url":"/post/2018-01-15-elect2015-part1_files/figure-html//widgets/widget_leaflet_most_polygon.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script></p>
+<p>I had to do the aggregation process in two steps because I couldnt find a way to do it in one step without generating huge files that would break my RAM.</p>
+<p>Instead, I created an aggregated sf data.frame after dropping all variables.<br />
+Only then would the variables for the polling divisions be added. I had to drop the variables related to the address and name of the mobile poll buildings because each building in the mobile poll had its own polygon with its own address and building name.</p>
+<p>Below is test made using <code>testthat</code> that ensures that poll_shp, our final sf data.frame, only has 1 row per pollid.</p>
+</div>
+<div id="election-results-at-the-poll-level" class="section level2">
+<h2>Election results at the poll level</h2>
+<div id="the-data-source" class="section level3">
+<h3>The data source</h3>
+<p>Getting this data to be compatible with the shapefile (one row per pollid) turned out to be much more of a pain than I first thought.</p>
+<p>The data we use is downloaded from <a href="http://www.elections.ca/content.aspx?section=res&amp;dir=rep/off/42gedata&amp;document=byed&amp;lang=e">Election Canada website</a> rather than the Open Canada website. There are two formats, with “format 2” being tidier.</p>
+<p>There is one csv for each riding, and then there is 1 row per poll station*candidate as per this <a href="http://www.elections.ca/content.aspx?section=res&amp;dir=rep/off/42gedata&amp;document=pollresults&amp;lang=e">data dictionnary</a>:</p>
+<table>
+<colgroup>
+<col width="28%" />
+<col width="71%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Field Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Electoral District Number</td>
+<td>The electoral district number.</td>
+</tr>
+<tr class="even">
+<td>Electoral District Name_English</td>
+<td>The English name of the electoral district.</td>
+</tr>
+<tr class="odd">
+<td>Electoral District Name_French</td>
+<td>The French name of the electoral district.</td>
+</tr>
+<tr class="even">
+<td>Polling Station Number</td>
+<td>The number assigned to the polling station,</td>
+</tr>
+<tr class="odd">
+<td>for example: 3, 45A, 48-3, 601.</td>
+<td></td>
+</tr>
+<tr class="even">
+<td>Polling Station Name</td>
+<td>A name that generally represents the locality of the polling division boundary.</td>
+</tr>
+<tr class="odd">
+<td>Void Poll Indicator</td>
+<td>Indicates that a poll exists but has no electors.</td>
+</tr>
+<tr class="even">
+<td>No Poll Held Indicator</td>
+<td>Indicates that the returning officer intended to hold this poll, but unforeseen circumstances prevented it.</td>
+</tr>
+<tr class="odd">
+<td>Merge With</td>
+<td>Indicates the number of the polling station with which the results of this poll were merged.</td>
+</tr>
+<tr class="even">
+<td>Rejected Ballots for Polling Station</td>
+<td>The number of rejected ballots at this polling station.</td>
+</tr>
+<tr class="odd">
+<td>Electors for Polling Station</td>
+<td>The number of electors on the list of electors for this polling station.</td>
+</tr>
+<tr class="even">
+<td>Candidate’s Family Name</td>
+<td>The family name of the candidate.</td>
+</tr>
+<tr class="odd">
+<td>Candidate’s Middle Name</td>
+<td>The middle name of the candidate.</td>
+</tr>
+<tr class="even">
+<td>Candidate’s First Name</td>
+<td>The first name of the candidate.</td>
+</tr>
+<tr class="odd">
+<td>Political Affiliation Name_English</td>
+<td>The short-form English name of the candidate’s political affiliation.</td>
+</tr>
+<tr class="even">
+<td>Political Affiliation Name_French</td>
+<td>The short-form French name of the candidate’s political affiliation.</td>
+</tr>
+<tr class="odd">
+<td>Incumbent Indicator</td>
+<td>“Y” if candidate was the incumbent, “N” otherwise.</td>
+</tr>
+<tr class="even">
+<td>Elected Candidate Indicator</td>
+<td>“Y” if candidate was elected, “N” otherwise.</td>
+</tr>
+<tr class="odd">
+<td>Candidate Poll Votes Count</td>
+<td>The number of valid votes the candidate obtained at this polling station.</td>
+</tr>
+</tbody>
+</table>
+<p>If you pay attention more attention than I did at first, you will notice that the “Polling Station Number” is not the same thing than the PD_NUM in the shapefile. “48-3” is actually the EMRP_NAME. Also, what is the letter doing in “45A”? This appears to be because polls were sometimes broken down in “subpools”.</p>
+<p>The “Merge With” column is another indicator of incoming trouble. When this column is not missing the votes and rejected ballots for the pool (or subpool) are 0. My best bet is that pools (or subpools) were sometimes merged with other pools before the ballots were counted.</p>
+</div>
+<div id="a-painful-alternative-source-keep-away" class="section level3">
+<h3>a painful alternative source (keep away!)</h3>
+<p>The first dataset that I found is the one on the <a href="http://open.canada.ca/data/en/dataset/6a919bd5-491e-466e-a279-00cbf7a8e02c">Open Canada</a> website. To say that it isnt tidy data is an euphemism.</p>
+<p>Like “format 2”, there are over 300 CSV files, one per riding. However, we have 1 single row per polling station, instead of one per polling station times the number of candidates. Instead, there is one column for each candidate, such as “Lorraine E. Barnett” in riding 10001 in Newfoundland.</p>
+<p>If you want to map the results by party, like I do, you would have to fetch the information in a second CSV file that records the candidate information. This CSV file, named table_tableau12.csv has a column “Candidate”. However, the content of this column is NOT the name of the candidate as shown in the first csv, but rather the concatenation of candidate and his affiliation. The record for Lorraine e. Barnett reads as follow : “Lorraine E. Barnett Conservative/Conservateur”. Sometimes, there would be double asterisks included between the name of the candidate and the party, such as for “Judy M. Foote ** Liberal/Libéral” in riding 10002. I initally used regular expressions to remove all the 25-ish possible affiliations, then strip the trailing space and the eventual “**&quot; to be able to separate the candidate name from the party and merge it back to the results-by-poll table.</p>
+<p>Then, I realised that Format 2 existed outside the Open Data portal. I was not impressed.</p>
+</div>
+<div id="downloading-election-results-at-the-poll-level" class="section level3">
+<h3>Downloading election results at the poll level</h3>
+<p>Since there are 328 district and one CSV file for each of them, I used the <code>map</code> function to generate a list of each district and download them.</p>
+<p>I first tried to download them using download.file() but I got an http error. I believe this is because the government doesnt let robots download from its website. The solution was to use the <code>httr::GET</code> function, which can fake being a web browser to download the files.</p>
+</div>
+<div id="reading-and-eda-of-poll-results" class="section level3">
+<h3>Reading and EDA of poll results</h3>
+<p>I read all the csv files and concatenated them using <code>purrr:map_df</code>. I ran into a few issues:</p>
+<ul>
+<li>a character variable (“Polling Station Number”, or “poll_merged_with”) is wrongly guessed as integer. This means that some polling station numbers, such as 142A and 142B in district 24015 would be incorrectly read as NA. This was solved by reading all variables as characters then converting them using type_convert()</li>
+<li>Depending on which of the 328 district is being read, the columns poll_num and poll_merged_with could be integer or character. I mutate both of them to characters before binding the rows using map_df().</li>
+<li>Column names with apostrophes, such as <code>Candidate’s Middle Name/Second prénom du candidat</code>, need to be surrounded by single quotes when wrangling them using <code>dplyr</code> to prevent errors.</li>
+<li>Letters are sometimes appended as suffix to the “polling station number” or the “poll merged with”. I couldnt find an explanation in the documentation, but I believe these are “subpools”</li>
+<li>Some polls are named “SVR Group 1/RÉS Groupe 1” and “SVR Group 2 /RÉS Groupe 2”, I am not sure how to deal with them, so I ended up filtering them out.</li>
+</ul>
+<p>Trailing letters in the poll name are a common occurrence: 29091 of the 396412 observations have a trailing letter in the poll name.</p>
+<ul>
+<li>Each “subpoll” has a different number of electors.<br />
+</li>
+<li>Some of them may subpolls may or may not have been merged to another poll. (ex1 to 3)<br />
+</li>
+<li>Some polls have had their subpolls merged to multiple different polls. (ex4)<br />
+</li>
+<li>A poll doesnt have to be broken into subpools to be merged to another poll. (ex5) <div id="htmlwidget-4" style="width:100%;height:480px;" class="widgetframe html-widget"></div>
+<script type="application/json" data-for="htmlwidget-4">{"x":{"url":"/post/2018-01-15-elect2015-part1_files/figure-html//widgets/widget_subpools_doesnt_implymerge.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script><div id="htmlwidget-5" style="width:100%;height:480px;" class="widgetframe html-widget"></div>
+<script type="application/json" data-for="htmlwidget-5">{"x":{"url":"/post/2018-01-15-elect2015-part1_files/figure-html//widgets/widget_subpools_doesnt_implymerge.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script><div id="htmlwidget-6" style="width:100%;height:480px;" class="widgetframe html-widget"></div>
+<script type="application/json" data-for="htmlwidget-6">{"x":{"url":"/post/2018-01-15-elect2015-part1_files/figure-html//widgets/widget_subpools_doesnt_implymerge.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script><div id="htmlwidget-7" style="width:100%;height:480px;" class="widgetframe html-widget"></div>
+<script type="application/json" data-for="htmlwidget-7">{"x":{"url":"/post/2018-01-15-elect2015-part1_files/figure-html//widgets/widget_subpools_doesnt_implymerge.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script><div id="htmlwidget-8" style="width:100%;height:480px;" class="widgetframe html-widget"></div>
+<script type="application/json" data-for="htmlwidget-8">{"x":{"url":"/post/2018-01-15-elect2015-part1_files/figure-html//widgets/widget_subpools_doesnt_implymerge.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script></li>
+</ul>
+<p>Another important note mentionned before: when a poll is merged to another poll, the number of votes for each candidates and the number of rejected ballots is set to 0. This leads me to believe that they simply took the box containing the ballots and mixed it with the box from another poll before counting it. <div id="htmlwidget-9" style="width:100%;height:480px;" class="widgetframe html-widget"></div>
+<script type="application/json" data-for="htmlwidget-9">{"x":{"url":"/post/2018-01-15-elect2015-part1_files/figure-html//widgets/widget_merged_means_no_vote_data.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script></p>
+</div>
+<div id="cleaning-the-poll-results" class="section level3">
+<h3>Cleaning the poll results</h3>
+<p>Our desired output is a data frame containing one row per poll id, defined as the concatenation of FED_NUM and EMRP_NAME.</p>
+<p>For each poll, we want to know the percentage of the total vote that was allocated to each of the main partys: Libéral, Convervateur, NPD, Bloc Québécois and Green Party.</p>
+<p>I used a 2 step process:</p>
+<p>1 - If the poll was not entirely merged to some other poll, then I use the data from the remaining subpoll(s) to know the vote distribution of that poll.<br />
+2 - If the poll was entirely merged to other poll(s), then I fetch the results of the poll where the most electors were sent.</p>
+<p>How good is my link between poll_results and poll_shp?</p>
+<p>Amazingly, we have results for ALL polls defined in the shapefile!<br />
+But what are these polls for which we dont have a shape? Mostly, this is the advance poll (numbers 600-630) for which we didnt expect to have a shapefile. There are a few exceptions. For example, why is there no PD_NUM==4 in FED_NUM 35058 in the shape file?</p>
+<p>The really important thing for our purpose is to have results covering the whole map of Canada, which is the case.</p>
+<pre><code>## # A tibble: 3 x 15
+##   FED_NUM dist_name EMRP_NAME poll_ballot_rej~ poll_votes winner pct_winner
+##     &lt;dbl&gt; &lt;chr&gt;     &lt;chr&gt;                &lt;dbl&gt;      &lt;dbl&gt; &lt;chr&gt;       &lt;dbl&gt;
+## 1   35058 Mississa~ 4                        0          0 conse~        NaN
+## 2   35094 Scarboro~ 4                        0          0 autre         NaN
+## 3   48020 Edmonton~ 4                        0          0 autre         NaN
+## # ... with 8 more variables: autre &lt;dbl&gt;, bloc &lt;dbl&gt;, conservateur &lt;dbl&gt;,
+## #   libéral &lt;dbl&gt;, npd &lt;dbl&gt;, vert &lt;dbl&gt;, poll_merged_with &lt;chr&gt;,
+## #   pollid &lt;chr&gt;
+## # A tibble: 123 x 2
+##    EMRP_NAME     n
+##    &lt;chr&gt;     &lt;int&gt;
+##  1 600         338
+##  2 601         338
+##  3 602         338
+##  4 603         338
+##  5 604         338
+##  6 605         337
+##  7 606         337
+##  8 607         336
+##  9 608         333
+## 10 609         326
+## # ... with 113 more rows</code></pre>
+</div>
+</div>
+</div>
+<div id="conclusion" class="section level1">
+<h1>Conclusion</h1>
+<p>Our link is pretty good. The final output of this notebook is a data frame named poll_final, which is basically the the initial shapefile to which we added the voting results. I exported it as a shapefile using sf::st_write and put it <a href="https://drive.google.com/open?id=12sOpAdD30myIfEqrHcR1Fmo6IEhfAYO-">here on google drive</a>.</p>
+<p>Our results are the same than CBC, with one improvement: where they simply allowed the merged pools to be “not applicable”, we fetched the results from the poll it was merged to. I haven’t checked because I dropped the elector variable, but I suppose that CBC didnt some up the number of electors from the “mergee” and the “merged” in its shapefile. This may lead to an exagerated participation rate, where the votes of 2+ polling divisions are divided by the number of electors from a single polling division.</p>
+<p>Below are some leaflets generated using this final data set</p>
+<pre><code>## Deleting source `temp_files/poll_final.shp&#39; using driver `ESRI Shapefile&#39;
+## Writing layer `poll_final&#39; to data source `temp_files/poll_final.shp&#39; using driver `ESRI Shapefile&#39;
+## features:       66335
+## fields:         20
+## geometry type:  Unknown (any)</code></pre>
+<div id="htmlwidget-10" style="width:100%;height:480px;" class="widgetframe html-widget"></div>
+<script type="application/json" data-for="htmlwidget-10">{"x":{"url":"/post/2018-01-15-elect2015-part1_files/figure-html//widgets/widget_leaflet_my_riding.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script>
+<p>Here is a leaflet of the poll results that were merged and for which the results were pull from the “mergee”.<br />
+<div id="htmlwidget-11" style="width:100%;height:480px;" class="widgetframe html-widget"></div>
+<script type="application/json" data-for="htmlwidget-11">{"x":{"url":"/post/2018-01-15-elect2015-part1_files/figure-html//widgets/widget_leaflet_poll_merged.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script></p>
+</div>

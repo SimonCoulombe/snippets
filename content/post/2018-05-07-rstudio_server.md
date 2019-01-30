@@ -2,6 +2,9 @@
 title: "Deploying a secure Shiny Server and RStudio Server on a free Google Cloud virtual machine"
 slug: "protected_free_shiny"
 date: "2018-05-07"
+output:
+  blogdown::html_page:
+    toc: true
 ---
  
 
