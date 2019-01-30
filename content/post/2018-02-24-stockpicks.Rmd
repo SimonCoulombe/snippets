@@ -1,0 +1,256 @@
+---
+title: "Comparing @Lactualite stock picks to index funds, 2015-2017"
+author: "Simon Coulombe"
+date: 2018-02-24
+slug: "stockpicks"
+output:
+  html_document:
+    code_folding: hide
+    number_sections: true
+    theme: simplex
+    toc: true
+    toc_depth: 3
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+    editor_options:   
+      chunk_output_type: console
+categories: ["R"]
+tags: ["stocks", "tidyquant", "rstats"]
+---
+
+
+
+```{r setup, include =F}
+
+# TODO : valider ceci : Chunk options must be written in one line; no line breaks are allowed inside chunk options;
+# https://yihui.name/knitr/options/
+
+knitr::opts_chunk$set(echo = FALSE,
+                      collapse = TRUE,
+                      warning = FALSE,
+                      error = FALSE,
+                      message = FALSE,
+                      fig.align= "center",
+                      fig.width = 10,
+                      highlight = TRUE,
+                      cache = FALSE,
+                      cache.lazy = FALSE) # fixes long vector not supported quand on cache des gros éléments https://stackoverflow.com/questions/39417003/long-vectors-not-supported-yet-error-in-rmd-but-not-in-r-script
+```
+
+# Intro 
+
+L'actualité, has recently published 2018 annual list of stocks recommended by experts.  I usually welcome these lists with a sigh, but this time I thought I'd compare the past results of portfolios built using their past suggestions to the returns an investor would have received by following a "couch potato" investing.
+
+The couch potato portfolio is built using 33% Canadian index stocks, 33% American stocks and 33% international stocks.  The suggested portfolio is built using an equal weight of all suggested stocks.  
+
+The adjusted returns are evaluated between the date the article is released (in the first few weeks of a given year) and December 31st of the same year. Adjusted returns take  split and dividends into account, which is the correct metric for evaluating portfolio returns.  Most of my code is based on this [vignette](https://cran.r-project.org/web/packages/tidyquant/vignettes/TQ05-performance-analysis-with-tidyquant.html) for package tidyquant.
+
+This notebook will use the development version of package `tidyquant`to retrieve the data on yahoo and google services, the tidyverse packages for wrangling and plotting and the `DT`package for displaying tables.
+
+```{r libraries}
+
+#devtools::install_github("business-science/tidyquant")  #development version required for google finance stocks. tq_get(get  = "stock.prices.google",
+library(tidyquant)
+library(tidyverse)
+library(DT)
+library(widgetframe) # for inserting datatables and leaflets inside the blog 
+```
+
+
+
+# Recommendations for 2017
+
+These recommendations were published on [○January 19th, 2017](http://lactualite.com/lactualite-affaires/2017/01/19/comment-se-comportera-leconomie-en-2017que-faut-il-prevoir-pour-les-marches-nord-americainset-les-taux-dinteretquels-sont-les-secteurs-susceptibles-d/).
+
+![](/post/2018-02-24-stockpicks_files/liste2017.jpg)
+
+
+
+
+I believe that Painted Pony Petroleum Ltd (PPY.TO) changed ticker to PONY.TO because this [page](http://paintedpony.ca/investors/news-releases/news-releases-details/2017/Painted-Pony-Announces-Strategic-Montney-Acquisition-and-100-Million-Equity-Financing/default.aspx) of the company refers to an acquisition that PPY.TO made, yet the stock quote at the top of the page refers to PONY.TO.
+
+
+```{r table2017}
+Ra <- c("VCN.TO", "VUN.TO", "XEF.TO"  ) %>%
+  tq_get(get  = "stock.prices",
+         from = "2017-01-19",
+         to   = "2017-12-31") %>%
+  group_by(symbol) %>%
+  tq_transmute(select     = adjusted, 
+               mutate_fun = periodReturn, 
+               period     = "yearly", 
+               col_rename = "Return_Index") %>%
+  ungroup()
+
+mean(Ra$Return_Index)
+
+Rb <- c("GDX","ZPR.TO", "XFN.TO", "THO.TO", "PONY.TO", "MFC", "NFLX",  "BAC", "BHP", "ECA.TO", "CP.TO","GOOG") %>% 
+  tq_get(get  = "stock.prices",
+         from = "2017-01-19",
+         to   = "2017-12-31") %>%
+  
+  group_by(symbol) %>%
+  tq_transmute(select     = adjusted, 
+               mutate_fun = periodReturn, 
+               period     = "yearly", 
+               col_rename = "Return_List")%>%
+  ungroup()
+mean(Rb$Return_List)
+
+gaa <- Ra %>% full_join(Rb) %>% select(-date)
+total <- gaa %>% 
+  summarise(Return_Index = mean(Return_Index, na.rm = T),
+            Return_List = mean(Return_List, na.rm = T)) %>%
+  mutate(symbol = "Total")
+output2017 <- gaa %>% bind_rows(total) 
+
+
+datatable(output2017,
+          rownames = F,
+          options = list(dom = 't', ordering = F, pageLength=20),
+          caption = "2017 results") %>%
+formatPercentage(c("Return_Index", "Return_List"),1) %>%  
+  widgetframe::frameWidget(., height = 800)
+
+
+```
+
+# Recommendations for 2016
+
+These recommendation were published on [February 9th 2016](http://lactualite.com/lactualite-affaires/2016/02/09/ou-investir-son-argent-en-2016/)
+
+![](/post/2018-02-24-stockpicks_files/liste2016.jpg)
+
+
+
+```{r table2016}
+Ra <- c("VCN.TO", "VUN.TO", "XEF.TO"  ) %>%
+  tq_get(get  = "stock.prices",
+         from = "2016-02-09",
+         to   = "2016-12-31") %>%
+  group_by(symbol) %>%
+  tq_transmute(select     = adjusted, 
+               mutate_fun = periodReturn, 
+               period     = "yearly", 
+               col_rename = "Return_Index") %>%
+  ungroup()
+
+mean(Ra$Return_Index)
+
+Rb <- c("CAE.TO", "LOW", "BUD",
+        "FB", "AMZN", "GOOG",
+        "BAC", "CNR.TO", "NESN.VX",
+        "ZQQ.TO", "MYL", "HBC.TO") %>%
+  tq_get(get  = "stock.prices",
+         from = "2016-02-09",
+         to   = "2016-12-31") %>%
+  
+  group_by(symbol) %>%
+  tq_transmute(select     = adjusted, 
+               mutate_fun = periodReturn, 
+               period     = "yearly", 
+               col_rename = "Return_List")%>%
+  ungroup()
+mean(Rb$Return_List)
+
+gaa <- Ra %>% full_join(Rb) %>% select(-date)
+total <- gaa %>% 
+  summarise(Return_Index = mean(Return_Index, na.rm = T),
+            Return_List = mean(Return_List, na.rm = T)) %>%
+  mutate(symbol = "Total")
+output2016 <- gaa %>% bind_rows(total) 
+
+
+datatable(output2016,
+          rownames = F,
+          options = list(dom = 't', ordering = F, pageLength=20),
+          caption = "2016 results") %>%
+formatPercentage(c("Return_Index", "Return_List"),1) %>%
+  widgetframe::frameWidget(., height = 800)
+```
+
+# Recommendations for 2015 
+I couldnt recreate the returns for [2015 list](http://lactualite.com/lactualite-affaires/2015/01/16/ou-investir-son-argent-en-2015/) because tidyquant couldnt provide the returns
+for CAM.TO and DH.TO using either Yahoo or Google APIs.
+
+The yahoo function returned the following error :
+```{r , eval= F}
+Warning messages:
+1: x = 'CAM.TO', get = 'stock.prices': Error: CAM.TO download failed after two attempts. Error message:
+HTTP error 404.
+ Removing CAM.TO.
+```
+
+ 
+While the google function returned this error:
+```{r, eval = F}
+1: x = 'TSE:CAM', get = 'stock.prices': Error in download.file(paste(google.URL, "q=", Symbols.name, "&startdate=", : cannot open URL 'http://finance.google.com/finance/historical?q=TSE:CAM&startdate=Jan+16,+2015&enddate=Dec+31,+2015&output=csv'
+ Removing TSE:CAM. 
+```
+
+Here are the recommendations, along with the average returns excluding these two companies.
+![](/post/2018-02-24-stockpicks_files/liste2015.jpg)
+
+.  They were released on [January 16th, 2015](http://lactualite.com/lactualite-affaires/2015/01/16/ou-investir-son-argent-en-2015/).
+
+
+```{r table2015}
+Ra <- c("VCN.TO", "VUN.TO", "XEF.TO"  ) %>%
+  tq_get(get  = "stock.prices",
+         from = "2015-01-16",
+         to   = "2015-12-31") %>%
+  group_by(symbol) %>%
+  tq_transmute(select     = adjusted, 
+               mutate_fun = periodReturn, 
+               period     = "yearly", 
+               col_rename = "Return_Index") %>%
+  ungroup()
+
+mean(Ra$Return_Index)
+
+Rb <- c("PG", "JNJ", "BCE.TO",
+        "CAM.TO", "XEG.TO", "IAG.TO", "MFC.TO", "GWO.TO", "SLF.TO",
+        "JPM", "RYT", "DXJ",
+        "PEY.TO", "DH.TO", "CCLB.TO") %>%
+  tq_get(get  = "stock.prices",
+         from = "2015-01-16",
+         to   = "2015-12-31") %>%
+  
+  group_by(symbol) %>%
+  tq_transmute(select     = adjusted, 
+               mutate_fun = periodReturn, 
+               period     = "yearly", 
+               col_rename = "Return_List")%>%
+  ungroup()
+mean(Rb$Return_List)
+
+gaa <- Ra %>% full_join(Rb) %>% select(-date)
+total <- gaa %>% 
+  summarise(Return_Index = mean(Return_Index, na.rm = T),
+            Return_List = mean(Return_List, na.rm = T)) %>%
+  mutate(symbol = "Total")
+output2015 <- gaa %>% bind_rows(total) 
+
+
+datatable(output2015,
+          rownames = F,
+          options = list(dom = 't', ordering = F, pageLength=20),
+          caption = "2015 results") %>%
+formatPercentage(c("Return_Index", "Return_List"),1) %>%
+  widgetframe::frameWidget(., height= 800)
+```
+
+Here is how I tried the stock.prices.google option when yahoo failed. It also failed.
+```{r}
+
+Rb <- c("TSE:DH", c("TSE:CAM")) %>%   
+  tq_get(get  = "stock.prices.google", 
+         from = "2015-01-16",
+         to   = "2015-12-31") 
+```
+
+# Conclusion
+The average beat the experts 2 years in 2016 and 2017. We don't know for sure for 2015 since we are missing 2 stocks, but it was leading 12.0% to 11.1% at the time of printing..
+
+

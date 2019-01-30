@@ -1,0 +1,75 @@
+---
+title: "Comparing @Lactualite stock picks to index funds, 2015-2017"
+author: "Simon Coulombe"
+date: 2018-02-24
+slug: "stockpicks"
+output:
+  html_document:
+    code_folding: hide
+    number_sections: true
+    theme: simplex
+    toc: true
+    toc_depth: 3
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+    editor_options:   
+      chunk_output_type: console
+categories: ["R"]
+tags: ["stocks", "tidyquant", "rstats"]
+---
+
+<script src="/rmarkdown-libs/htmlwidgets/htmlwidgets.js"></script>
+<script src="/rmarkdown-libs/pymjs/pym.v1.js"></script>
+<script src="/rmarkdown-libs/widgetframe-binding/widgetframe.js"></script>
+
+
+<div id="intro" class="section level1">
+<h1>Intro</h1>
+<p>L’actualité, has recently published 2018 annual list of stocks recommended by experts. I usually welcome these lists with a sigh, but this time I thought I’d compare the past results of portfolios built using their past suggestions to the returns an investor would have received by following a “couch potato” investing.</p>
+<p>The couch potato portfolio is built using 33% Canadian index stocks, 33% American stocks and 33% international stocks. The suggested portfolio is built using an equal weight of all suggested stocks.</p>
+<p>The adjusted returns are evaluated between the date the article is released (in the first few weeks of a given year) and December 31st of the same year. Adjusted returns take split and dividends into account, which is the correct metric for evaluating portfolio returns. Most of my code is based on this <a href="https://cran.r-project.org/web/packages/tidyquant/vignettes/TQ05-performance-analysis-with-tidyquant.html">vignette</a> for package tidyquant.</p>
+<p>This notebook will use the development version of package <code>tidyquant</code>to retrieve the data on yahoo and google services, the tidyverse packages for wrangling and plotting and the <code>DT</code>package for displaying tables.</p>
+</div>
+<div id="recommendations-for-2017" class="section level1">
+<h1>Recommendations for 2017</h1>
+<p>These recommendations were published on <a href="http://lactualite.com/lactualite-affaires/2017/01/19/comment-se-comportera-leconomie-en-2017que-faut-il-prevoir-pour-les-marches-nord-americainset-les-taux-dinteretquels-sont-les-secteurs-susceptibles-d/">○January 19th, 2017</a>.</p>
+<div class="figure">
+<img src="/post/2018-02-24-stockpicks_files/liste2017.jpg" />
+
+</div>
+<p>I believe that Painted Pony Petroleum Ltd (PPY.TO) changed ticker to PONY.TO because this <a href="http://paintedpony.ca/investors/news-releases/news-releases-details/2017/Painted-Pony-Announces-Strategic-Montney-Acquisition-and-100-Million-Equity-Financing/default.aspx">page</a> of the company refers to an acquisition that PPY.TO made, yet the stock quote at the top of the page refers to PONY.TO.</p>
+<pre><code>## [1] 0.1231077
+## [1] 0.0528051</code></pre>
+<div id="htmlwidget-1" style="width:100%;height:800px;" class="widgetframe html-widget"></div>
+<script type="application/json" data-for="htmlwidget-1">{"x":{"url":"/post/2018-02-24-stockpicks_files/figure-html//widgets/widget_table2017.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script>
+</div>
+<div id="recommendations-for-2016" class="section level1">
+<h1>Recommendations for 2016</h1>
+<p>These recommendation were published on <a href="http://lactualite.com/lactualite-affaires/2016/02/09/ou-investir-son-argent-en-2016/">February 9th 2016</a></p>
+<div class="figure">
+<img src="/post/2018-02-24-stockpicks_files/liste2016.jpg" />
+
+</div>
+<pre><code>## [1] 0.2009278
+## [1] 0.1817883</code></pre>
+<div id="htmlwidget-2" style="width:100%;height:800px;" class="widgetframe html-widget"></div>
+<script type="application/json" data-for="htmlwidget-2">{"x":{"url":"/post/2018-02-24-stockpicks_files/figure-html//widgets/widget_table2016.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script>
+</div>
+<div id="recommendations-for-2015" class="section level1">
+<h1>Recommendations for 2015</h1>
+<p>I couldnt recreate the returns for <a href="http://lactualite.com/lactualite-affaires/2015/01/16/ou-investir-son-argent-en-2015/">2015 list</a> because tidyquant couldnt provide the returns for CAM.TO and DH.TO using either Yahoo or Google APIs.</p>
+<p>The yahoo function returned the following error :</p>
+<p>While the google function returned this error:</p>
+<p>Here are the recommendations, along with the average returns excluding these two companies. <img src="/post/2018-02-24-stockpicks_files/liste2015.jpg" /></p>
+<p>. They were released on <a href="http://lactualite.com/lactualite-affaires/2015/01/16/ou-investir-son-argent-en-2015/">January 16th, 2015</a>.</p>
+<pre><code>## [1] 0.119944
+## [1] 0.1105611</code></pre>
+<div id="htmlwidget-3" style="width:100%;height:800px;" class="widgetframe html-widget"></div>
+<script type="application/json" data-for="htmlwidget-3">{"x":{"url":"/post/2018-02-24-stockpicks_files/figure-html//widgets/widget_table2015.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script>
+<p>Here is how I tried the stock.prices.google option when yahoo failed. It also failed.</p>
+</div>
+<div id="conclusion" class="section level1">
+<h1>Conclusion</h1>
+<p>The average beat the experts 2 years in 2016 and 2017. We don’t know for sure for 2015 since we are missing 2 stocks, but it was leading 12.0% to 11.1% at the time of printing..</p>
+</div>
