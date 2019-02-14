@@ -1,25 +1,18 @@
 ---
 title: "Federal elections results by poll section part 2 :  map census data to poll section and plot the results"
 author: "Simon Coulombe"
-date: 2018-01-14
+date: 2018-01-15
 slug: "election_part2"
 output:
   blogdown::html_page:
-    toc: true
+    toc: false
 categories: ["R"]
 tags: ["sf", "open data", "rstats"]
+thumbnailImage: "/post/2018-01-15-elect2015-part2_files/plot_uni-1.png"
+thumbnailImagePosition: left
 ---
 
 
-<div id="TOC">
-<ul>
-<li><a href="#code">Code</a></li>
-<li><a href="#functions">Functions</a></li>
-<li><a href="#code-snippets-i-will-be-coming-back-to-this-script-for">Code snippets I will be coming back to this script for</a></li>
-<li><a href="#getting-the-census-data-and-applying-it-to-the-poll-sections">Getting the census data and applying it to the poll sections</a></li>
-<li><a href="#results">Results</a></li>
-</ul>
-</div>
 
 <p>This Notebook builds on the <code>poll_final</code> sf dataframe we built in the <a href="https://www.simoncoulombe.com/2018/01/election_part1/">first part of this project</a>. <code>poll_final</code> contains the poll results by party and the geometry for each poll for the 2015 Federal Elections of 2015.</p>
 <p>We will use the <code>cancensus</code> package to download sociodemographic data and geometry from the 2016 Canadian Census. We will then “dispatch” the population characteristics to each poll sections and plot the relationship between education and the results of the three main parties (libéral, conservateur and ndp).</p>

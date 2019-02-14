@@ -5,7 +5,7 @@ date: 2018-11-22
 slug: "heatpump"
 output:
   blogdown::html_page:
-    toc: true
+    toc: false
 categories: ["R"]
 tags: ["weathercan", "heat pump", "rstats"]
 ---

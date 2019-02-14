@@ -1,13 +1,15 @@
 ---
 title: "Federal elections results by poll section part 2 :  map census data to poll section and plot the results"
 author: "Simon Coulombe"
-date: 2018-01-14
+date: 2018-01-15
 slug: "election_part2"
 output:
   blogdown::html_page:
-    toc: true
+    toc: false
 categories: ["R"]
 tags: ["sf", "open data", "rstats"]
+thumbnailImage: "/post/2018-01-15-elect2015-part2_files/plot_uni-1.png"
+thumbnailImagePosition: left
 ---
 
 

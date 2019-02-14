@@ -5,7 +5,7 @@ date: 2018-02-24
 slug: "stockpicks"
 output:
   blogdown::html_page:
-    toc: true
+    toc: false
 categories: ["R"]
 thumbnailImage: "/post/2018-02-24-stockpicks_files/liste2017.jpg" 
 thumbnailImagePosition: left

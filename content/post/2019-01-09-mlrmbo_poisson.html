@@ -5,32 +5,12 @@ date: 2019-01-09
 slug: "bayesian"
 output:
   blogdown::html_page:
-    toc: true
+    toc: false
 categories: ["R"]
 tags: ["bayesian", "optimization", "rstats", "mlrMBO", "caret", "mlr" ,"poisson", "rBayesianOptimization"]
 ---
 
 
-<div id="TOC">
-<ul>
-<li><a href="#introduction">Introduction</a></li>
-<li><a href="#preparing-the-data">Preparing the data</a></li>
-<li><a href="#example-1-optimize-hyperparameters-using-a-random-search-non-bayesian">Example 1: Optimize hyperparameters using a random search (non bayesian)</a></li>
-<li><a href="#example-2-bayesian-optimization-using-mlrmbo">Example #2 Bayesian optimization using <code>mlrMBO</code></a></li>
-<li><a href="#conclusion">Conclusion:</a></li>
-<li><a href="#code">Code</a><ul>
-<li><a href="#mlrmbo-further-reading">mlrMBO further reading</a></li>
-</ul></li>
-<li><a href="#appendix-not-recommended-bayesian-optimization-using-rbayesianoptimization">Appendix: (NOT RECOMMENDED) Bayesian optimization using <code>rBayesianOptimization</code></a><ul>
-<li><a href="#rbayesianoptimization-from-scratch">rBayesianOptimization from scratch</a></li>
-<li><a href="#rbayesianoptimization-resuming-from-previous-runs">rBayesianOptimization resuming from previous runs</a><ul>
-<li><a href="#resuming-from-random-grid">… resuming from random grid</a></li>
-<li><a href="#resuming-from-previous-rbayesianoptimization">… resuming from previous rBayesianOptimization</a></li>
-</ul></li>
-</ul></li>
-<li><a href="#conclusion-1">Conclusion</a></li>
-</ul>
-</div>
 
 <div id="introduction" class="section level1">
 <h1>Introduction</h1>

@@ -5,7 +5,7 @@ slug: "unvotes_hexgrid"
 date: 2018-01-09
 output:
   blogdown::html_page:
-    toc: true
+    toc: false
 categories: ["R"]
 thumbnailImage: "/post/2018-01-09-unvotes_hexgrid_files/convert_map_to_hex_grid-1.png"
 thumbnailImagePosition: left

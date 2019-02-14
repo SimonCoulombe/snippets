@@ -5,7 +5,7 @@ date: 2017-11-05
 slug: "bike-crashes"
 output:
   blogdown::html_page:
-    toc: true
+    toc: false
 categories: ["R"]
 tags: ["sf", "open data", "rstats"]
 thumbnailImage: "/post/2018-1-16-saaqmtq_files/heatmap_crash.png" 
