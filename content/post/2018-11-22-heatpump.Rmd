@@ -108,6 +108,7 @@ kW_to_MBH = 3.4121416331
 kWh_price <- 0.07
 my_coords <- c(46.73, -71.27)
 ```
+
 ```{r}
 
 heat_pump_specs <- tibble(
@@ -250,19 +251,30 @@ Thermodynamics state that my heating use should increase as a linear function of
 ```{r graph_electricity_needs}
 # Import electricity consumption data 
 
-# hydro <- read_csv2("0311972681_heure_2018-10-17_au_2018-11-20.csv", locale = locale(decimal_mark = ","))
-# colnames(hydro) <- c("contrat", "datetime", "kWh", "code_kWh", "temperature", "code_temperature")
-# hydro <- hydro %>% mutate(date = lubridate::date(datetime),
-#                  hour = lubridate::hour(datetime)) %>% select(-contrat)
-# write_csv(hydro, "hydro.csv")
+hydro1 <- read_csv2("temp_files/0311972681_heure_2018-06-14_au_2018-08-14.csv", locale = locale(decimal_mark = ","))
+hydro2 <- read_csv2("temp_files/0311972681_heure_2018-08-15_au_2018-10-16.csv", locale = locale(decimal_mark = ","))
+hydro3 <- read_csv2("temp_files/0311972681_heure_2018-10-17_au_2018-12-14.csv", locale = locale(decimal_mark = ","))
+hydro4 <- read_csv2("temp_files/0311972681_heure_2018-12-15_au_2019-02-13.csv", locale = locale(decimal_mark = ","))
 
-hydro <- read_csv("hydro.csv")
+hydro <- bind_rows(hydro1, hydro2, hydro3, hydro4)
+
+# hydro <- read_csv2("0311972681_heure_2018-10-17_au_2018-11-20.csv", locale = locale(decimal_mark = ","))
+ colnames(hydro) <- c("contrat", "datetime", "kWh", "code_kWh", "temperature", "code_temperature")
+ hydro <- hydro %>% mutate(date = 
+                             lubridate::date(datetime),
+                           hour = lubridate::hour(datetime),
+                           month = floor_date(date,unit= "months"),
+                           week = floor_date(date,unit= "weeks")) %>%
+   select(-contrat)
+write_csv(hydro, "hydro.csv")
+
+#hydro <- read_csv("hydro.csv")
 
 # graph kWh consumption 
 
 start <- "2018-11-03"
-
-ggplot(hydro %>% filter(date>=  lubridate::ymd(start) ))+
+end <- "2018-11-20"
+ggplot(hydro %>% filter(date>=  lubridate::ymd(start), date <=lubridate::ymd(end) ))+
   geom_point(aes(x= temperature, y= kWh))+
   geom_smooth(aes(x=temperature, y= kWh))+ 
   labs(title = wrapper("Hourly electricty consumption is really linearly related to exterior temperature",50))
@@ -274,9 +286,11 @@ Let's model the electricty consumption (proxy for heating needs) :
 ```{r model_heating_needs}
 # Model kWh consumption as a function of external temperature 
 
-mod_lm <- lm(formula = kWh ~ temperature, data = hydro %>% filter(date>=  lubridate::ymd(start) ) )
+mod_lm <- lm(formula = kWh ~ temperature, data = hydro %>% filter(date>=  lubridate::ymd(start), date <=lubridate::ymd(end)  ) )
 mod_lm
-
+# Coefficients:
+# (Intercept)  temperature  
+#      4.2475      -0.1599  
 ```
 
 
@@ -347,8 +361,6 @@ Thus, it appears that getting the heat pump is a good idea if you were getting t
 
 
 ```{r predict_energy_needs}
-
-
 # Predict electricity needs and savings based on 2017 season. ----
 z <-heating_season_hourly_data %>% select(date, year, month, day, yday, temperature) %>%
   filter(!is.na(temperature)) %>%
@@ -407,7 +419,48 @@ dt <- DT::datatable(
 widgetframe::frameWidget(dt, width = '95%')
 ```
 
+# FOLLOW UP
+We had the heat pump installed and running on December 3rd.  
+12 inches of insulation have been added to the ceiling on Friday December 21st.  On that day, we also had some water enter the basement, so we had to remove some insulation.
+On January22nd we had a flood in the garage and had to heat it to 18C (instead of about 5C) for three weeks.  I dont remember exactly when I stopped heating the garage.. 
 
+```{r}
+hydro2  <- hydro %>% 
+  add_predictions(mod_lm) %>%  ## add estimated heating needs
+  rename(kWh_required= pred)   %>%
+  mutate(savings = kWh_required- kWh) %>%
+  mutate(type = as.factor(case_when(
+    date>=  lubridate::ymd(start) &  date <=lubridate::ymd(end) ~ "reference", # reference period
+    date>  lubridate::ymd(end) &  date <lubridate::ymd("2018-12-04") ~ "reference", # not in initial data  used for reference period before heat pump purchase
+    date>=  lubridate::ymd("2018-12-04") &  date <=lubridate::ymd("2018-12-20") ~ "heat pump" , # heat pump installation
+    date>=  lubridate::ymd("2018-12-22") &  date <=lubridate::ymd("2019-01-21") ~ "heat pump + insulation" , # roof insulation, mechanical room flood
+    date>=  lubridate::ymd("2019-01-22") &  date <=lubridate::ymd("2019-02-12") ~ "heated garage" , # garage flood
+    date>=  lubridate::ymd("2019-02-13") &   date <=lubridate::ymd("2019-02-20") ~ "heat pump + insulation + program" ,
+    date>=  lubridate::ymd("2019-02-20") ~ "emergency heat",
+    TRUE ~ "0"))
+    ) 
+
+results <- hydro2 %>%
+  group_by(temperature, type) %>%
+  summarise(kWh = mean(kWh), count = n(), savings = mean(savings)) %>%
+  ungroup()
+  
+results %>% filter(type != "0", temperature<5) %>%  ggplot(aes(x= temperature, y = kWh, color = type, size= count))+ geom_point()
+results %>% filter(type != "0" , temperature<5) %>% ggplot(aes(x= temperature, y = savings, color = type, size= count))+ geom_point()
+
+# pourquoi savings biassent avec isolation, et aussi avec isolation + program
+hydro2 %>% group_by(type) %>% summarise(savings = sum(savings), count_hours = n())  %>% 
+  mutate(kwh_savings_per_day = 24 * savings / count_hours,
+         dollar_savings_per_day = kwh_savings_per_day * .08) %>% knitr::kable()
+
+hydro2 %>% filter(week>= start) %>%  group_by(week) %>% summarise(savings = sum(savings), count_hours = n())  %>% 
+  mutate(kwh_savings_per_day = 24 * savings / count_hours,
+         dollar_savings_per_day = kwh_savings_per_day * .08) %>% ggplot(aes(x=week, y= dollar_savings_per_day)) + geom_line()
+
+hydro2 %>% filter(date>= start) %>%  group_by(date, type) %>% summarise(savings = sum(savings), count_hours = n())  %>% 
+  mutate(kwh_savings_per_day = 24 * savings / count_hours,
+         dollar_savings_per_day = kwh_savings_per_day * .08) %>% ggplot(aes(x=date, y= dollar_savings_per_day, color= type)) + geom_line()
+```
 
 
 
