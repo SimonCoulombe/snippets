@@ -10,6 +10,8 @@ tags:
   - transport
 keywords:
   - tech
+thumbnailImage: "/post/2019-03-20-impact-du-troisieme-lien-sur-le-trafic_files/trafic_delta.png" 
+thumbnailImagePosition: left
 ---
 
 Dans ce projet-jouet, j'ai utilisé les données ouvertes de l'application Mon Trajet et le package python `osmnx` pour estimer l'impact de la construction d'un troisième lien sur le trafic de la ville de Québec.  
@@ -33,42 +35,39 @@ En ayant en main les itinéraires optimaux de tous les trajets, nous avons pu d�
 
 Le package `osmnx` rend très facile le téléchargement du réseau routier de la région de Québec-Lévis et des 10 kilomètres aux alentours:   
 
-`
-place = ['wendake,canada', 
-         'Lévis, canada',
-         'Québec city, canada',
-         "L'ancienne-lorette, canada"
-               ]
+`place = ['wendake,canada',    
+         'Lévis, canada',  
+         'Québec city, canada',  
+         "L'ancienne-lorette, canada"]  
+         
 
-G = ox.graph_from_place(place, network_type='drive',
-                       simplify=False,
-                       retain_all=True,
-                       buffer_dist = 10000   
- )
+G = ox.graph_from_place(place, network_type='drive',  
+                       simplify=False,  
+                       retain_all=True,  
+                       buffer_dist = 10000)  
+ox.save_graph_shapefile(G, filename='original-network-shape')  
 
-ox.save_graph_shapefile(G, filename='original-network-shape')
 `
 
 ### Ajouter le pont au réseau router  
 
 J'utilise QGIS pour identifier l'endroit où je souhaite ajouter le pont, et ensuie j'ajoute les routes au réseau à l'aide de `osmnx`:  
 
-`
-G_bridge.add_node(999999999999999999999, x= -71.153, y= 46.866)
-G_bridge.add_edge(999999999999999999999, 180699309, key=0,  highway = "motorway", oneway = False, length = 841)
-G_bridge.add_edge(999999999999999999999, 130153234, key=0,  highway = "motorway", oneway = False, length = 875)
-G_bridge.add_edge(999999999999999999999, 130152949, key=0,  highway = "motorway", oneway = False, length = 1069)
-G_bridge.add_edge(180672314,999999999999999999999,  key=0,  highway = "motorway", oneway = False, length = 778)
-G_bridge.add_edge(180688633,999999999999999999999,  key=0,  highway = "motorway", oneway = False, length = 1060)
-G_bridge.add_edge(269683680,999999999999999999999,  key=0,  highway = "motorway", oneway = False, length = 1196)
-G_bridge.add_node(88888888888888888888, x= -71.1024, y= 46.8173)
-G_bridge.add_edge(88888888888888888888, 5728701577, key=0,  highway = "motorway", oneway = False, length = 624)
-G_bridge.add_edge(88888888888888888888, 486128981,  key=0,  highway = "motorway", oneway = False, length = 1077)
-G_bridge.add_edge(486135896, 88888888888888888888 ,  key=0,  highway = "motorway", oneway = False, length = 1050)
-G_bridge.add_edge(281651410, 88888888888888888888 ,  key=0,  highway = "motorway", oneway = False, length = 782)
-G_bridge.add_edge(88888888888888888888, 999999999999999999999, key=0, highway = "motorway", oneway = False, length = 6648)
-G_bridge.add_edge(999999999999999999999, 88888888888888888888, key=0, highway = "motorway", oneway = False, length = 6648)
-`
+`G_bridge.add_node(999999999999999999999, x= -71.153, y= 46.866)  
+G_bridge.add_edge(999999999999999999999, 180699309, key=0,  highway = "motorway", oneway = False, length = 841)  
+G_bridge.add_edge(999999999999999999999, 130153234, key=0,  highway = "motorway", oneway = False, length = 875)  
+G_bridge.add_edge(999999999999999999999, 130152949, key=0,  highway = "motorway", oneway = False, length = 1069)  
+G_bridge.add_edge(180672314,999999999999999999999,  key=0,  highway = "motorway", oneway = False, length = 778)  
+G_bridge.add_edge(180688633,999999999999999999999,  key=0,  highway = "motorway", oneway = False, length = 1060)  
+G_bridge.add_edge(269683680,999999999999999999999,  key=0,  highway = "motorway", oneway = False, length = 1196)  
+G_bridge.add_node(88888888888888888888, x= -71.1024, y= 46.8173)  
+G_bridge.add_edge(88888888888888888888, 5728701577, key=0,  highway = "motorway", oneway = False, length = 624)  
+G_bridge.add_edge(88888888888888888888, 486128981,  key=0,  highway = "motorway", oneway = False, length = 1077)  
+G_bridge.add_edge(486135896, 88888888888888888888 ,  key=0,  highway = "motorway", oneway = False, length = 1050)  
+G_bridge.add_edge(281651410, 88888888888888888888 ,  key=0,  highway = "motorway", oneway = False, length = 782)  
+G_bridge.add_edge(88888888888888888888, 999999999999999999999, key=0, highway = "motorway", oneway = False, length = 6648)  
+G_bridge.add_edge(999999999999999999999, 88888888888888888888, key=0, highway = "motorway", oneway = False, length = 6648)`  
+![](/post/2019-03-20-impact-du-troisieme-lien-sur-le-trafic_files/avant_apres.png)  
 
 ### Calculer les itinéraires optimaux
 
@@ -76,26 +75,21 @@ Pour déterminer l'itinéraire optimal de chacun des trajets, il faut tout d'abo
 
 J'ai utilisé une limite de vitesse de 100 km/h sur les autoroutes et de 50 km/h partout ailleurs.  Il s'agit d'une piste d'amélioration.  
 
-`  
-for u, v, k, data in G_bridge.edges(data=True, keys=True):
-
-  if 'highway' in data and data["highway"] == "motorway":
-    data["speed_limit_kmh"] = 100
-  elif 'highway':
-    data["speed_limit_kmh"] = 50
+`for u, v, k, data in G_bridge.edges(data=True, keys=True):  
+  
+  if 'highway' in data and data["highway"] == "motorway":  
+    data["speed_limit_kmh"] = 100  
+  elif 'highway':  
+    data["speed_limit_kmh"] = 50  
+      
+for u, v, k, data in G_bridge.edges(data=True, keys=True): # u et v sont les nodes origines destination  
+    data['time_minute'] = data['length'] / 1000 * 60 / data['speed_limit_kmh']`   
     
-    
-for u, v, k, data in G_bridge.edges(data=True, keys=True): # u et v sont les nodes origines destination
-    data['time_minute'] = data['length'] / 1000 * 60 / data['speed_limit_kmh'] 
-`  
 
-Ensuite on utilise le package `osmnx` pour calculer l'itinéraire optimal de chacun des trajets.
+Ensuite on utilise le package `osmnx` pour calculer l'itinéraire optimal de chacun des trajets.  
 
-`
-nx.shortest_path(G,
-                 closest_node_to_origine,      
-                 closest_node_to_destination, weight = "time_minute")
-`
+`nx.shortest_path(G,closest_node_to_origine, closest_node_to_destination, weight = "time_minute")`  
+
 
 ## Résultats et pistes d'améliorations:   
 
@@ -104,7 +98,6 @@ Voici tout d'avord la distribution du trafic sur le réseau routier sans et avec
 
 Voici un tableau présentant le pourcentage des trajets qui utilisent chacun des ponts, avec et sans le 3e lien.  J'ai séparé pierre-laporte en Nord et Sud car c'était plus facile.  
 
-###Pourcentage des trajets utilisant chacun des ponts
 
 Scénario #1, réseau routier actuel  
 
@@ -118,14 +111,16 @@ Scénario #2, ajout d'un troisième lien à l'est
 Pont-Pierre Laporte vers le nord: 8.49%  
 Pont-Pierre Laporte vers le nord: 7.92%  
 Pont de Québec, toutes directions: 3.72%  
-3e lien à l'Est:  2.30%
+3e lien à l'Est:  2.30%  
 Total:  22.4%    
 
 Le troisième lien serait utilisé par un peu plus de 2% de tous les trajets recensés par l'application Mon Trajet.  Son trafic représenterait moins des deux tiers du trafic du pont de Québec et le dixième du trafic total traversant les ponts.
 
 Ces résultats me paraissent étranges, car j'ai vu sur les  [données ouvertes de débit journalier quotidien](https://geoegl.msp.gouv.qc.ca/igo2/apercu-qc/?context=mtq&visiblelayers=circulation_routier) que le pont de Québec (32 000) représente environ le tiers du trafic du Pont Pierre Laporte ( 114 000), pas le sixième.  
 
-Suspendons tout de même notre incrédulité un moment et regardons l'impact de l'ajout du troisième lien sur le trafic.  Je sais qu'il faut ajouter une légende, je n'ai juste pas encore trouvé comment faire..
+Suspendons tout de même notre incrédulité un moment et regardons l'impact de l'ajout du troisième lien sur le trafic selon les données que nous possédons.   
+  
+NOTE:  Je sais qu'il faut ajouter une légende à la carte, je n'ai juste pas encore trouvé comment faire avec matplotlib.  
 
 
 trafic, réseau actuel:   
