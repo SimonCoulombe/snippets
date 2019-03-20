@@ -1,0 +1,196 @@
+---
+title: Impact du troisieme lien sur le trafic
+author: Simon
+date: '2019-03-20'
+slug: troisieme-lien
+categories:
+  - osmnx
+  - python
+tags:
+  - transport
+keywords:
+  - tech
+---
+
+Dans ce projet-jouet, j'ai utilisé les données ouvertes de l'application Mon Trajet et le package python `osmnx` pour estimer l'impact de la construction d'un troisième lien sur le trafic de la ville de Québec.  
+
+Le scénario retenu est le [cinquième des scénarios proposés](https://www.journaldequebec.com/2018/08/14/cinq-corridors-potentiels-seront-etudies-pour-un-troisieme-lien-quebeclevis), soit celui reliant l'intersection de l'autoroute Dufferin-Montmorency et de l'autoroute Félix-Leclerc au nord à l'autoroute 20 à la hauteur de la route l'Allemand au sud.
+
+![](/post/2019-03-20-impact-du-troisieme-lien-sur-le-trafic_files/scenario.jpg)
+ 
+Exceptionnellement, j'utilise le langage `Python` car le package `osmnx` à lui seul permet d'effectuer toutes les étapes du projet, soit:  
+
+  - télécharger le réseau routier,  
+  - ajouter le pont au réseau routier,  
+  - déterminer l'itinéraire optimal pour chacun des 16 000 trajets avec et sans le pont.  
+  
+Les trajets ont été préalablement manipulés en R avec le package `sf` afin d'extraire les coordonnées géographiques d'origine et de destination du trajet.  
+
+En ayant en main les itinéraires optimaux de tous les trajets, nous avons pu déterminer quel sera l'impact d'ajouter le pont sur le réseau routier. 
+## Méthode  
+
+### Télécharger le réseau routier  
+
+Le package `osmnx` rend très facile le téléchargement du réseau routier de la région de Québec-Lévis et des 10 kilomètres aux alentours:   
+
+`
+place = ['wendake,canada', 
+         'Lévis, canada',
+         'Québec city, canada',
+         "L'ancienne-lorette, canada"
+               ]
+
+G = ox.graph_from_place(place, network_type='drive',
+                       simplify=False,
+                       retain_all=True,
+                       buffer_dist = 10000   
+ )
+
+ox.save_graph_shapefile(G, filename='original-network-shape')
+`
+
+### Ajouter le pont au réseau router  
+
+J'utilise QGIS pour identifier l'endroit où je souhaite ajouter le pont, et ensuie j'ajoute les routes au réseau à l'aide de `osmnx`:  
+
+`
+G_bridge.add_node(999999999999999999999, x= -71.153, y= 46.866)
+G_bridge.add_edge(999999999999999999999, 180699309, key=0,  highway = "motorway", oneway = False, length = 841)
+G_bridge.add_edge(999999999999999999999, 130153234, key=0,  highway = "motorway", oneway = False, length = 875)
+G_bridge.add_edge(999999999999999999999, 130152949, key=0,  highway = "motorway", oneway = False, length = 1069)
+G_bridge.add_edge(180672314,999999999999999999999,  key=0,  highway = "motorway", oneway = False, length = 778)
+G_bridge.add_edge(180688633,999999999999999999999,  key=0,  highway = "motorway", oneway = False, length = 1060)
+G_bridge.add_edge(269683680,999999999999999999999,  key=0,  highway = "motorway", oneway = False, length = 1196)
+G_bridge.add_node(88888888888888888888, x= -71.1024, y= 46.8173)
+G_bridge.add_edge(88888888888888888888, 5728701577, key=0,  highway = "motorway", oneway = False, length = 624)
+G_bridge.add_edge(88888888888888888888, 486128981,  key=0,  highway = "motorway", oneway = False, length = 1077)
+G_bridge.add_edge(486135896, 88888888888888888888 ,  key=0,  highway = "motorway", oneway = False, length = 1050)
+G_bridge.add_edge(281651410, 88888888888888888888 ,  key=0,  highway = "motorway", oneway = False, length = 782)
+G_bridge.add_edge(88888888888888888888, 999999999999999999999, key=0, highway = "motorway", oneway = False, length = 6648)
+G_bridge.add_edge(999999999999999999999, 88888888888888888888, key=0, highway = "motorway", oneway = False, length = 6648)
+`
+
+### Calculer les itinéraires optimaux
+
+Pour déterminer l'itinéraire optimal de chacun des trajets, il faut tout d'abord calculer le temps nécessaire pour traverser chacun des segments de route.  Nous disposons de la longueur des segments et nous allons utiliser le type de route afin de déterminer la limite de vitesse.  
+
+J'ai utilisé une limite de vitesse de 100 km/h sur les autoroutes et de 50 km/h partout ailleurs.  Il s'agit d'une piste d'amélioration.  
+
+`  
+for u, v, k, data in G_bridge.edges(data=True, keys=True):
+
+  if 'highway' in data and data["highway"] == "motorway":
+    data["speed_limit_kmh"] = 100
+  elif 'highway':
+    data["speed_limit_kmh"] = 50
+    
+    
+for u, v, k, data in G_bridge.edges(data=True, keys=True): # u et v sont les nodes origines destination
+    data['time_minute'] = data['length'] / 1000 * 60 / data['speed_limit_kmh'] 
+`  
+
+Ensuite on utilise le package `osmnx` pour calculer l'itinéraire optimal de chacun des trajets.
+
+`
+nx.shortest_path(G,
+                 closest_node_to_origine,      
+                 closest_node_to_destination, weight = "time_minute")
+`
+
+## Résultats et pistes d'améliorations:   
+
+Voici tout d'avord la distribution du trafic sur le réseau routier sans et avec le pont.  Je sais, ça prend une légende mais jen 'ai pas eu le temps de découvrir comment le faire dans matplotlib...
+
+
+Voici un tableau présentant le pourcentage des trajets qui utilisent chacun des ponts, avec et sans le 3e lien.  J'ai séparé pierre-laporte en Nord et Sud car c'était plus facile.  
+
+###Pourcentage des trajets utilisant chacun des ponts
+
+Scénario #1, réseau routier actuel  
+
+Pont-Pierre Laporte vers le nord: 9.72%  
+Pont-Pierre Laporte vers le nord: 8.98%  
+Pont de Québec, toutes directions: 3.74%  
+Total: 22.4%  
+
+Scénario #2, ajout d'un troisième lien à l'est    
+
+Pont-Pierre Laporte vers le nord: 8.49%  
+Pont-Pierre Laporte vers le nord: 7.92%  
+Pont de Québec, toutes directions: 3.72%  
+3e lien à l'Est:  2.30%
+Total:  22.4%    
+
+Le troisième lien serait utilisé par un peu plus de 2% de tous les trajets recensés par l'application Mon Trajet.  Son trafic représenterait moins des deux tiers du trafic du pont de Québec et le dixième du trafic total traversant les ponts.
+
+Ces résultats me paraissent étranges, car j'ai vu sur les  [données ouvertes de débit journalier quotidien](https://geoegl.msp.gouv.qc.ca/igo2/apercu-qc/?context=mtq&visiblelayers=circulation_routier) que le pont de Québec (32 000) représente environ le tiers du trafic du Pont Pierre Laporte ( 114 000), pas le sixième.  
+
+Suspendons tout de même notre incrédulité un moment et regardons l'impact de l'ajout du troisième lien sur le trafic.  Je sais qu'il faut ajouter une légende, je n'ai juste pas encore trouvé comment faire..
+
+
+trafic, réseau actuel:   
+![](/post/2019-03-20-impact-du-troisieme-lien-sur-le-trafic_files/trafic_avant.png)  
+
+trafic, ajout du pont:  
+![](/post/2019-03-20-impact-du-troisieme-lien-sur-le-trafic_files/trafic_apres.png)  
+
+différence de trafic, en pourcentage:  
+![](/post/2019-03-20-impact-du-troisieme-lien-sur-le-trafic_files/trafic_delta_pct.png)  
+
+différence de trafic, en nombre de trajets:   
+![](/post/2019-03-20-impact-du-troisieme-lien-sur-le-trafic_files/trafic_delta.png)  
+
+
+## Conclusion et pistes d'amélioration   
+
+Les cartes que nous regardons montre que seulement 10% du trafic des ponts actuels serait détourné vers un troisième pont à l'Est.  
+Ce trafic aurait tout de même un impact important sur la circulation total des autoroutes Dufferin-Montmorency et de la Capitale.  
+
+Ces résultats sont à prendre avec un grain de sel, notamment car le pourcentage des trajets utilisant un pont semble démesuré par rapport à la réalité.  
+
+Pour régler ce problème, il serait intéressant d'utiliser les données de l'enquête-origine destination pour calibrer le nombre de trajets partant et arrivant dans chaque secteur.  
+
+On pourrait aussi améliorer les limites de vitesses imputées selon la catégorie de route (secondaire, tertiaire, résidentielle, ...).
+
+Overall, un projet super intéressant et qui m'a permis de m'améliorer en python et de découvrir le package osmnx.  
+
+## Code  
+
+Le code est disponible dans un [jupyter notebook sur mon repo](https://github.com/SimonCoulombe/dessine_moi_un_tramway/blob/master/bridge_works.ipynb).  
+
+## Utilisation de Docker    
+
+Pour utiliser le package `osmnx`, j'ai suivi les instructions suivantes pour me faciliter la vie.  
+
+  - [Installer Docker](https://docs.docker.com/docker-for-windows/install/)
+  - Démarrer un terminal en mode administrateur, naviguer vers le répertoire où je souhaite que les notebooks soient sauvegardés et y exécuter la commande suivante pour démarrer le serveur jupyter avec tout l'environnement géospatial:   "docker run --rm -it --name osmnx -p 8888:8888 -v %cd%:/home/jovyan/work gboeing/osmnx" 
+  ![](/post/2019-03-20-impact-du-troisieme-lien-sur-le-trafic_files/launch_server.png)  
+  - Démarrer un autre terminal en mode administrateur, se connecter à la machine virtuelle par SSH  avec la commande "docker exec -it osmnx /bin/bash" et y installer le package python scikit-lean avec la commande "conda install scikit-learn"   
+  ![](/post/2019-03-20-impact-du-troisieme-lien-sur-le-trafic_files/ssh into docker then install conda.png)  
+  - Se connecter au serveur jupyter en visitant le 127.0.0.1:8888 dans mon navigateur préféré:  
+  ![](/post/2019-03-20-impact-du-troisieme-lien-sur-le-trafic_files/jupyter.png)
+  
+## Utilisation de QGIS  
+
+J'ai eu recours à QGIS pour deux opérations:  
+  - Identifier les nodes (intersections) auxquelles je souhaite connecter le pont,  
+  - Mesurer la longueur du pont.  
+  
+Pour identifier les nodes, il faut:  
+  - charger le shapefile (Layer -> Add Layer -> Add vector Layer),  
+  - activer le "identify tool",  
+  - right-clicker sur la node, et sélectionner "nodes",  
+  - récupérer le numéro de id de la node.  
+  
+![](/post/2019-03-20-impact-du-troisieme-lien-sur-le-trafic_files/identify1.png)  
+![](/post/2019-03-20-impact-du-troisieme-lien-sur-le-trafic_files/identify2.png)
+
+Pour obtenir la longueur des routes créées, il faut:  
+  - charger le shapefile avec le pont,  
+  - "open attribute table",  
+  - lire la valeur de "length" et la recopier dans mon code.  
+
+![](/post/2019-03-20-impact-du-troisieme-lien-sur-le-trafic_files/open_attribute_table.png)  
+![](/post/2019-03-20-impact-du-troisieme-lien-sur-le-trafic_files/attribute_table.png)
+  
+  
