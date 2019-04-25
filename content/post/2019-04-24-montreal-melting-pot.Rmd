@@ -1,5 +1,5 @@
 ---
-title: montreal_melting_pot
+title: Where do immigrants live in Montréal and Québec City?
 author: Simon
 date: '2019-04-24'
 slug: montreal-melting-pot
@@ -18,6 +18,8 @@ A recent  by Arthur Charpentier (@freakonometrics) has inspired me to finally gi
 I will come back to this code for some examples of how to use `dotdensity` but also for `rmapzen` road and water tiles.  
 
 At first glance, it appears that the immigrants in Montréal from France, Italy, China and Lebanon won't run into each other very often.  Immigrants from Haiti and Algeria and Morocco and both more likely to be found in the North of the island.  
+
+For Quebec City, the pattern appears less clear.  French people sure love the old city.  
 
 As usual, the code is available on [github](https://github.com/SimonCoulombe/snippets/blob/master/content/post/2019-04-24-montreal-melting-pot.Rmd)
 
@@ -148,6 +150,108 @@ ggsave(filename=  'place_of_birth.png', plot = myplot, width=11,height=11)
 
 ![](/post/2019-04-24-montreal-melting-pot_files/place_of_birth.png)
 
+
+
+```{r, echo= FALSE, include = FALSE, eval = F}
+region=search_census_regions("Québec","CA16",level="CSD") %>% filter(name == "Québec") %>% as_census_region_list() 
+
+variables <- search_census_vectors("Total - Selected places of birth for the immigrant population in private households","CA16","Total") %>% child_census_vectors(leaves_only=TRUE)
+mtl <- get_census("CA16",regions=region,vectors=variables$vector,level="DA",labels="short",geo_format="sf") %>% 
+  detail_labels %>% 
+  clean_names()
+
+mtl3 <- mtl %>% mutate(
+  oceania = oceania_and_other_places_of_birth,
+  asia=  afghanistan +                      bangladesh      +                  china      +                       hong_kong +                       
+   india       +                      iran     +                         iraq  +
+    japan  +            
+    korea_south+
+    lebanon                          +
+    pakistan        +
+    philippines +     
+    sri_lanka    +  
+    syria   +       
+    taiwan          + 
+    viet_nam   +   
+    other_places_of_birth_in_asia,
+  americas =  brazil +colombia + el_salvador + guyana +haiti+jamaica+mexico+peru+trinidad_and_tobago+united_states+other_places_of_birth_in_americas,
+  europe = bosnia_and_herzegovina +           croatia  +                        
+    france       +                     germany +                         greece   +                         hungary         +                 
+    ireland      +                     italy   +                          netherlands   +                    poland+                           
+    portugal+                          romania  +                         russian_federation    +            serbia+                           
+    ukraine  +                         united_kingdom +                   other_places_of_birth_in_europe ,
+  africa = algeria  +                        
+   egypt +                            ethiopia +                         kenya       +                      morocco  +                        
+   nigeria   +                        somalia   +                        south_africa_republic_of    +      other_places_of_birth_in_africa,
+  rest_of_americas = americas - haiti,
+  rest_of_europe = europe - france- italy,
+  rest_of_africa = africa - morocco - algeria,
+  rest_of_asia = asia - china - lebanon,
+  algeria_morocco = algeria + morocco,
+  africa_not_algeria_morocco = africa -algeria_morocco,
+  america_not_usa = americas - united_states,
+  europe_not_france = europe - france,
+  
+  
+  
+  
+)
+
+categories <- c( "france", "algeria_morocco", "africa_not_algeria_morocco", "asia",   "europe_not_france", "america_not_usa"  )
+
+
+
+
+
+#  cookbook check for na
+# mtl4 %>% 
+#   select_if(function(x) any(is.na(x))) %>% 
+#   summarise_each(funs(sum(is.na(.)))) -> extra_NA
+# extra_NA
+# mtl4 %>% filter(is.na(rest_of_americas))
+
+bbox=sf::st_bbox(mtl3 %>% sf::st_sf())
+
+rmapzen::mz_set_tile_host_nextzen(Sys.getenv("nextzen_api_key"))
+mx_box=rmapzen::mz_rect(bbox$xmin,bbox$ymin,bbox$xmax,bbox$ymax)
+vector_tiles <- rmapzen::mz_vector_tiles(mx_box) 
+
+# vector tiles return all layers (roads, water, buildings, etc) in a list
+roads <- rmapzen::as_sf(vector_tiles$roads) %>% dplyr::filter(kind != "ferry")
+water <- rmapzen::as_sf(vector_tiles$water)
+
+dots <- compute_dots(mtl3 %>% filter(!is.na(haiti)),categories,scale=5) %>%
+  rename(place_of_birth=Category)
+
+bg_color="#111111"
+text_color = bg_color
+
+ggplot() + 
+  geom_sf(data = water, fill = "grey", colour = NA) +
+  geom_sf(data = roads, size = .2, colour = "grey") +
+  geom_sf(data=dots , aes(color=place_of_birth),alpha=0.75,size=0.05,show.legend = "point") +
+  facet_wrap(~place_of_birth)+ 
+  #ggthemes::theme_map()  + 
+  map_theme + 
+  scale_color_brewer(palette = "Set1") + 
+  labs(title="Population immigrante de Québec selon le pays de naissance",subtitle="1 point = 5 personnes")+ 
+  theme(legend.position="bottom",
+        panel.background = element_rect(fill = bg_color, colour = NA),
+        plot.background = element_rect(fill="white", size=1,linetype="solid",color=text_color)
+  ) + 
+  guides(colour = guide_legend(override.aes = list(size=3))) +
+  coord_sf(datum=st_crs(mtl),
+           expand=FALSE,
+           xlim=c(bbox$xmin,bbox$xmax),
+           ylim=c(bbox$ymin,bbox$ymax))
+
+ggsave('place_of_birth_quebec.png',width=11,height=11) 
+
+
+
+```
+
+![](/post/2019-04-24-montreal-melting-pot_files/place_of_birth_quebec.png)
 
 
 ```{r echo=FALSE}
