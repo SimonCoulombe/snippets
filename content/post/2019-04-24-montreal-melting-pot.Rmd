@@ -9,7 +9,7 @@ tags:
   - dotdensity
   - rmapzen
   - cancensus
-thumbnailImage: "/post/2019-04-24-montreal-melting-pot_files/place_of_birth.png"
+thumbnailImage: "/post/2019-04-24-montreal-melting-pot_files/place_of_birth_mtl_nofacet.png"
 thumbnailImagePosition: left  
 ---
 
@@ -252,6 +252,8 @@ ggsave('place_of_birth_quebec.png',width=11,height=11)
 ```
 
 ![](/post/2019-04-24-montreal-melting-pot_files/place_of_birth_quebec.png)
+
+![](/post/2019-04-24-montreal-melting-pot_files/place_of_birth_mtl_nofacet.png)
 
 
 ```{r echo=FALSE}
