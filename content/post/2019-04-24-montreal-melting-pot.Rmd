@@ -13,17 +13,13 @@ thumbnailImage: "/post/2019-04-24-montreal-melting-pot_files/place_of_birth.png"
 thumbnailImagePosition: left  
 ---
 
-This tweet by Arthur Charpentier (@freakonometrics) has inspired me to finally give Jens von Bergmann's (@vb_jens) `dotdensity` package a run.  
+A recent  by Arthur Charpentier (@freakonometrics) has inspired me to finally give Jens von Bergmann's (@vb_jens) `dotdensity` package a run.  
 
 I will come back to this code for some examples of how to use `dotdensity` but also for `rmapzen` road and water tiles.  
 
 At first glance, it appears that the immigrants in Montréal from France, Italy, China and Lebanon won't run into each other very often.  Immigrants from Haiti and Algeria and Morocco and both more likely to be found in the North of the island.  
 
-
-  ```{r echo=FALSE}
-blogdown::shortcode('tweet', '1121110189590110212')
-```
-
+As usual, the code is available on [github](https://github.com/SimonCoulombe/snippets/blob/master/content/post/2019-04-24-montreal-melting-pot.Rmd)
 
 ```{r,echo = FALSE, include = FALSE, eval= F}
 #devtools::install_github("mountainMath/dotdensity")
@@ -151,3 +147,9 @@ ggsave(filename=  'place_of_birth.png', plot = myplot, width=11,height=11)
 ```
 
 ![](/post/2019-04-24-montreal-melting-pot_files/place_of_birth.png)
+
+
+
+```{r echo=FALSE}
+blogdown::shortcode('tweet', '1121110189590110212')
+```
