@@ -1,0 +1,937 @@
+---
+title: "Géocodage des accidents de vélos à Lévis 2017"
+author: "Simon Coulombe"
+date: 2019-04-26
+slug: "bike-crashes-levis"
+output:
+  blogdown::html_page:
+    toc: false
+categories: ["R"]
+tags: ["sf", "open data", "rstats"]
+---
+
+J'ai mis à jour le blog post d'accidents de vélo pour la ville de Lévis en ajoutant les données de 2017 et en corrigeant quelques bogues d'encodage.  
+```{r setup, include =F}
+
+# TODO : valider ceci : Chunk options must be written in one line; no line breaks are allowed inside chunk options;
+# https://yihui.name/knitr/options/
+
+knitr::opts_chunk$set(echo = FALSE,
+                      collapse = TRUE,
+                      warning = FALSE,
+                      error = FALSE,
+                      message = FALSE,
+                      fig.align= "center",
+                      fig.width = 10,
+                      highlight = TRUE,
+                      cache = FALSE,
+                      cache.lazy = FALSE) # fixes long vector not supported quand on cache des gros éléments https://stackoverflow.com/questions/39417003/long-vectors-not-supported-yet-error-in-rmd-but-not-in-r-script
+```
+
+
+```{r setup2, message=FALSE, warning=FALSE, error= FALSE}
+knitr::opts_chunk$set(message=FALSE, warning=FALSE, error= FALSE)
+#rm(list = ls())
+library(tidyverse)
+library(sf)
+library(leaflet)
+library(viridis)
+library(htmlwidgets)
+library(readr)
+require(scales)
+#devtools::install_github("dkahle/ggmap") # nécessite la version de développement 2.7 pour pouvoir utiliser une api key.
+library(ggmap)
+library(stringr)
+library(forcats)
+library(lubridate)
+library(leaflet)
+library(viridis)
+library(leaflet.extras)
+library(DT)
+library(widgetframe) # for inserting datatables and leaflets inside the blog 
+# library(httr)
+# set_config(
+#   use_proxy(url=Sys.getenv("proxy_url"), 
+#   port= as.numeric(Sys.getenv("proxy_port")), 
+#   username= Sys.getenv("proxy_username"), 
+#   password=Sys.getenv("proxy_password")))
+# set_config( config( ssl_verifypeer = 0L ) )
+
+
+
+ville <- "Lévis"
+type <- "vélos"   # vélos , piétons
+
+download_files <- FALSE
+read_from_csv <- FALSE
+geocode <- FALSE
+
+#https://stackoverflow.com/questions/36175529/getting-over-query-limit-after-one-request-with-geocode
+register_google(key = Sys.getenv("googlemap_api_key"),
+                account_type="premium")
+
+
+####### DO NOT CHANGE ANYTHING BELOW THIS LINE
+wrapper <- function(x, ...) 
+{
+  paste(strwrap(x, ...), collapse = "\n")
+}
+
+if(ville == "province"){
+  villetexte <- "province de Québec"
+} else {villetexte <- paste0("ville de ",ville)}
+
+if(download_files){
+  ## crashes files
+  download.file("https://saaq.gouv.qc.ca/donnees-ouvertes/rapports-accident/rapports-accident-2017.csv", 
+                destfile= "./data/rapports-accident-2017.csv")
+  
+  download.file("https://saaq.gouv.qc.ca/donnees-ouvertes/rapports-accident/rapports-accident-2016.csv", 
+                destfile= "./data/rapports-accident-2016.csv")
+  download.file("https://saaq.gouv.qc.ca/donnees-ouvertes/rapports-accident/rapports-accident-2015.csv", 
+                destfile= "./data/rapports-accident-2015.csv")
+  download.file("https://saaq.gouv.qc.ca/donnees-ouvertes/rapports-accident/rapports-accident-2014.csv", 
+                destfile= "./data/rapports-accident-2014.csv")
+  download.file("https://saaq.gouv.qc.ca/donnees-ouvertes/rapports-accident/rapports-accident-2013.csv", 
+                destfile= "./data/rapports-accident-2013.csv")
+  download.file("https://saaq.gouv.qc.ca/donnees-ouvertes/rapports-accident/rapports-accident-2012.csv", 
+                destfile= "./data/rapports-accident-2012.csv")
+  download.file("https://saaq.gouv.qc.ca/donnees-ouvertes/rapports-accident/rapports-accident-2011.csv", 
+                destfile= "./data/rapports-accident-2011.csv")
+  
+  # table to convert municipalite code to municipalite name
+  # manually created a .tsv from the table found here
+  #(https://www.mamrot.gouv.qc.ca/recherche-avancee/fiche/municipalite/).
+  download.file("https://raw.githubusercontent.com/SimonCoulombe/saaqmtq/master/data/code_to_mun.tsv", destfile= "./data/code_to_mun.tsv")
+  
+  # comptage
+  download.file("http://donnees.ville.montreal.qc.ca/dataset/f170fecc-18db-44bc-b4fe-5b0b6d2c7297/resource/6caecdd0-e5ac-48c1-a0cc-5b537936d5f6/download/comptagevelo20162.csv",
+                destfile="./data/comptagevelo20162.csv")
+  
+  #localisation comptage
+  
+  download.file("http://donnees.ville.montreal.qc.ca/dataset/f170fecc-18db-44bc-b4fe-5b0b6d2c7297/resource/c7d0546a-a218-479e-bc9f-ce8f13ca972c/download/localisationcompteursvelo2015.csv", 
+                destfile="./data/localisationcompteursvelo2015.csv")
+  
+  #shapefile
+  download.file("http://donnees.ville.montreal.qc.ca/dataset/5ea29f40-1b5b-4f34-85b3-7c67088ff536/resource/234c8ee4-d9d8-4bb1-b957-3e5cd495a5aa/download/reseaucyclable2017juin2017shp.zip",
+                destfile = "./data/reseaucyclable2017juin2017shp.zip")
+  utils::unzip("./data/reseaucyclable2017juin2017shp.zip", 
+               exdir = "./data")
+}
+```
+
+
+# Objectif
+Le but de ce notebook R est de déterminer quels sont les endroits où se sont produits le plus d'accidents impliquant des `r type ` dans la ville de `r ville ` afin de déterminer à quels endroit des interventions seraient les plus bénéfiques.
+
+# Code
+Le programme qui a servi à générer ce document est situé au https://raw.githubusercontent.com/SimonCoulombe/saaqmtq/master/ville_type.Rmd 
+
+```{r accidents}
+
+if (read_from_csv){
+  
+  accidents17 <- read_csv("./data/rapports-accident-2017.csv") %>%
+    mutate(NO_ROUTE = as.numeric(NO_ROUTE), SFX_NO_CIVIQ_ACCDN= as.character(SFX_NO_CIVIQ_ACCDN),
+           CD_MUNCP = as.numeric(CD_MUNCP))
+  
+  accidents16 <- read_csv("./data/rapports-accident-2016.csv") %>%
+    mutate(NO_ROUTE = as.numeric(NO_ROUTE), SFX_NO_CIVIQ_ACCDN= as.character(SFX_NO_CIVIQ_ACCDN))
+  accidents15 <- read_csv("./data/rapports-accident-2015.csv")%>%
+    mutate(NO_ROUTE = as.numeric(NO_ROUTE), SFX_NO_CIVIQ_ACCDN= as.character(SFX_NO_CIVIQ_ACCDN))
+  accidents14 <- read_csv("./data/rapports-accident-2014.csv")%>%
+    mutate(NO_ROUTE = as.numeric(NO_ROUTE), SFX_NO_CIVIQ_ACCDN= as.character(SFX_NO_CIVIQ_ACCDN))
+  accidents13 <- read_csv("./data/rapports-accident-2013.csv")%>%
+    mutate(NO_ROUTE = as.numeric(NO_ROUTE), SFX_NO_CIVIQ_ACCDN= as.character(SFX_NO_CIVIQ_ACCDN))
+  accidents12 <- read_csv("./data/rapports-accident-2012.csv")%>%
+    mutate(NO_ROUTE = as.numeric(NO_ROUTE), SFX_NO_CIVIQ_ACCDN= as.character(SFX_NO_CIVIQ_ACCDN))
+  accidents11 <- read_csv("./data/rapports-accident-2011.csv")%>%
+    mutate(NO_ROUTE = as.numeric(NO_ROUTE), SFX_NO_CIVIQ_ACCDN= as.character(SFX_NO_CIVIQ_ACCDN)) %>%
+    rename(HR_ACCDN = heure_accdn)
+  
+  code_to_mun <- read_tsv("./data/code_to_mun.tsv")
+  # wrangle data, keeping only crashes involving bikes in Québec city
+  # 910 obs
+  accidents <- bind_rows(accidents11,accidents12, accidents13, 
+                         accidents14, accidents15, accidents16, accidents17)  %>%
+    left_join(code_to_mun %>% select(CD_MUNCP, NAME_MUNCP), by= "CD_MUNCP") %>%
+    mutate(year = year(DT_ACCDN),  #normalement j'utiliserais  isoyear, mais je ne veux pas voir de 2010..
+           week = isoweek(DT_ACCDN),
+           month = month(DT_ACCDN),
+           month.abb = as.factor(base::month.abb[month]) %>%
+             fct_relevel("Jan", "Feb", "Mar", "Apr", "May", "Jun", 
+                         "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"),
+           monday = floor_date(DT_ACCDN, unit = "week") ) %>%
+    arrange(DT_ACCDN)  %>%
+    mutate(gravite = as.factor(gravite) %>% fct_relevel("Dommages matériels seulement", "Léger", "Grave", "Mortel"))  %>% 
+    mutate(heure = as.numeric(ifelse(HR_ACCDN == "Non précisé", NA, str_sub(HR_ACCDN,1,2) )),
+           region_num = as.numeric(str_sub(REG_ADM, -3, -2))) %>%
+    mutate(row_num = row_number())  %>%
+    mutate(CD_ENVRN_ACCDN = fct_recode(as.factor(CD_ENVRN_ACCDN) ,
+                                       "Scolaire"= "1", 
+                                       "Résidentiel" = "2", 
+                                       "Affaires / commercial"= "3",
+                                       "Industriel / Manufacturier" = "4",
+                                       "Rural" = "5",
+                                       "Forestier" = "6", 
+                                       "Récréatif / parc / camping" = "7",
+                                       "Autre"    = "9",
+                                       "Non précisé" = "0")) %>%
+    mutate(CD_COND_METEO =
+             fct_recode(as.factor(CD_COND_METEO),
+                        "Clair" = "11",
+                        "Couvert (nuageux/sombre)" = "12",
+                        "Brouillard/brume "= "13",
+                        "Pluie/bruine"= "14",
+                        "Averse (pluie forte)" = "15",
+                        "Vent fort (pas de poudrerie, pas de pluie)"= "16",
+                        "Neige/grêle"= "17",
+                        "Poudrerie/tempête de neige"= "18",
+                        "Verglas"= "19",
+                        "Autre" = "99")) %>%
+    mutate(CD_POSI_ACCDN = 
+             fct_recode(as.factor(CD_POSI_ACCDN),
+                        "Voie réservée en service"= "01",
+                        "Voie lente/voie de dépassement" = "02",
+                        "Perte/gain de voie"= "03", 
+                        "Voie de virage à gauche dans les deux sens"= "04",
+                        "Voie cyclable/chaussée désignée"= "05",
+                        "Voie de circulation "= "06",
+                        "Accotement (ou bord de la chaussée)"= "07",
+                        "Terre-plein central ou îlot"= "08",
+                        "Trottoir"= "09",
+                        "Autre" = "10"))
+  
+  
+  save(accidents, accidents16, file= "accidents.rdata")
+} else load("accidents.rdata")
+
+
+if (ville != "province"){
+  accidents <- accidents %>% filter(NAME_MUNCP == ville)
+}
+
+if (type == "piétons"){
+  accidents <- accidents %>% filter(NB_VICTIMES_PIETON > 0)
+} else if (type == "vélos"){
+  accidents <- accidents %>% filter(nb_bicyclette > 0) 
+} else {stop("type doit être piétons ou vélos")}
+
+
+
+accidents$RUE_ACCDNmod <- accidents$RUE_ACCDN
+accidents$ACCDN_PRES_DEmod <- accidents$ACCDN_PRES_DE
+# replace short street names by full name, fix a few typos.
+# \\b represents the boundary of a word in regexp
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bN-D\\b", "NOTRE-DAME") # attention rouler ceci avant NORD car le - coupe le mot
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bBD\\b", "BOULEVARD")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bCH\\b", "CHEMIN")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bMT\\b", "MONT")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bAV\\b", "AVENUE")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bN\\b", "NORD")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bS\\b", "SUD")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bE\\b", "EST")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bO\\b", "OUEST")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bST\\b", "SAINT")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bSTE\\b", "SAINTE")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bRTE\\b", "ROUTE")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bTSSE\\b", "TERRASSE")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bGD\\b", "GRAND")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bGDE\\b", "GRANDE")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bAUT\\b", "AUTOROUTE")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bPTE\\b", "POINTE")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bPRDE\\b", "PROMENADE")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bRG\\b", "RANG")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bPR\\b", "PROMENADE")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bAL\\b", "ALLÉE")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bPL\\b", "PLACE")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bCT\\b", "CÔTE")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bMGR\\b", "MONSEIGNEUR")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bSTIE\\b", "SORTIE")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bENTR\\b", "ENTRÉE")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bMTEE\\b", "MONTÉE")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bMTE\\b", "MONTÉE")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bVIAD\\b", "VIADUC")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bRIV\\b", "RIVIÈRE")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bCROIS\\b", "AND")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bINTERSECTION\\b", "AND")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bSERV\\b", "SERVICE")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bFACE À\\b", "")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bFACE AU\\b", "")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bEN FACE\\b", "")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bFACE\\b", "")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bPRÈS DE\\b", "")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bPRÈS DU\\b", "")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bPRES DE\\b", "")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bPRES DU\\b", "")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bARR START\\b", "")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bARR DU\\b", "")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bARR DE\\b", "")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bARR STAT\\b", "")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bARR\\b", "")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bOPP DU\\b", "")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bOPP DE\\b", "")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bOPP\\b", "")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bQ BOURG\\b", "QUATRE-BOURGEOIS")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bQBOURG\\b", "QUATRE-BOURGEOIS")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bW PELLETIER\\b", "WILFRID-PELLETIER")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bSORTIE HENRI IV NORD\\b", "HENRI IV")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bDES RIVS\\b", "DES RIVIÈRES")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bSORTIE\\b", "")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bENTREE\\b", "")
+accidents$RUE_ACCDNmod <- str_replace(accidents$RUE_ACCDNmod, "\\bENTRÉE\\b", "")
+
+
+
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bN-D\\b", "NOTRE-DAME") # attention rouler ceci avant NORD car le - coupe le mot
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bBD\\b", "BOULEVARD")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bCH\\b", "CHEMIN")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bMT\\b", "MONT")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bAV\\b", "AVENUE")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bN\\b", "NORD")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bS\\b", "SUD")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bE\\b", "EST")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bO\\b", "OUEST")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bST\\b", "SAINT")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bSTE\\b", "SAINTE")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bRTE\\b", "ROUTE")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bTSSE\\b", "TERRASSE")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bGD\\b", "GRAND")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bGDE\\b", "GRANDE")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bAUT\\b", "AUTOROUTE")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bPTE\\b", "POINTE")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bPRDE\\b", "PROMENADE")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bRG\\b", "RANG")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bPR\\b", "PROMENADE")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bAL\\b", "ALLÉE")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bPL\\b", "PLACE")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bCT\\b", "CÔTE")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bMGR\\b", "MONSEIGNEUR")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bSTIE\\b", "SORTIE")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bENTR\\b", "ENTRÉE")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bMTEE\\b", "MONTÉE")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bMTE\\b", "MONTÉE")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bVIAD\\b", "VIADUC")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bRIV\\b", "RIVIÈRE")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bCROIS\\b", "AND")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bINTERSECTION\\b", "AND")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bSERV\\b", "SERVICE")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bFACE À\\b", "")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bFACE AU\\b", "")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bEN FACE\\b", "")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bFACE\\b", "")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bPRÈS DE\\b", "")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bPRÈS DU\\b", "")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bPRES DE\\b", "")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bPRES DU\\b", "")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bARR START\\b", "")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bARR DU\\b", "")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bARR DE\\b", "")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bARR STAT\\b", "")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bARR\\b", "")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bOPP DU\\b", "")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bOPP DE\\b", "")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bOPP\\b", "")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bQ BOURG\\b", "QUATRE-BOURGEOIS")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bQBOURG\\b", "QUATRE-BOURGEOIS")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bW PELLETIER\\b", "WILFRID-PELLETIER")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bSORTIE HENRI IV NORD\\b", "HENRI IV")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bSORTIE\\b", "")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bENTREE\\b", "")
+accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bENTRÉE\\b", "")
+
+
+# si lévis, alors remplacer COMMERCIALE par TANIATA. 
+#  pour coin taniata/20 est on va aller éditer directement dans location car api capricieux
+accidents <- accidents %>%  mutate(ACCDN_PRES_DEmod =
+                                     ifelse(
+                                       NAME_MUNCP == "Lévis",
+                                       str_replace(ACCDN_PRES_DEmod, "COMMERCIALE", "TANIATA"),
+                                       ACCDN_PRES_DEmod),
+                                   
+                                   RUE_ACCDNmod = 
+                                     ifelse(
+                                       NAME_MUNCP == "Lévis",
+                                       str_replace(RUE_ACCDNmod, "COMMERCIALE", "TANIATA"),
+                                       RUE_ACCDNmod))
+
+## create a location variable that is understandable by google maps
+
+accidents <- accidents %>%
+  mutate(location =
+           case_when(
+             !is.na(NO_CIVIQ_ACCDN) & !is.na(RUE_ACCDNmod) ~ 
+               str_c(str_replace_na(as.numeric(NO_CIVIQ_ACCDN), ""),
+                     " ",
+                     str_replace_na(RUE_ACCDNmod, "")," ",
+                     str_replace_na(NAME_MUNCP,""), ", QC, Canada"),
+             TP_REPRR_ACCDN==1 & !is.na(RUE_ACCDNmod) & !is.na(ACCDN_PRES_DEmod) ~ 
+               str_c(str_replace_na(RUE_ACCDNmod, ""),
+                     " and ",
+                     str_replace_na(ACCDN_PRES_DEmod, "")," ",
+                     str_replace_na(NAME_MUNCP,""), ", QC, Canada"),
+             TP_REPRR_ACCDN==1 & (!is.na(RUE_ACCDNmod) | !is.na(ACCDN_PRES_DEmod)) ~ 
+               str_c(str_replace_na(RUE_ACCDNmod, ""),
+                     str_replace_na(ACCDN_PRES_DEmod, "")," ",
+                     str_replace_na(NAME_MUNCP,""),", QC, Canada"),
+             !is.na(RUE_ACCDNmod) & !is.na(ACCDN_PRES_DEmod) ~ 
+               str_c(str_replace_na(RUE_ACCDNmod, ""),
+                     " and ",
+                     str_replace_na(ACCDN_PRES_DEmod, "")," ",
+                     str_replace_na(NAME_MUNCP,""),", QC, Canada"),
+             str_detect(toupper(RUE_ACCDNmod), " ET ") ~
+               str_c(RUE_ACCDNmod,
+                     " ",
+                     str_replace_na(NAME_MUNCP,""),", QC, Canada"),
+             str_detect(toupper(ACCDN_PRES_DEmod), " ET ") ~ # intersection de 2 routes
+               str_c(ACCDN_PRES_DEmod,
+                     " ",
+                     str_replace_na(NAME_MUNCP,""),", QC, Canada"),
+             str_detect(str_sub(ACCDN_PRES_DEmod,1,2), "\\d") ~ ACCDN_PRES_DEmod # un chiffre dans les 2 premiers caractères de accdn_pres_de ressemble a une adresse..
+             
+           ),
+         
+         location = ifelse( NAME_MUNCP == "Lévis" & str_detect(location, "TANIATA") & str_detect(location, "20"), "TANIATA and  20  Lévis, QC, Canada", location),
+         ville = paste0(str_replace_na(NAME_MUNCP,""), ", QC, Canada"))
+
+
+```
+
+# Sources de données
+
+Les données concernant les [accidents](https://www.donneesquebec.ca/recherche/fr/dataset/rapports-d-accident) proviennent du portail des données ouvertes du Québec, où la SAAQ a rendu disponible les données concernant tous les accidents rapportés à la police entre 2011 et 2017.   [Le dictionnaire de données](https://saaq.gouv.qc.ca/donnees-ouvertes/rapports-accident/rapports-accident-documentation.pdf) est disponible en ligne.
+
+Voici un échantillon des données telles qu'elles sont reçues du site web.
+```{r accidents16}
+datatable(data =  accidents16 %>% slice(1:10),
+          
+          rownames = F,
+          options = list(dom = 't', ordering = F, pageLength=10) ,          
+          caption = "Exemple des données reçues de la SAAQ") %>%
+  widgetframe::frameWidget(., width = '95%')
+```
+
+
+Pour effectuer la conversion des codes de municipalité vers le nom des municipalités, j'ai créé un tsv à partir du [tableau présenté](https://www.mamrot.gouv.qc.ca/recherche-avancee/fiche/municipalite/) sur le site du mamrot.
+
+
+# Géocodage
+
+Les données d'accident fournies par la SAAQ ne sont pas géocodées.  L'information concernant l'accident est répartie entre plusieurs colonnes:
+
+* "NO_CIVIQ_ACCDN" , the street civic number  
+* "SFX_NO_CIVIQ_ACCDN", a suffix to the street number  
+* "RUE_ACCDN", the road name  
+* "CD_MUNCP", the city code.    Here is a  [dictionnary to convert city code to name](https://www.mamrot.gouv.qc.ca/recherche-avancee/fiche/municipalite/).     
+
+* "NO_ROUTE" is the road number where the accident happened (numbered roads are typically highways).   This seems to be used as a alternative to the road name RUE_ACCDN.  
+* "CD_PNT_CDRNL_ROUTE" is the direction (North, South, East, West (Ouest) )  travelled on the road/highway.    
+*   "BORNE_KM_ACCDN" is the milestone number (used on highways and northern gravel roads)   
+
+They also use landmarks (intersection, etc..) to help locate the accident:
+
+* TP_REPRR_ACCDN is the type of landmark.    
+* 1  means the intersection of two roads,    
+* 2 " means "other landmark"   
+* 0 means the type is not specified.     
+* "ACCDN_PRES_DE" is the landmark that the type refers to.  It can be the road that intersects the road named under "RUE_ACCDN", a bridge, a school name, etc.  
+* "NB_METRE_DIST_ACCD" is the distance in meters between the landmark and the accident.     
+* "CD_PNT_CDRNL_REPRR" is the direction (North,South, East, Ouest) from the landmark to the accident.  
+
+Aussi, plusieurs abbréviations (BD, ST, STE, RTE, MGR, N, S, O, E, PRDE, etc) sont utilisées, ce qui complique le géocodage par l'API de google.  Lors de la préparation des données, j'ai créé une variable "location", où j'essaie de créer une chaîne de caractère que google pourra facilement géocoder.
+
+TODO: Je n'ai rien fait pour les bornes kilométriques + numéro de route, mais ce ne devrait pas exclure trop d'accidents de `r type `.
+
+
+
+```{r geocode}
+
+velo <- accidents
+
+## drop the 10 records for which I dont have a named location
+drop_no_word_location <- velo %>% filter(is.na(location))
+
+# velo is down to 900 obs
+velo  <-velo %>% filter(!is.na(location)) 
+
+#https://stackoverflow.com/questions/36175529/getting-over-query-limit-after-one-request-with-geocode
+
+# geocode using google maps api
+if(geocode){
+  geo <-ggmap::geocode(location = velo %>% pull(location), output = "latlon", source= "google")
+  
+  villes <-  velo %>% distinct(ville)
+  geo_villes <- ggmap::geocode(location = villes %>% pull(ville), output = "latlon", source= "google")
+  save(velo, geo, villes, geo_villes, file= paste0("geo_",ville,"_",type,".rdata"))
+  
+  
+} else {load(paste0("geo_",ville,"_",type,".rdata"))}
+
+
+velo$lon <- geo$lon
+velo$lat <- geo$lat
+
+villes$ville_lon <- geo_villes$lon
+villes$ville_lat <- geo_villes$lat
+
+velo <- velo %>% left_join(villes)
+
+
+# drop those that couldnt be geocoded (31)
+# velo is down to 869 obs
+drop_no_latlon_location <- velo %>% filter(is.na(lat))
+
+# drop those that were geocoded to generic city latlon
+drop_same_latlon_as_ville <- velo %>% filter(lat == ville_lat & lon == ville_lon) 
+
+# drop those geocoded more than 1 degree from city center latlon
+drop_too_far_from_ville <- velo %>% filter(   (lat-ville_lat)^2 + (lon- ville_lon)^2 > 1) 
+
+
+velo <- velo %>% filter(!is.na(lat) & !is.na(lon) & !(lat==ville_lat & lon == ville_lon) & !(   (lat-ville_lat)^2 + (lon- ville_lon)^2 > 1)    )
+
+```
+
+Pour effectuer le géocodage, j'utilise l'API de google maps via le package `ggmap`.  La version gratuite de l'API est limitée à 50 requêtes par minute et 2 500 requêtes gratuites par jour.
+
+Il s'est produit `r accidents   %>% tally() `accidents impliquant un `r type` dans `r villetexte` entre 2011 et 2017. 
+
+Je n'ai pas tenté le géocodage pour `r drop_no_word_location %>% tally()` car la localisation est trop ambiguë.  Ces accidents sont présentés en appendice.
+
+Parmi les `r geo %>% tally()` accidents que j'ai tenté de géocoder, l'API n'a pas réussi à retourner de latitude/longitude pour `r drop_no_latlon_location %>% tally()`. Ces accidents sont présentés en appendice.
+
+Le reste de l'analyse portera sur les `r velo %>% tally()` accidents qui ont été géocodés avec succès.
+
+# Résultats - données non-géocodées
+
+## Selon l'année
+
+
+
+```{r evol_temps}
+
+accidents %>% ggplot(aes(x=year))+ geom_histogram(binwidth = 1)+ 
+  ggtitle(wrapper(paste0("Accidents impliquant des ", type, " dans la ", villetexte, " entre 2011 et 2017"),
+                  width = 70))+ 
+  theme_bw()
+```
+
+<!-- ## selon la semaine avant/après recul de l'heure -->
+
+```{r}
+
+# recule_heure <- seq(ymd("2011-01-01"),ymd("2017-12-31"),by="1 day") %>% tbl_df() %>% 
+#   filter (wday(value, label = TRUE) == "Sun", day(value) <= 7, month (value)== 11)%>% 
+#   mutate(dummy=TRUE)
+# 
+# 
+# accidents %>% mutate(dummy = TRUE) %>%
+#   left_join(recule_heure) %>%
+#   filter(DT_ACCDN >= value-7, DT_ACCDN< value+7) %>%
+#   mutate(apres = ifelse(DT_ACCDN< value, 0, 1)) %>%
+#   count(year,apres)
+#   ca ne marche pas vraiment
+```
+
+
+## Selon le mois de l'année
+```{r evol_mois}
+ggplot(accidents,aes(x = month.abb)) + 
+  geom_histogram(binwidth=1, stat="count")+ 
+  ggtitle(wrapper(paste0("Accidents impliquant des ", type, " dans la ", villetexte, " selon le mois de l'accident"),
+                  width=70))+
+  facet_wrap(~ year)+
+  theme_bw() + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
+
+## Selon l'environnement  
+
+```{r CD_ENVRN_ACCDN}
+accidents %>% 
+  mutate(CD_ENVRN_ACCDN = CD_ENVRN_ACCDN %>% fct_infreq() )%>%
+  ggplot()+
+  geom_bar(mapping = aes(x=CD_ENVRN_ACCDN))+ 
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1))+
+  scale_y_continuous(labels = comma)
+```
+
+## Selon les conditions météos  
+
+```{r CD_COND_METEO}
+
+accidents %>% 
+  mutate(CD_COND_METEO = CD_COND_METEO %>% fct_infreq() )%>%
+  ggplot()+
+  geom_bar(mapping = aes(x=CD_COND_METEO))+ 
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1))+
+  scale_y_continuous(labels = comma)
+```
+
+## Selon la localisation transversale  
+
+```{r CD_POSI_ACCDN}
+accidents %>% 
+  mutate(CD_POSI_ACCDN = CD_POSI_ACCDN %>% fct_infreq() )%>%
+  ggplot()+
+  geom_bar(mapping = aes(x=CD_POSI_ACCDN))+ 
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1))+
+  scale_y_continuous(labels = comma)
+```
+
+## Selon la semaine de l'année
+```{r evol_semaine}
+ggplot(accidents,aes(x = week)) + 
+  geom_histogram(binwidth=1, stat="count")+ 
+  ggtitle(wrapper(paste0("Accidents impliquant des ", type, " dans la ", villetexte, " selon la semaine de l'accident"),
+                  width=70)) +
+  facet_wrap(~ year)+
+  theme_bw()
+```
+
+## Selon l'heure de la journée
+```{r evol_heure}
+ggplot(accidents,aes(x = heure)) + 
+  geom_bar()+ 
+  ggtitle(wrapper(paste0("Accidents impliquant des ", type, " dans la ", villetexte, " selon l'heure de l'accident"), width=70))+
+  facet_wrap(~ year)+ 
+  theme_bw()
+```
+
+```{r}
+accidents %>% count(CD_POSI_ACCDN)
+```
+
+
+## Selon la région administrative
+```{r evol_regadm}
+
+liste <- accidents %>% count(REG_ADM) %>% arrange(desc(n))   %>% select(REG_ADM) %>% mutate(rang = row_number())
+
+datatable(data =  accidents %>% 
+            inner_join(liste) %>% 
+            count(region_num,REG_ADM,year) %>%
+            spread(key=year, value=n) %>%
+            arrange(region_num) %>%
+            rename(`Région administrative` = REG_ADM) %>%
+            select(-region_num),
+          
+          rownames = F,
+          options = list(dom = 't', ordering = F, pageLength=17) ,          
+          caption = paste0("Nombre d'accidents impliquant des ", type," dans chaque région administrative entre 2011 à 2017"))
+```
+
+## Selon la ville
+```{r evol_ville}
+
+liste <- accidents %>% count(NAME_MUNCP) %>% arrange(desc(n)) %>% top_n(10)  %>% select(NAME_MUNCP) %>% mutate(rang = row_number())
+
+datatable(data =  accidents %>% 
+            inner_join(liste) %>% 
+            count(rang, NAME_MUNCP,year) %>%
+            spread(key=year, value=n) %>%
+            rename(`Municipalité` = NAME_MUNCP),
+          
+          rownames = F,
+          options = list(dom = 't', ordering = F, pageLength=10) ,          
+          caption = paste0("Nombre d'accidents impliquant des ", type," dans les 10 villes ayant eu le plus d'accidents entre 2011 à 2017")) %>%
+  widgetframe::frameWidget(., width = '95%')
+```
+
+
+## Selon la gravité des accidents
+```{r evol_gravite}
+ggplot(accidents,aes(x = year, fill= gravite)) + 
+  geom_bar(position = "fill")+ 
+  ggtitle(wrapper(paste0("Répartition des accidents (géolocalisés ou non) impliquant un ", type, " dans la ", villetexte, " selon la gravité de l'accident entre 2011 et 2017"), width=70))
+```
+
+
+
+## Liste des accidents mortels
+```{r liste_mortel}
+datatable(data =  accidents %>% filter(gravite== "Mortel") %>% select(DT_ACCDN, gravite, location, NAME_MUNCP, NO_CIVIQ_ACCDN, RUE_ACCDN, ACCDN_PRES_DE, TP_REPRR_ACCDN, ACCDN_PRES_DEmod, ACCDN_PRES_DE)  %>%
+            arrange(DT_ACCDN),
+          
+          rownames = F,
+          options = list(dom = 'tp', ordering = F, pageLength=11) ,          
+          caption = paste0("Liste des ", accidents   %>% filter(gravite == "Mortel") %>% tally(), " accidents mortels  impliquant des ", type," dans la ", villetexte, ", 2011 à 2017")) %>%
+  widgetframe::frameWidget(., width = '95%')
+```
+
+# Résultats - données géocodées
+
+## Top 10 des intersections où se sont produits le plus d'accidents  {.tabset}
+
+Le tableau  ci-bas montre le top 10 des intersections où se sont produits le plus d'accidents impliquant des `r type` dans la  `r villetexte ` entre 2011 et 2017.
+
+Le top 10 des 10 villes comptant le plus d'accidents est présenté juste en dessous.
+```{r add_accident}
+# add count variable, grouping by lat-long
+velo <- velo  %>% group_by(lat,lon) %>% mutate(accidents = n()) %>% arrange(desc(accidents), lat, lon, DT_ACCDN) %>% ungroup() 
+```
+
+```{r table_most_dangerous_spot, echo = F}
+
+worst10 <- velo %>% group_by(lat,lon) %>% slice(1:1) %>% ungroup() %>% select(accidents, location, lon, lat)  %>% arrange(desc(accidents))   %>% slice(1:10) %>% filter(accidents > 1)
+
+
+datatable(data = worst10  %>% select(-lat, -lon),
+          rownames = F,
+          options = list(dom = 't', ordering = F, pageLength=10) ,
+          caption = paste0("Liste des 10 intersections comptant le plus d'accidents géolocalisés de ", type, " dans la ", villetexte," entre 2011 et 2017)")) %>%
+  widgetframe::frameWidget(., width = '95%')
+
+```
+
+
+
+## Liste des accidents survenus aux intersections les plus dangeureuses  
+Ci bas, la liste (sur plusieurs pages) de tous les accidents survenus à ces 10 intersections.
+```{r liste_most_dangerous_spot}
+datatable(data = worst10 %>%
+            inner_join(velo %>% select(DT_ACCDN, gravite,lon, lat, NO_CIVIQ_ACCDN ,
+                                       RUE_ACCDN,
+                                       ACCDN_PRES_DE)) %>% select(-lat, -lon) ,
+          rownames = F,
+          options = list(dom = 'pt', ordering = F, pageLength=10) ,          
+          caption = paste0("Liste des accidents survenus dans les 10 pires intersections de la ", villetexte, " entre 2011 et 2017")) %>%
+  widgetframe::frameWidget(., width = '95%')
+```
+
+
+# Résultats - cartes interactives
+
+
+```{r prepare_map}
+#convert lat long to sf
+map_data <-  st_as_sf(velo %>% arrange(gravite) %>% mutate(lat2=lat, lon2= lon), coords = c("lon2", "lat2"), crs = 4326, agr = "constant")
+
+#create a palette for plotting gravite
+ndistinct<- as.numeric(as.data.frame(map_data %>% summarise( count = n_distinct(gravite))) %>% select(count))
+mypal <- leaflet::colorFactor(viridis_pal(option="C")(ndistinct), domain = map_data$gravite, reverse = TRUE) 
+```
+
+## Carte des accidents mortels
+Cette carte montre un cercle pour chacun des `r velo %>% filter(gravite =="Mortel") %>% tally()`accidents mortels impliquant des `r type ` dans la  `r villetexte ` survenu entre 2011-2017 et géolocalisés avec succès.   Lorsque plusieurs accidents arrivent au même endroit, on n'en voit qu'un seul.
+```{r map_circles, echo = F}
+# Map Circles. issue: there is some overlap, but still nice to map the different
+# categories
+map_data %>% filter(gravite == "Mortel") %>% leaflet(options = leafletOptions(maxZoom = 17))%>%
+  addProviderTiles(providers$Stamen.TonerLines) %>%
+  addProviderTiles(providers$Stamen.TonerLabels) %>%
+  addCircles(color = ~ mypal(gravite),
+             radius = ~30,
+             opacity = 0.7,
+             fillOpacity = 0.7,
+             label = ~ paste0(gravite," - ", DT_ACCDN, " - ", location)) %>%
+  addLegend("bottomleft",
+            pal = mypal,
+            values = ~ gravite,
+            title = paste0("Accidents mortels impliquant des vélos," ,villetexte, " 2011-2017"))%>%
+  widgetframe::frameWidget(., width = '95%')
+```
+
+## Heatmap 
+La heatmap suivante permet de mieux voir les régions où plusieurs accidents se sont produits, même si les cordonnées latitude-longitude ne sont pas identiques. On retrouve que les intersections mentionnées précédemment sont en rouge, mais aussi le boulevard charest et langelier en général.
+```{r heapmap, echo = F}
+# Heatmap, this makes finding dangerous spots easier even if the accident didnt
+# happen at the exact same lat/long
+# 3e avenue et 4 rue 
+# Hamel et Pierre-Bertrand 
+# Charest et Marie de l'Incarnation
+# Holland & René Lévesque.
+# le boulevard langelier 
+map_data %>% leaflet(options = leafletOptions(maxZoom = 16))%>%   
+  addProviderTiles(providers$Stamen.TonerLines) %>%
+  addProviderTiles(providers$Stamen.TonerLabels) %>%
+  addHeatmap(blur = 2, max = 3, radius = 8) %>%
+  widgetframe::frameWidget(., width = '95%')
+```
+
+## marker cluster du top 10  
+
+```{r spiderfy_worst10, echo=F}
+# Map cluster and spiderfy and max zoom to prevent overlap
+# 7 accidents au coin de 4e rue et 3e avenue!!!
+# 4 Charest et Marie de l'incarnation
+
+map_data %>% inner_join(worst10 %>% select(lon,lat)) %>% leaflet(options = leafletOptions(maxZoom = 17)) %>%   
+  addProviderTiles(providers$Esri.WorldTopoMap) %>%
+  addMarkers(clusterOptions =               markerClusterOptions(spiderfyOnMaxZoom= TRUE),
+             label = ~ paste0(gravite,"  ", DT_ACCDN, "  ", location) )  %>%
+  widgetframe::frameWidget(., width = '95%')
+
+```
+
+## MarkerCluster
+La dernière carte interactive montre des clusters. Si l'on zoom au maximum, on pourra par exemple voir les 6 accidents qui se sont produits à l'intersection de la 3e avenue et de la 4e rue, mais aussi un accident qui s'est produit juste à côté au 410 3e avenue.
+
+
+```{r spiderfy, echo=F}
+# Map cluster and spiderfy and max zoom to prevent overlap
+# 7 accidents au coin de 4e rue et 3e avenue!!!
+# 4 Charest et Marie de l'incarnation
+
+map_data %>% leaflet(options = leafletOptions(maxZoom = 17)) %>%   
+  addProviderTiles(providers$Esri.WorldTopoMap) %>%
+  addMarkers(clusterOptions =
+               markerClusterOptions(spiderfyOnMaxZoom= TRUE),
+             label = ~ paste0(gravite,"  ", DT_ACCDN, "  ", location) )  %>%
+  widgetframe::frameWidget(., width = '95%')
+
+```
+
+```{r carte_piste}
+# comptage <- read_csv("./data/comptagevelo20162.csv",  locale = locale(encoding = "UTF8")) %>% 
+#   select(-X2) 
+# 
+# comptage1 <- comptage %>% 
+#   gather(key= "nom_comptage", value = "compte", -Date) %>%
+#   mutate(Date = dmy(Date))
+# 
+# #3 compteurs n'ont pas des observatiosn tous les jours
+# ggplot(comptage1, aes(x=Date, y= compte))+
+#   geom_line()+ facet_wrap(~nom_comptage)
+# 
+# comptage1 %>% filter(is.na(compte) ) %>% count(nom_comptage)
+# 
+# # il y a toujours du traffic en juillet aout  
+# comptage %>% filter(is.na(compte)| compte ==0) %>% distinct(month(Date)) %>% arrange()
+# 
+# ## on va utiliser le comptage de juillet-aout pour colorer la carte..
+# shp_tmerc <- st_read("./data/Reseau_cyclable_2017_juin2017.shp",
+#                      options = "ENCODING=ISO-8859-1")  %>%  st_zm() 
+# 
+# localisation_ll <- read_csv("./data/localisationcompteursvelo2015.csv" ,  locale = locale(encoding = "ISO-8859-1")) %>%
+#   st_as_sf(coords = c("coord_X", "coord_Y"), crs = 4326, agr = "constant")  %>%
+#   mutate(nom_comptage = 
+#            case_when(
+#              nom_comptage == "Brebeuf" ~ "Brébeuf",
+#              nom_comptage == "Rachel/Papineau" ~ "Rachel / Papineau",
+#              nom_comptage == "Pont_Jacques-Cartier" ~ "Pont_Jacques_Cartier",
+#              nom_comptage == "CSC" ~ "CSC (Côte Sainte-Catherine)",
+#              nom_comptage == "Rachel/Hôtel de Ville" ~ "Rachel / Hôtel de Ville",
+#              TRUE ~ nom_comptage
+#            )) %>%
+#   left_join (comptage1 %>% filter(month(Date) %in% c(7,8)) %>% group_by(nom_comptage) %>%
+#                summarise(traffic_78 = sum(compte)))
+# 
+# shp_ll <- shp_tmerc %>% st_transform( crs = 4326)
+# localisation_tmerc <- localisation_ll %>%  st_transform( st_crs(shp_tmerc))
+# 
+# 
+# 
+# 
+# #Error in if (length(nms) != n || any(nms == "")) stop("'options' must be a fully named list, or have no names (NULL)") : 
+# #missing value where TRUE/FALSE needed 
+# # on règle cette erreur avec st_zm()
+# z <-   shp_ll %>% 
+#   leaflet() %>% 
+#   addPolylines(highlightOptions = highlightOptions(color = "white", 
+#                                                    weight = 2,
+#                                                    bringToFront = TRUE),
+#                label = ~ NOM_ARR_VI) %>% 
+#   addProviderTiles(providers$Esri.WorldTopoMap) %>%
+#   addMarkers(data= localisation_ll, label = ~ nom)
+# #addMarkers(data= localisation, ~coord_X, ~coord_Y)
+# 
+# 
+# dist <- st_distance(localisation_tmerc, shp_tmerc)
+# closest  <- max.col(-1* dist) 
+# 
+# localisation_tmerc$ID <- shp_tmerc$ID[closest]
+# localisation_ll$ID <- shp_tmerc$ID[closest]
+# 
+# zz <- shp_ll %>% left_join(localisation_ll  %>% as.data.frame %>% select(ID, traffic_78))
+# 
+# mypal <- leaflet::colorNumeric(viridis_pal(option="plasma")(3), domain = localisation_ll$traffic_78)
+# 
+# 
+# z <-   zz %>% 
+#   leaflet() %>% 
+#   addPolylines(
+#     color = ~ mypal(traffic_78),
+#     highlightOptions = highlightOptions(color = "white", 
+#                                         weight = 2,
+#                                         bringToFront = TRUE),
+#     label = ~ paste0( ID, NOM_ARR_VI)) %>% 
+#   addProviderTiles(providers$Esri.WorldTopoMap) %>%
+#   addMarkers(data= localisation_ll, label = ~ paste0(nom, segment)) %>%
+#   addLegend("bottomleft",
+#             pal = mypal,
+#             values = ~ traffic_78,
+#             title = paste0("Trafic total pour juillet-aout 2016, 18 stations"))
+# 
+# ## données mtl trajet
+# # http://donnees.ville.montreal.qc.ca/dataset/mtl-trajet
+# #http://depot.ville.montreal.qc.ca/mtl-trajet-2016/trip_final_2016_shp.zip
+# #http://depot.ville.montreal.qc.ca/mtl-trajet-2016/qa_segment_ref_with_count_2016_shp.zip
+
+
+```
+
+```{r}
+#z
+```
+
+```{r}
+# # i wish this ran too
+# z <- shp_tmerc %>% mutate(dummy= TRUE) %>% 
+#   left_join(localisation_tmerc %>% as_data_frame() %>% mutate(dummy=TRUE),
+#             by= dummy) 
+# 
+# z %>% mutate(dist = map2(data, cbind(X,Y),~ geosphere::dist2Line(p = .y,
+#                                                                  line = as.matrix(data %>% select(X,Y)))))
+# 
+# 
+# z <-  map( lines, ~geosphere::dist2Line(p = st_coordinates(pointsWgs84.sf), 
+#                                         line = as.matrix(.x %>% unnest() %>% select(X,Y))) )
+
+```
+
+
+# Appendice
+
+Le programme n'a pas essayé de géocoder les accidents suivants:
+
+```{r geocode_notry}
+datatable(data = drop_no_word_location,
+          
+          rownames = F,
+          options = list(dom = 'tp', ordering = F, pageLength=10) ,
+          caption = "Accidents que le programme n'a pas essayé de géocoder")
+```
+
+Google n'a pas réussi à géocoder les accidents suivants:
+
+```{r geocode_fail}
+datatable(data = drop_no_latlon_location,
+          
+          rownames = F,
+          options = list(dom = 'tp', ordering = F, pageLength=10) ,
+          caption = "Accidents que google n'a pas réussi à géocoder")
+```
+
+Google a codé  ces accidents au centre de la ville: 
+
+```{r}
+datatable(data =drop_same_latlon_as_ville ,
+          
+          rownames = F,
+          options = list(dom = 'tp', ordering = F, pageLength=10) ,
+          caption = "Accidents codés au centre de la ville par google")
+```
+
+
+google c codé ces addidents  très loin du centre de la ville:  
+
+```{r}
+datatable(data =drop_too_far_from_ville ,
+          
+          rownames = F,
+          options = list(dom = 'tp', ordering = F, pageLength=10) ,
+          caption = "Accidents codés à l'extérieur de la ville par google.")
+```
+
