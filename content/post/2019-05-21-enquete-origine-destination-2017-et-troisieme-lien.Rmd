@@ -1,0 +1,670 @@
+---
+title: Enquete Origine Destination 2017 et troisieme lien
+author: simon
+date: '2019-05-21'
+slug: eod2017
+categories:
+  - R
+  - shiny
+tags:
+  - 3elien
+keywords:
+  - tech
+thumbnailImage: "/post/2019-05-21-enquete-origine-destination-2017-et-troisieme-lien_files/unnamed-chunk-10-1.png" 
+thumbnailImagePosition: left
+
+---
+
+
+```{r setup, include =F}
+
+# TODO : valider ceci : Chunk options must be written in one line; no line breaks are allowed inside chunk options;
+# https://yihui.name/knitr/options/
+
+knitr::opts_chunk$set(echo = FALSE,
+                      collapse = TRUE,
+                      warning = FALSE,
+                      error = FALSE,
+                      message = FALSE,
+                      fig.align= "center",
+                      fig.width = 10,
+                      highlight = TRUE#,
+                      #cache = FALSE,
+                      #cache.lazy = FALSE
+) # fixes long vector not supported quand on cache des gros él  éments https://stackoverflow.com/questions/39417003/long-vectors-not-supported-yet-error-in-rmd-but-not-in-r-script
+```
+
+
+```{r librairies, include = F}
+# penser à gérer breakyville dans st-jean chrysostome un jour
+library(tidyverse)
+library(sf)
+library(mapview)
+library(readxl)
+library(janitor)
+library(tmap)
+library(widgetframe) # add leaflets to blog
+```
+
+
+La neuvième [enquête origine-destination](https://www.transports.gouv.qc.ca/fr/ministere/Planification-transports/enquetes-origine-destination/quebec/2017/Pages/enquete-2017.aspx) de la région de Québec s’est déroulée du 6 septembre au 12 décembre 2017. Elle a été réalisée par un partenariat regroupant le Ministère, le Réseau de transport de la Capitale (RTC), la Société de transport de Lévis, la Ville de Québec, la Ville de Lévis, ainsi que la Communauté métropolitaine de Québec.  
+
+Le [ministre calcule que 40 \% des  déplacements interrives se font d'est en est](https://ici.radio-canada.ca/nouvelle/1170231/bonnardel-troisieme-lien-est-etude-origine-destination-quebec-levis), contre 60 \% d'ouest en ouest.    
+
+Regardez sa carte: les gens de St-Romuald qui habitent à l'ombre du pont de Québec sont dans l'Est et les gens de Les Saules qui habitent à l'ombre de l'autoroute Henri IV sont aussi à L'est.  Selon le ministre:"On peut prétendre que ceux qui circulent d’est en est **vont nécessairement** utiliser le troisième lien.".  Come on!  C'est une escroquerie.
+
+Il manque aussi une donnée: on dit que 60% vont de l'ouest à l'ouest et 40% de l'est à l'est. Qu'en est-il des gens qui vont de l'est vers l'ouest et vice-versa?  On va regarder ça.  
+
+![](/post/2019-05-21-enquete-origine-destination-2017-et-troisieme-lien_files/Screenshot_20190521_050620.png)
+
+
+En ce qui me concerne, je vais probablement revenir à ce post pour pouvoir réutiliser les tables de correspondance entre les régions de recensement et les secteurs municipaux de Québec-Lévis, ainsi que mes notes quand à l'utilisation de QGIS pour générer cette table manuellement sans trop m'arracher les cheveux.  
+
+
+```{r, include= F}
+
+if (FALSE){
+  download.file(
+    url = "https://www.transports.gouv.qc.ca/fr/ministere/Planification-transports/enquetes-origine-destination/quebec/2017/Documents/EnqOD_QUE2017_Matrices_SM.XLSX",
+    destfile = here::here("content/post/temp_files/", "EnqOD_QUE2017_Matrices_SM.XLSX")
+  )
+  download.file(
+    url = "http://www12.statcan.gc.ca/census-recensement/2011/geo/bound-limit/files-fichiers/2016/lsdr000b16a_f.zip",
+    destfile = here::here("content/post/temp_files/", "lsdr000b16a_f.zip")
+  )
+  
+  download.file(
+    url = "http://www12.statcan.gc.ca/census-recensement/2011/geo/bound-limit/files-fichiers/2016/lsr_000b16a_f.zip",
+    destfile = here::here("content/post/temp_files/", "lsr_000b16a_f.zip")
+  )
+  
+  utils::unzip(
+    here::here("content/post/temp_files/", "lsdr000b16a_f.zip"),
+    exdir= here::here("content/post/temp_files/")
+  )
+  
+  utils::unzip(
+    here::here("content/post/temp_files/", "lsr_000b16a_f.zip"),
+    exdir= here::here("content/post/temp_files/")
+  )
+}
+```
+# Secteurs municipaux et carte  
+
+
+
+La première partie du projet (et la plus longue) est de regarder la carte des secteurs municipaux de l'enquête et de créer la table de correspondance entre les secteurs de recensements (et sous-divisions de recensements) et les différents secteur municipaux visibles sur cette carte.  
+![](/post/2019-05-21-enquete-origine-destination-2017-et-troisieme-lien_files/secteurs_municipaux.png)
+
+
+On va se taper la tâche laborieuse de recréer les [secteurs municipaux](https://www.transports.gouv.qc.ca/fr/ministere/Planification-transports/enquetes-origine-destination/quebec/2017/Documents/SM_QC2017.pdf) utilisés lors de l'enquête et basés sur les census tract et census subdivisions du Recensement de 2016.  
+
+Le tableau de correspondance est ci-dessous, et mes notes quant à la création du tableau dans QGIS sont à la toute fin du post.  
+
+Les shapefiles sont sur le [site de statistiques canada](https://www12.statcan.gc.ca/census-recensement/2011/geo/bound-limit/bound-limit-2016-eng.cfm).  
+
+
+
+```{r}
+correspondance_sm_sr  <-
+  tibble::tribble(
+    ~SM,       ~SRIDU,
+    10, "4210015.00",
+    10, "4210016.00",
+    10, "4210017.00",
+    10, "4210018.00",
+    10, "4210019.00",
+    10, "4210014.00",
+    21, "4210003.00",
+    21, "4210005.00",
+    21, "4210006.00",
+    22, "4210001.01",
+    22, "4210001.02",
+    30, "4210022.00",
+    30, "4210023.00",
+    30, "4210024.00",
+    30, "4210021.00",
+    30, "4210025.00",
+    30, "4210004.00",
+    40, "4210020.00",
+    40, "4210002.00",
+    40, "4210007.00",
+    40, "4210008.00",
+    40, "4210009.00",
+    40, "4210010.00",
+    40, "4210011.00",
+    40, "4210012.00",
+    40, "4210013.00",
+    50, "4210029.00",
+    50, "4210030.00",
+    50, "4210031.00",
+    50, "4210035.00",
+    50, "4210036.00",
+    60, "4210034.00",
+    60, "4210033.01",
+    60, "4210033.02",
+    70, "4210026.00",
+    70, "4210027.00",
+    70, "4210028.00",
+    70, "4210037.00",
+    70, "4210038.01",
+    70, "4210038.02",
+    81, "4210101.00",
+    81, "4210102.00",
+    81, "4210103.00",
+    81, "4210100.00",
+    91, "4210116.00",
+    100, "4210115.00",
+    100, "4210117.02",
+    100, "4210117.01",
+    110, "4210110.00",
+    110, "4210111.00",
+    120, "4210112.01",
+    120, "4210112.02",
+    120, "4210113.01",
+    120, "4210113.02",
+    130, "4210118.00",
+    130, "4210114.00",
+    140, "4210120.01",
+    140, "4210120.02",
+    140, "4210120.03",
+    150, "4210220.01",
+    150, "4210220.02",
+    160, "4210280.02",
+    160, "4210280.01",
+    160, "4210280.03",
+    170, "4210290.04",
+    170, "4210290.03",
+    170, "4210290.01",
+    180, "4210272.00",
+    180, "4210271.01",
+    180, "4210271.02",
+    190, "4210273.01",
+    190, "4210273.02",
+    190, "4210273.04",
+    190, "4210273.03",
+    200, "4210270.01",
+    200, "4210270.03",
+    200, "4210270.04",
+    210, "4210300.00",
+    210, "4210311.01",
+    210, "4210311.02",
+    221, "4210310.00",
+    221, "4210320.02",
+    221, "4210320.01",
+    221, "4210320.04",
+    230, "4210320.03",
+    230, "4210340.03",
+    230, "4210320.07",
+    230, "4210320.08",
+    240, "4210340.01",
+    240, "4210340.02",
+    250, "4210330.00",
+    260, "4210320.05",
+    260, "4210360.02",
+    270, "4210360.01",
+    290, "4210119.02",
+    290, "4210119.04",
+    290, "4210119.03",
+    300, "4210140.01",
+    300, "4210140.02",
+    300, "4210140.03",
+    310, "4210032.00",
+    310, "4210260.01",
+    310, "4210260.02",
+    310, "4210260.03",
+    320, "4210040.01",
+    320, "4210040.04",
+    320, "4210040.03",
+    330, "4210039.01",
+    330, "4210039.02",
+    340, "4210041.02",
+    340, "4210041.05",
+    340, "4210041.07",
+    350, "4210240.02",
+    350, "4210240.01",
+    360, "4210160.01",
+    360, "4210041.04",
+    360, "4210041.06",
+    360, "4210041.08",
+    360, "4210041.09",
+    370, "4210041.03",
+    370, "4210160.03",
+    370, "4210160.04",
+    370, "4210160.05",
+    380, "4210230.01",
+    380, "4210230.02",
+    390, "4210210.01",
+    390, "4210210.02",
+    400, "4210170.03",
+    400, "4210170.04",
+    400, "4210170.05",
+    410, "4210170.07",
+    410, "4210170.06",
+    430, "4210801.00",
+    430, "4210802.00",
+    430, "4210800.01",
+    430, "4210800.02",
+    440, "4210810.00",
+    440, "4210811.00",
+    440, "4210812.00",
+    460, "4210820.03",
+    460, "4210820.04",
+    460, "4210820.01",
+    470, "4210825.00",
+    480, "4210830.01",
+    480, "4210830.02",
+    490, "4210835.07",
+    490, "4210835.06",
+    490, "4210835.03",
+    490, "4210835.04",
+    490, "4210835.05",
+    500, "4210840.02",
+    500, "4210840.01",
+    520, "4210850.05",
+    520, "4210850.04",
+    520, "4210850.03",
+    520, "4210846.02",
+    520, "4210850.02",
+    520, "4210846.03",
+    530, "4210846.04",
+    540, "4210845.06",
+    540, "4210845.03",
+    540, "4210845.04"
+  )
+
+correspondance_sm_sdr <- 
+  tibble::tribble(
+    ~SDRIDU, ~SM,
+    "2433090", 670,
+    "2434017", 660,
+    "2419110", 680,
+    "2419068", 560,
+    "2419117", 680,
+    "2419097", 571,
+    "2419105", 571,
+    "2421020", 650,
+    "2420020", 450,
+    "2421005", 650,
+    "2421045", 280,
+    "2422020", 590,
+    "2422045", 620,
+    "2421025", 640,
+    "2421030", 640,
+    "2420025", 450,
+    "2420005", 450,
+    "2421035", 630,
+    "2421040", 630,
+    "2420015", 450,
+    "2420030", 450,
+    "2422025", 590,
+    "2422030", 600,
+    "2421010", 650,
+    "2421015", 650,
+    "2422005", 581,
+    "2422010", 581,
+    "2422015", 581,
+    "2422035", 600,
+    "2422040", 610,
+    "2426070", 550,
+    "2423057", 300,
+    "2423072", 420,
+    "2433095", 670,
+    "2434007", 660,
+    "2434025", 660,
+    "2434120", 581,
+    "2420010", 450
+  )
+
+
+sm_names <- 
+ 
+tibble::tribble(
+                                          ~SM,                                                                                            ~nom, ~rivenord, ~est,
+                                           10,                                                                               "Haute-Ville Est",         1,    1,
+                                           21,                                                                  "Haute-Ville Ouest (Montcalm)",         1,    1,
+                                           22,                                                           "Haute-Ville Ouest (Saint-Sacrement)",         1,    1,
+                                           30,                                                                               "Basse-Ville Est",         1,    1,
+                                           40,                                                                             "Basse-Ville Ouest",         1,    1,
+                                           50,                                                                                "Vieux-Limoilou",         1,    1,
+                                           60,                                                                                        "Lairet",         1,    1,
+                                           70,                                                                                     "Maizerets",         1,    1,
+                                           81,                                                                                       "Sillery",         1,    0,
+                                           91,                                                                            "Cité Universitaire",         1,    0,
+                                          100,                                                                        "Sainte-Foy Centre-Nord",         1,    0,
+                                          110,                                                                         "Sainte-Foy Centre-Sud",         1,    0,
+                                          120,                                                                          "Pointe-de-Sainte-Foy",         1,    0,
+                                          130,                                                                              "Quatre-Bourgeois",         1,    0,
+                                          140,                                                                                     "Cap-Rouge",         1,    0,
+                                          150,                                                                    "Notre-Dame-des-Laurentides",         1,    1,
+                                          160,                                                                                   "Orsainville",         1,    1,
+                                          170,                                                                              "Charlesbourg-Est",         1,    1,
+                                          180,                                                                    "Charlesbourg (Trait-Carré)",         1,    1,
+                                          190,                                                                            "Henri-Bourassa Est",         1,    1,
+                                          200,                                                                              "Charlesbourg Sud",         1,    1,
+                                          210,                                                                                       "Giffard",         1,    1,
+                                          221,                                                           "Monseigneur-Gauthier,Vieux-Beauport",         1,    1,
+                                          230,                                                                              "Seigneuriale Sud",         1,    1,
+                                          240,                                                                                     "Courville",         1,    1,
+                                          250,                                                                                   "Montmorency",         1,    1,
+                                          260,                                                               "Sainte-Thérèse-de-Lisieux Ouest",         1,    1,
+                                          270,                                                                 "Sainte-Thérèse-de-Lisieux Est",         1,    1,
+                                          280,                                                                                    "Boischatel",         1,    1,
+                                          290,                                                                "Quartier Laurentien, Champigny",         1,    0,
+                                          300,                                                                            "L'Ancienne-Lorette",         1,    0,
+                                          310,                                                                                        "Vanier",         1,    1,
+                                          320,                                                                                      "Duberger",         1,    0,
+                                          330,                                                                                    "Les Saules",         1,    0,
+                                          340,                                                                                "Neufchâtel Est",         1,    0,
+                                          350,                                                                                   "Lebourgneuf",         1,    1,
+                                          360,                                                                              "Neufchâtel Ouest",         1,    0,
+                                          370,                                                        "Loretteville, Neufchâtel Nord, Wendaké",         1,    0,
+                                          380,                                                                                   "Saint-Émile",         1,    1,
+                                          390,                                                                             "Lac-Saint-Charles",         1,    0,
+                                          400,                                                                           "Val-Bélair (Bélair)",         1,    0,
+                                          410,                                                                 "Val-Bélair (Val-Saint-Michel)",         1,    0,
+                                          420,                                                                   "Saint-Augustin-de-Desmaures",         1,    0,
+                                          430,                                                                                        "Lauzon",         0,    1,
+                                          440,                                                                                  "Lévis Centre",         0,    1,
+                                          450,                                                                               "L'Île-d'Orléans",         1,    1,
+                                          460,                                                                             "Saint-Romuald Est",         0,    1,
+                                          470,                                                  "Pintendre, Saint-Joseph-de-la-Pointe-de-Lévy",         0,    1,
+                                          480,                                                                           "Saint-Romuald Ouest",         0,    0,
+                                          490,                                                                        "Saint-Jean-Chrysostome",         0,    0,
+                                          500,                                                                                        "Charny",         0,    0,
+                                          510,                                                                 "Sainte-Hélène-de-Breakeyville",         0,    0,
+                                          520,                                                                                 "Saint-Nicolas",         0,    0,
+                                          530,                                                                              "Saint-Rédempteur",         0,    0,
+                                          540,                                                                       "Saint-Étienne-de-Lauzon",         0,    0,
+                                          550,                                                                       "Saint-Lambert-de-Lauzon",         0,    0,
+                                          560,                                                                                   "Saint-Henri",         0,    1,
+                                          571,                                                        "Beaumont, Saint-Charles-de-Bellechasse",         0,    1,
+                                          581, "Lac-Saint-Joseph, Fossambault-sur-le-Lac, Sainte-Catherine-de-la-Jacques-Cartier, Lac Sergent",         1,    0,
+                                          590,                                                          "Saint-Gabriel-de-Valcartier, Shannon",         1,    0,
+                                          600,                                                             "Stoneham-et-Tewksbury, Lac-Delage",         1,    1,
+                                          610,                                                                                  "Lac-Beauport",         1,    1,
+                                          620,                                                                      "Sainte-Brigitte-de-Laval",         1,    1,
+                                          630,                                                                "L'Ange-Gardien, Château-Richer",         1,    1,
+                                          640,                                                               "Sainte-Anne-de-Beaupré, Beaupré",         1,    1,
+                                          650,                                  "Saint-Joachim, Saint-Ferréol-les-Neiges, Saint-Tite-des-Caps",         1,    1,
+                                          660,                                                               "Donnacona, Neuville, Pont-Rouge",         1,    0,
+                                          670,                                                     "Saint-Antoine-de-Tilly, Saint-Apollinaire",         0,    0,
+                                          680,                                                    "Saint-Michel-de-Bellechasse, Saint-Vallier",         0,    1,
+                                          999,                                                                               "Hors territoire",         1,    1
+                                          )
+
+```
+
+En fusionnant les tables de correspondance aux shapefiles, on réussit à reproduire la carte des secteurs municipaux de l'enquête.  La seule exception est Sainte-Hélène de Breakeyville que j'ai dû fusionner à St-Jean Chrystome.  Ils ont dû le découper à l'aide des aires de diffusions, mais disons que j'ai pas trouvé que ça valait la peine... 
+
+J'ai créé ma définition d'est et Ouest.  Sur la Rive-Sud, j'ai ajouté à l'ouest St-Romuald Ouest (à l'Ouest de la rivière Etchemins) ainsi que St-Jean Chrysostome.  Sur la Rive-Nord, j'ai ajouté Les Saules, Duberger, et Neufchâtel.  Ça donne la carte ci-dessous et ça ne me semble pas excessif.
+
+```{r}
+shp_sdr <- read_sf(here::here("content/post/temp_files/","lsdr000b16a_f.shp"))  %>%
+  inner_join(correspondance_sm_sdr) 
+shp_sr <- read_sf(here::here("content/post/temp_files/", "lsr_000b16a_f.shp")) %>%
+  inner_join(correspondance_sm_sr) 
+
+#smnames2 <- read_csv("/home/simon/git/enquete_od/sm_names.csv")
+
+shp_sm <- rbind(shp_sdr %>% select(SM), 
+      shp_sr %>% select(SM)) %>%
+  group_by(SM) %>%
+  summarise() %>%  # group_by et summarise pour créer 1 seul polygones à partir des n SR de chaque secteur municipal
+  left_join(sm_names) 
+
+mapview(shp_sm, zcol= "est")
+```
+
+# Trajets d'auto du matin
+On commence par  télécharger les [matrices de déplacement entre les secteurs municipaux](https://www.transports.gouv.qc.ca/fr/ministere/Planification-transports/enquetes-origine-destination/quebec/2017/Documents/EnqOD_QUE2017_Matrices_SM.XLSX) et on importe les  trajets d'auto de la pointe du matin, soit l'onglet "SAXAU17T" de la feuille des matrices origine destination.  On combine les trajets des secteurs 490 et 510, soit St-Jean-Chrysostome et St-Hélène de Breakeyville car notre carte ne discerne pas entre les deux.  Aussi, on retire les trajets qui se terminent à l'extérieur du territoire de l'étude (SM = 999).
+
+Ce sont donc 24 705	voitures qui traversent du sud vers le nord et 9 866 qui font le trajet inverse.  Honnêtement, je suis surpris de l'ampleur du trafic vers le sud.  9.4 \% des utilisateurs de voiture traversent un pont dans un sens ou l'autre le matin.   
+
+```{r}
+trajets_auto_am <- read_excel(here::here("content/post/temp_files/", "EnqOD_QUE2017_Matrices_SM.XLSX"),
+                              sheet= "SAXAU17T", skip =12, na= "." )  %>% 
+  clean_names %>%
+  filter(secteurs_municipaux != "TOTAL") %>%
+  rename(origine = x2) %>% 
+  select(-total, - secteurs_municipaux) %>%
+  gather(key= destination, value= trajets, starts_with("x")) %>%
+  mutate(destination = as.numeric(str_sub(destination, 2)),
+         trajets = ifelse(is.na(trajets),0, as.numeric(trajets))) %>%
+  mutate(origine = ifelse(origine== 510, 490, origine), # début breakyville dans st jean chrysostome
+         destination= ifelse(destination == 510, 490, destination))  %>%
+  group_by(origine,destination ) %>% 
+  summarise(trajets = sum(trajets)) %>%# fin breakyville dans st jean chrysostome
+  ungroup() %>%
+  left_join(sm_names %>% select(origine= SM, origine_nom = nom, origine_est = est, rivenord_origine = rivenord)) %>%
+  left_join(sm_names %>% select(destination= SM, destination_nom = nom, destination_est = est, rivenord_destination = rivenord))%>%
+  filter(destination != 999 & origine != 999)
+```
+
+```{r}
+trajets_auto_am %>% 
+  group_by(rivenord_origine, rivenord_destination) %>% 
+  summarise(trajets = sum(trajets)) %>%
+  ungroup() %>%
+  arrange(-rivenord_origine, -rivenord_destination) %>%
+  mutate(pct_total = 100* trajets / sum(trajets)) %>%
+  knitr::kable(digits=1) 
+```
+
+
+Bon, on va maintenant regarder quelle proportion de nos 34 571 trajets qui traversent le fleuve vont véritablement de l'est vers l'est.  
+La réponse c'est 13,6 \%.  On est loin de 40% ! et c'est très dépendant de l'hypothèse qui veut que Lebourgneuf et Saint-Romuald Est sont prêts à aller jouer dans le bout de l'île d'orléans.
+
+
+```{r}
+trajets_auto_am %>% 
+  filter(rivenord_origine != rivenord_destination) %>% 
+  group_by(origine_est, destination_est) %>% 
+  summarise(trajets = sum(trajets)) %>%
+  ungroup() %>%
+  arrange(-trajets) %>%
+  mutate(pct_total = 100* trajets / sum(trajets)) %>%
+  knitr::kable(digits=1) 
+
+# 
+# origine_est	destination_est	trajets	pct_total
+# 0	0	14618	42.3
+# 0	1	10582	30.6
+# 1	1	4687	13.6
+# 1	0	4684	13.5
+
+```
+
+# Un troisième lien?  
+
+On va regarder un peu d'où viennent et où vont les gens qui traversent les ponts.  
+```{r}
+origine_am <- 
+  trajets_auto_am %>% 
+  group_by(origine) %>%
+  summarise(origine_am = sum(trajets)) %>%
+  rename(SM = origine)
+
+destination_am <- 
+  trajets_auto_am %>% 
+  group_by(destination) %>%
+  summarise(destination_am = sum(trajets)) %>%
+  rename(SM = destination)
+
+
+origine_am_traverse_fleuve <- 
+  trajets_auto_am %>% 
+  filter(rivenord_origine !=  rivenord_destination) %>%
+  group_by(origine) %>%
+  summarise(origine_am_traverse_fleuve = sum(trajets)) %>%
+  rename(SM = origine)
+
+destination_am_traverse_fleuve <- 
+  trajets_auto_am %>% 
+  filter(rivenord_origine !=  rivenord_destination) %>%
+  group_by(destination) %>%
+  summarise(destination_am_traverse_fleuve = sum(trajets)) %>%
+  rename(SM = destination)
+
+final_data <- shp_sm %>% 
+  left_join(origine_am)%>%
+  left_join(destination_am) %>%
+  left_join(origine_am_traverse_fleuve) %>%
+  left_join(destination_am_traverse_fleuve) %>%
+  mutate(pct_destination_traverse_fleuve = destination_am_traverse_fleuve / destination_am)
+```
+
+
+La carte suivante montre la destination des gens qui prennent leur auto le matin.  On voit clairement les 4 pôles que sont Ste-Foy, Lebourgneuf,la colline parlementaire et Lévis-Centre.
+
+```{r}
+
+mapview(final_data, zcol= "destination_am")
+```
+
+
+La carte suivante montre la destination des gens qui prennent leur voiture et qui traversent dans un sens ou dans l'autre.  Sans surprise vu la distance, Lebourgneuf et la colline parlementaire sont moins attractifs pour les gens qui doivent traverser le fleuve, tandis que Ste-Foy et Lévis-Centre demeurent très attractif.  
+```{r}
+
+mapview(final_data, zcol= "destination_am_traverse_fleuve")
+
+
+```
+
+La présence importante de Lévis-Centre chez les traverseurs de fleuve m'a un peu surpris.  J'ai donc sorti le pourcentage de personnes qui arrivent dans une région qui ont dû traverser le fleuve.  C'est 23% à Lévis, 18% à Ste-Foy,  13% sur la colline et 6% à Lebourgneuf.  
+
+```{r}
+mapview(final_data, zcol= "pct_destination_traverse_fleuve")
+```
+
+
+
+## Du sud au nord  
+
+La carte statique suivante montre la destination (en vert) et l'origine (en rouge) des 24 705 voitures qui traversent du sud au nord.  On voit tout de suite que les secteurs de l'Ouest  sont ceux qui abbreuvent les ponts.  Le tableau
+
+```{r}
+qtm(final_data %>% 
+      mutate(
+        rivesud_to_rivenord = ifelse(rivenord==1, destination_am_traverse_fleuve, -origine_am_traverse_fleuve)
+      ), 
+    fill = "rivesud_to_rivenord",
+    fill.n = 11,
+    fill.palette="div",
+    basemaps = "OpenStreetMap",
+    title = "Origine et Destination des 24 705 voitures traversant au nord lors de la pointe AM",
+    format = "World")
+```
+
+```{r}
+final_data %>% 
+  filter(rivenord == 0) %>% 
+  select(SM, nom, origine_am_traverse_fleuve) %>% 
+  st_set_geometry(NULL) %>%
+  arrange(-origine_am_traverse_fleuve) %>%
+  knitr::kable(caption = "Origine des trajets traversant du sud vers le nord")
+```
+
+
+```{r}
+final_data %>% 
+  filter(rivenord == 1) %>% 
+  select(SM, nom, destination_am_traverse_fleuve) %>% 
+  st_set_geometry(NULL) %>%
+  arrange(-destination_am_traverse_fleuve) %>%
+  head(10) %>%
+  knitr::kable(caption = "Destination des trajets traversant du sud vers le nord")
+
+```
+
+Format carte interactive, pour les gens qui veulent creuser:  
+
+```{r}
+final_data %>% 
+      mutate(
+        rivesud_to_rivenord = ifelse(rivenord==1, destination_am_traverse_fleuve, -origine_am_traverse_fleuve)
+      ) %>%
+  mapview(zcol= "rivesud_to_rivenord")
+
+```
+
+## Du nord au sud  
+
+La carte statique suivante montre le l'origine (en rouge) et la destination (en vert) des gens qui traversent du nord au sud.   Elle est suivit d'une carte interactive pour ceux qui veulent fouiller un peu plus.  
+
+C'est Desjardin (3467) qui tirent le plus de voitures, mais St-Romuald Ouest (1645) et St-Nicolas (1127) drainent quand même plus que je ne le croyais.  
+
+Pour répondre à une question reçue sur LinkedIn concernant le trafic Beauport-Rive-Sud, ce sont 185 voitures qui quittent seigneuriale-Sud pour la rive-sud, ainsi que  170 du Vieux-Beauport, 123 Ste-Thérèse, 104 Giffard, 78 Courville et 6 Montmorency.   La majorité de ces navetteurs ne vont pas à Desjardins, mais à l'Ouest de Lévis. Par exemple, pour les 185 de seigneuriales, j'ai 79 personnes qui vont à Lévis Centre( 42%), mais le reste vise principalement Saint-Romuald Ouest, Saint-Jean-Chrysostome, Saint-Nicolas et Saint-Romuald Est.
+```{r}
+qtm(final_data %>% 
+      mutate(
+        rivenord_to_rivesud = ifelse(rivenord==1, -origine_am_traverse_fleuve, destination_am_traverse_fleuve)
+      ), 
+    fill = "rivenord_to_rivesud",
+    fill.n = 11,
+    fill.palette="div",
+    basemaps = "OpenStreetMap",
+    title = "Origine et Destination des 9 866 voitures traversant au sud lors de la pointe AM",
+    format = "World")
+```
+
+```{r}
+final_data %>% 
+  filter(rivenord == 1) %>% 
+  select(SM, nom, origine_am_traverse_fleuve) %>% 
+  st_set_geometry(NULL) %>%
+  arrange(-origine_am_traverse_fleuve) %>%
+  knitr::kable(caption = "Origine des trajets traversant du sud vers le nord")
+```
+
+```{r}
+final_data %>% 
+  filter(rivenord == 0) %>% 
+  select(SM, nom, destination_am_traverse_fleuve) %>% 
+  st_set_geometry(NULL) %>%
+  arrange(-destination_am_traverse_fleuve) %>%
+  head(10) %>%
+  knitr::kable(caption = "Destination des trajets traversant du sud vers le nord")
+
+```
+
+
+
+
+```{r}
+final_data %>% 
+      mutate(
+        rivenord_to_rivesud = ifelse(rivenord==1, origine_am_traverse_fleuve, destination_am_traverse_fleuve)
+      ) %>%
+  mapview(zcol= "rivenord_to_rivesud")
+```
+
+
+
+
+# QGIS
+
+Mes notes QGIS.  Je suis très très débutant, je l'utilise seulement quand je n'ai pas vraiment le choix :)
+
+ * Comme d'habitude, on charge le shapefile de secteurs de recensement avec "Layer - Add Vector Layer",  
+ * Pour ajouter une couche de fond Open Street Maps, on suit les [instructions ici pour "no plugin required](https://gis.stackexchange.com/questions/20191/adding-basemaps-from-google-or-bing-in-qgis),  right click "Tile Server XYZ" - Add Connection et on met l'URL suivant: http://tile.openstreetmap.org/{z}/{x}/{y}.png .  
+ 
+ 
+ ![](/post/2019-05-21-enquete-origine-destination-2017-et-troisieme-lien_files/xyz1.png)
+ ![](/post/2019-05-21-enquete-origine-destination-2017-et-troisieme-lien_files/xyz2.png)
+
+  * On va travailler beaucoup avec l' "identify tool" et le select tool 
+  * Pour pouvoir ajouter la colonne "SM" aux attributs de la couche de SR, je commence par "toggle editing", en faisait right click la couche dans "layers panel" puis "toggle editing".  Ensuite, pour ajouter la colonne, je reclique sur la couche dans "layers panel", puis je fais "Properties", "Fields" et je clique sur le petit icône "Field Calculator" pour créer le champ SM avec une valeur (expression) de 0.  Note: le screenshot pointe vers "new field", il faut plutôt cliquer sur field calculator, qui est le 4e icone à droite de new field.  
+  
+  
+  
+![](/post/2019-05-21-enquete-origine-destination-2017-et-troisieme-lien_files/Screenshot_20190521_024507.png)  
+![](/post/2019-05-21-enquete-origine-destination-2017-et-troisieme-lien_files/Screenshot_20190521_024619.png)  
+ * Ensuite, le jeu c'est de rendre la couleur des polygones dépendante de la SM, afin de pouvoir voir les progrès que je fais à mesure que j'attribue une SM à un polygones.  Pour ce faire, je dois donner un style "graduated"  à la layer de secteur de recensement et je dis de me baser sur la colonne "SM".  J'active le "live update" afin que la carte soit mise à jour à chaque fois que je change le SM d'un polygone  et je dois aussi cliquer "classify" sporadiquement afin qu'il attribue des couleurs à chaque valeur.    
+ 
+ ![](/post/2019-05-21-enquete-origine-destination-2017-et-troisieme-lien_files/Screenshot_20190521_032302.png)
+  * Enfin, pour modifier la valeur de SM, j'utilise le identify tool pour mettre à jour le champ SM ( et je clique Classify quand j'entre un nouveau maximum.)
+
+![](/post/2019-05-21-enquete-origine-destination-2017-et-troisieme-lien_files/Screenshot_20190521_033421.png)
+ 
+Une fois que j'ai tout bien peinturé la carte, j'ai sauvegardé le shapefile, je l'ai lu et j'ai sauvegardé seulement la colonne  "SM" et "SDRIDU", le résultat est ci-dessous.  
