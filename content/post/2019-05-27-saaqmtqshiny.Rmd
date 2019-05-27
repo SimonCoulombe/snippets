@@ -1,0 +1,138 @@
+---
+title: Quelles sont les intersections les plus dangereuses pour les piétons et les
+  cyclistes (update)
+author: simon
+date: '2019-05-27'
+slug: saaqmtqshiny
+categories:
+  - opendata
+  - R
+  - shiny
+tags: []
+keywords:
+  - tech
+thumbnailImage: "/post/2019-05-27-saaqmtqshiny_files/gatineau.png" 
+thumbnailImagePosition: left
+---
+
+
+```{r setup, include =F}
+# TODO : valider ceci : Chunk options must be written in one line; no line breaks are allowed inside chunk options;
+# https://yihui.name/knitr/options/
+knitr::opts_chunk$set(echo = FALSE, 
+                      collapse = FALSE,
+                      warning = FALSE,
+                      error = FALSE,
+                      message = FALSE,
+                      fig.align= "center",
+                      fig.width = 10,
+                      highlight = TRUE,
+                      cache = FALSE,
+                      cache.lazy = FALSE) # fixes long vecto rnot supported quand on cache des gros éléments https://stackoverflow.com/questions/39417003/long-vectors-not-supported-yet-error-in-rmd-but-not-in-r-script
+```
+La SAAQ publie les rapports d'accidents remplis par les policiers en format de données ouvertes. J'ai utilisé les [données de 2011 à 2017](https://www.donneesquebec.ca/recherche/fr/dataset/rapports-d-accident)pour identifier les endroits les plus accidentogènes pour les piétons et les vélos. Avec un peu de chance ce post permettra à un planificateurs de corriger un des endroits les plus dangereux.
+
+Les données comportent environ 700 000 accidents déclarés aux policiers, dont 32 642 impliquant un piéton ou un cycliste.
+
+Les données ne comportent malheureusement pas la longitude et la latitude de l'accident. Des colonnes existent, telles que "numéro civique", "nom de la rue", "accident près de", mais elles ne sont pas remplies de façon uniforme et sont truffées de fautes de frappe. J'ai tout de même réussi à géocoder 30885 accidents (94.6%) à l'aide de beaucoup d'huile de bras et des outils de géocodage de google et de opencage. Je vous présente quelques résultats ci-dessous. Il serait intéressant de refaire l'exercice avec tous les accidents, mais le coût de géocodage deviendrait rapidement prohibitif.
+```{r, include = F}
+library(tidyverse)
+library(leaflet)
+library(knitr)
+library(kableExtra)
+library(mapview)
+prepared3 <- read_csv("data/prepared3.csv")
+```
+
+Sans plus attendre, voici le pire endroit pour les piétons dans 10 villes du Québec
+```{r}
+top10_pieton <- prepared3 %>%
+  filter(type %in% c("piéton", "vélos_et_piétons")) %>%
+  filter(!is.na(final_lat)) %>%
+  group_by(final_lat, final_lon)  %>%
+  mutate( rapports = n(), ) %>%
+  select(location,NAME_MUNCP , clean_REG_ADM, rapports , final_lat, final_lon) %>%
+  group_by(final_lat, final_lon,location)%>%
+  mutate(location_count = n()) %>%
+  group_by(final_lat, final_lon) %>%
+  arrange(-location_count) %>%
+  slice(1) %>%
+  ungroup() %>%
+  group_by(NAME_MUNCP , clean_REG_ADM) %>%
+  arrange(-rapports) %>%
+  select(-location_count) %>%
+  select(location, everything())%>%
+  rename(Emplacement = location, ville = NAME_MUNCP, région = clean_REG_ADM, accidents= rapports) %>%
+  slice(1) %>%
+  ungroup() %>%
+  arrange(-accidents) %>% 
+  mutate(type= "piéton") %>%
+  head(10) 
+
+kable(top10_pieton %>% select(-final_lat, -final_lon, -type), 
+      caption = "Pires intersections pour les piétons dans 10 villes du Québec") %>%
+  kable_styling("striped")
+```
+
+
+```{r}
+top10_cyclistes <- prepared3 %>%
+  filter(type %in% c("vélo", "vélos_et_piétons")) %>%
+  filter(!is.na(final_lat)) %>%
+  group_by(final_lat, final_lon)  %>%
+  mutate( rapports = n(), ) %>%
+  select(location,NAME_MUNCP , clean_REG_ADM, rapports , final_lat, final_lon) %>%
+  group_by(final_lat, final_lon,location)%>%
+  mutate(location_count = n()) %>%
+  group_by(final_lat, final_lon) %>%
+  arrange(-location_count) %>%
+  slice(1) %>%
+  ungroup() %>%
+  group_by(NAME_MUNCP , clean_REG_ADM) %>%
+  arrange(-rapports) %>%
+  select(-location_count) %>%
+  select(location, everything())%>%
+  rename(Emplacement = location, ville = NAME_MUNCP, région = clean_REG_ADM, accidents= rapports) %>%
+  slice(1) %>%
+  ungroup() %>%
+  arrange(-accidents) %>% 
+    mutate(type= "vélo") %>%
+  head(10) 
+
+kable(top10_cyclistes %>% select(-final_lat, -final_lon, -type), 
+      caption = "Pires intersections pour les cyclistes dans 10 villes du Québec") %>%
+  kable_styling("striped")
+```
+
+
+```{r}
+# bind_rows(top10_pieton, top10_cyclistes) %>% 
+#   filter(!is.na(final_lon)) %>% 
+#   sf::st_as_sf(x = ., coords = c("final_lon", "final_lat"), crs = 4326, agr = "constant") %>%
+#   mapview(zcol ="accidents")
+```
+
+Voici une carte dynamique montrant tous les accidents pour la période :  
+
+
+```{r}
+prepared3 %>% 
+  filter(!is.na(final_lon)) %>% 
+  sf::st_as_sf(x = ., coords = c("final_lon", "final_lat"), crs = 4326, agr = "constant") %>% 
+  leaflet(options = leafletOptions(maxZoom = 17)) %>%   
+  addProviderTiles(providers$Esri.WorldTopoMap) %>%
+  addMarkers(clusterOptions =  markerClusterOptions(spiderfyOnMaxZoom= TRUE),
+             label = ~ paste0(gravite,"  ", DT_ACCDN, "  ", location) )  
+```
+
+Finalement, j'ai créé une application pour vous permettre de générer le top 10 de votre ville.  Elle est située au shiny.simoncoulombe.com/shiny/saaqmtq.  Le username est "guest" et le mot de passe est "room". 
+
+Voici un screenshot de l'application telle quelle:  
+
+![](/post/2019-05-27-saaqmtqshiny_files/gatineau.png)
+
+Le code pour préparer les données est disponible sur mon [github](https://github.com/SimonCoulombe/saaqmtq).  Les données géocodées sont disponibles en ligne, au cas où vous voudriez y jeter un coup d'oeil.  
+
+Purquoi je vais revenir à ce code:  J'avais déjà fait quelque chose de similaire en 2017.  L'intérêt de ce post est que je rajoute les données de 2017, que j'ai ajouté un shiny pour créer le top 10 de n'importe quelle ville et que j'utilise l'outil de geocodage de openCage pour créer des "bounding boxes" afin de m'assurer que l'accident est géocodé dans la bonne ville, particulièrement quand il existe 2 villes avec le même nom comme St-Donat des Laurentides vs St-Donat dans le bas St-Laurent. 
+
+une note pour moi : il faut maintenant installer les librairies avec le user shiny (su - shiny) au lieu de root.
