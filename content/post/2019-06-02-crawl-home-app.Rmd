@@ -37,7 +37,7 @@ Drunks of the world rejoice, for today a centuries-old problem has been solved. 
 Try it today by visiting my server at  http://shiny.simoncoulombe.com/shiny/crawlhome/ using username `guest`and password `room`.  Clicking "get me home" will have you hang for about 10 seconds before showing the map.  More bars = more waiting time.  
 
 
-The list of pubs and their location is found using the `osmdata`package and the crawling/biking/driving duration between the points is found using the `openrouteservice-r` package using a `ors_matrix` call .  I then use a custom version of A* pathing I built to find the shortest path that will vist N bars on the way to my bed.  The directions are then downloaded, again from the `openrouteservice`  API, this time using the `ors_directions` .   The code is [available on github](https://github.com/SimonCoulombe/astarbar). 
+Origin and destination locations are geocoded using the `opencage` package.  The pubs and their location between these two points are found using the `osmdata`package.  The crawling/biking/driving duration between all the points is found using the `openrouteservice-r` package using a `ors_matrix` call .  I then use a custom version of A* pathing I built to find the shortest path that will vist N bars on the way to my bed.  The directions are then downloaded, from the `openrouteservice`  API, this time using the `ors_directions` and finally mapped using `leaflet`.   The code is [available on github](https://github.com/SimonCoulombe/astarbar). 
 
 ![crawlhome](/post/2019-06-02-crawl-home-app_files/crawlhome.png)
 
