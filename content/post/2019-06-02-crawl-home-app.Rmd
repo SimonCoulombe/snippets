@@ -1,0 +1,43 @@
+---
+title: Crawl Home App
+author: simon
+date: '2019-06-02'
+slug: crawl-home-app
+categories:
+  - R
+tags:
+  - shiny
+  - openrouteservice
+  - opencage
+keywords:
+  - tech
+thumbnailImage: "/post/2019-06-02-crawl-home-app_files/crawlhome.png" 
+thumbnailImagePosition: left
+---
+```{r setup, include =F}
+
+# TODO : valider ceci : Chunk options must be written in one line; no line breaks are allowed inside chunk options;
+# https://yihui.name/knitr/options/
+
+knitr::opts_chunk$set(echo = FALSE,
+                      collapse = TRUE,
+                      warning = FALSE,
+                      error = FALSE,
+                      message = FALSE,
+                      fig.align= "center",
+                      fig.width = 10,
+                      highlight = TRUE#,
+                      #cache = FALSE,
+                      #cache.lazy = FALSE
+) # fixes long vector not supported quand on cache des gros él  éments https://stackoverflow.com/questions/39417003/long-vectors-not-supported-yet-error-in-rmd-but-not-in-r-script
+```
+
+Drunks of the world rejoice, for today a centuries-old problem has been solved.   I have created an app that will tell you the shortest path to your bed while stopping at N bars on the way.  You can select you mode of transportation: walking, biking or driving.   
+
+Try it today by visiting my server at  http://shiny.simoncoulombe.com/shiny/crawlhome/ using username `guest`and password `room`.  Clicking "get me home" will have you hang for about 10 seconds before showing the map.  More bars = more waiting time.  
+
+
+The list of pubs and their location is found using the `osmdata`package and the crawling/biking/driving duration between the points is found using the `openrouteservice-r` package using a `ors_matrix` call .  I then use a custom version of A* pathing I built to find the shortest path that will vist N bars on the way to my bed.  The directions are then downloaded, again from the `openrouteservice`  API, this time using the `ors_directions` .   The code is [available on github](https://github.com/SimonCoulombe/astarbar). 
+
+![crawlhome](/post/2019-06-02-crawl-home-app_files/crawlhome.png)
+
