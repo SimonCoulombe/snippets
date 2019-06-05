@@ -138,10 +138,10 @@ results %>% ungroup() %>%
   select(rank, player = player.fullName, position = player.primaryPosition.code,
          team = player.currentTeam.name,  offense, defense, differential, hours_played) %>% 
   head(30) %>% 
-  knitr::kable(digits=2, caption = "Top 30 players with the highest impact of defensive strength")
+  knitr::kable(digits=2, caption = "Top 30 players with the highest impact of total differential")
 ```
 
-Here is the table for the goalies only. The best goaltender who played more than 10 hours appears to be  Cal Petersen, who brings the average rate of goals against per 60 minutes down to a cool 2.08.    What do you think? 
+Here is the table for the goalies only. Controlling for the opposition and his defense, the best goaltender who played more than 10 hours appears to be Cal Petersen, who brings the average rate of goals against per 60 minutes down to a cool 2.08.    What do you think? 
 
 ```{r}
 results %>% ungroup() %>% 
@@ -151,7 +151,7 @@ results %>% ungroup() %>%
   select(rank, player = player.fullName, position = player.primaryPosition.code,
          team = player.currentTeam.name,  offense, defense, differential, hours_played) %>% 
   head(30) %>% 
-  knitr::kable(digits=2, caption = "Top 30 players with the highest impact of defensive strength")
+  knitr::kable(digits=2, caption = "Top 30 goalies with the highest total differential")
 ```
 
 # Caveats and conclusion  
