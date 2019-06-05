@@ -1,0 +1,185 @@
+---
+title: 'NHL: And the most useful player of the league is...'
+author: simon
+date: '2019-06-04'
+slug: plus-minus-on-steroids
+categories:
+  - hockey
+  - nhl
+tags:
+  - lightgbm
+  - poisson
+  - nhl
+keywords:
+  - tech
+thumbnailImage: "/post/2019-06-04-plus-minus-on-steroids_files/6wLLGg-5.jpg" 
+thumbnailImagePosition: left
+---
+
+
+
+```{r setup, include =F}
+
+# TODO : valider ceci : Chunk options must be written in one line; no line breaks are allowed inside chunk options;
+# https://yihui.name/knitr/options/
+
+knitr::opts_chunk$set(echo = FALSE,
+                      collapse = TRUE,
+                      warning = FALSE,
+                      error = FALSE,
+                      message = FALSE,
+                      fig.align= "center",
+                      fig.width = 10,
+                      highlight = TRUE#,
+                      #cache = FALSE,
+                      #cache.lazy = FALSE
+) # fixes long vector not supported quand on cache des gros él  éments https://stackoverflow.com/questions/39417003/long-vectors-not-supported-yet-error-in-rmd-but-not-in-r-script
+```
+
+```{r, include = F}
+library(tidyverse)
+results <- read_rds("data/results.rds")
+```
+
+
+Hey everyone,
+
+We all know that the good old plus/minus is flawed.  Most notably, it doesn't take into account the quality of your teammates or that of the opposition.  So here is my idea: why not use a Poisson regression?  
+
+The Poisson regression is a special type of regression where the response variable is a count.  For example, ecologists will model the number of fish in samples  of a lake of varying volume, accounting for different characteristics of that volume, and actuaries will model the number of claims someone will make during a policy of varying duration accounting for different characteristics of the driver.  My plan is to find out which factors (players) influence the rate at which a team will score during a shift taking into account the 6 players (including goalie) on that team, and the 6 players against them.   
+
+More precisely,  I model goals on 1003 "offense player dummies" and 1003 "defense player dummies" and I use duration of the shift as an offset variable.   This will return an "offense strength" and a "defense strength" for each of the 1003 players that players during the 2018-2019 season.    
+
+As usual, the code is available on [github](https://github.com/SimonCoulombe/nhl_play_by_play).  
+
+If your team doesnt make it to the end of the playoffs, make sure to use my [pub crawling app](https://www.simoncoulombe.com/2019/06/crawl-home-app/) to get you drunk and home optimally.
+
+Disclaimer: I haven't watched a game with passion since [Kovalev faked an injury](https://www.youtube.com/watch?v=te8nwVlJ3uQ) against my beloved nordiques in the year we were meant to win the damn cup.   I also haven't followed hockey advanced analytics ever, so this may be a very old or very bad idea, but I still thought I'd share it because I had fun :).
+
+# The model  
+
+Let's look at this [shift chart](http://www.nhl.com/stats/shiftcharts?id=2018020001) from a Montreal vs Toronto game. 
+
+![](/post/2019-06-04-plus-minus-on-steroids_files/shiftchart.png)
+I define a "shift" as a period of time where all the players of both team are identical.  
+
+The first shift is Price-Mete-Domi-Petry-Byron-Lehkonen vs Andersen-Ennis,Gardiner-Marleau-Matthews-Zaitsev and it lasts 38 seconds, until Byron and Lehkonen leave the ice.  
+The second shift is Price-Mete-Domi-Petry-**Tatar-Gallagher** vs Andersen-Ennis,Gardiner-Marleau-Matthews-Zaitsev  and it only lasts 4 seconds, until the Leafs replace 4 players at 00:42.  
+The third shift is Price-Mete-Domi-Petry-Tatar-Gallagher vs Andersen-Ennis-**Rielly-Hainsey-Hyman-Tavares** and it lasts 14s, until the Mete-Domi-Petry line is replaced at 00:56.   
+
+Etc..
+
+During a shift, both teams have a chance to score a goal, so I the model includes two lines for each shift, one for each team attempting to score.  The columns included in the model are "did the team score?", "how long did the shift last in seconds?" and "who was playing on offense and defense" ?
+
+In the case of our first shift,  the two lines created would be as follow:
+0 goal, 38 seconds, offense: Price-Mete-Domi-Petry-Byron-Lehkonen , defense: Andersen-Ennis,Gardiner-Marleau-Matthews-Zaitsev
+0 goal, 38 seconds, offense: Andersen-Ennis,Gardiner-Marleau-Matthews-Zaitsev , defense: Price-Mete-Domi-Petry-Byron-Lehkonen
+
+For the model, I only keep "shifts" where the strength is an even 5 on 5 (plus goalies).  
+
+There are many ways to model a Poisson regression.  My go-to solution would have been to use a Generalized Linear Model (GLM) because it would have output a coefficient for each player for defense and offense and would have made the players directly comparable.  However, I quickly ran into issues because the GLM had a hard time digesting the 2006 features and 622 502 rows and wouldn't converge.  The alternative was to use a more powerful but less straightforward Gradien-Boosting model (GBM).  I chose to use LightGBM because its fast and has a low memory need, which made it possible to run on my 32GB RAM computer.  
+
+Inversely, to get the offensive contribution of the player accounting for teammates and opposition, I use the model to predict how many goals per hour an average team including this player would score against an average team. 
+
+To get the defensive contribution of the player accounting for teammates and opposition, I use the model to predict how many goals per hour an average team would score against an average team including this player. 
+
+More precisely, I score the model using a value of "0" for all predictive variables, but "1" for the one I am interested in (ex: against_player_PK_Subban).
+
+
+# Getting the data   
+
+I create a few functions to allow me to download the data from NHL.com's API.  They are on the github repo mentionned above and have straightforward names such as get_schedule(), get_player_data(), get_data() and get_shift_data().  
+
+# The results !!  
+
+The average team will score an average of 2.58 goals per 60 minutes played played at 5 on 5.  
+
+The players with the most positive impact on offense are John Carlson, Sidney Crosby and Nikita Kucherov.  John Carlson and average teammates playing against average opposition would score an average of 3.76 goals per 60 minutes played.  Crosby is slightly behind at 3.55 and Kucherov at 3.48.  
+
+Crosby and Kucherov were kind of obvious.  What surprised me is Carlson: he is a defenseman!  He doesnt score goals himself.  However, whoever is in front of him will receive better passes and play with more confidence, allowing them to score goals.  The model doesnt appear to be broken: Ovechkin shows up in 27th position at 2.95.  
+
+
+
+```{r}
+results %>% ungroup() %>% 
+  arrange(-offense) %>%
+  mutate(rank = row_number())%>%
+  select(rank, player = player.fullName, position = player.primaryPosition.code,
+         team = player.currentTeam.name,  offense, defense, differential, hours_played) %>% 
+  head(30) %>% 
+  knitr::kable(digits=2, caption = "Top 30 players with the highest impact of offense strength")
+```
+
+
+The players that have the best defensive impact (reducing the rate at which the opponent score) are Andrew Cogliano (DAL), Derek Ryan (CGY)and Danton Heinen (BOS).    I honestly don't know them, so let me know what you think.  
+
+
+```{r}
+results %>% ungroup() %>% 
+  arrange(defense) %>%
+  mutate(rank = row_number())%>%
+  select(rank, player = player.fullName, position = player.primaryPosition.code,
+         team = player.currentTeam.name,  offense, defense, differential, hours_played) %>% 
+  head(30) %>% 
+  knitr::kable(digits=2, caption = "Top 30 players with the highest impact of defensive strength")
+```
+
+
+
+
+Finally, who are the best of the best?  Those who help their team score and prevent the other team from scoring?  The difference between the offense and defense score is the expected amount of goals by which an average team employing that player for 60 minutes per game would win against an average team.
+
+The best players are still Carlson, Crosby and Kucherov.  
+
+```{r}
+results %>% ungroup() %>% 
+  arrange(-differential) %>%
+  mutate(rank = row_number())%>%
+  select(rank, player = player.fullName, position = player.primaryPosition.code,
+         team = player.currentTeam.name,  offense, defense, differential, hours_played) %>% 
+  head(30) %>% 
+  knitr::kable(digits=2, caption = "Top 30 players with the highest impact of defensive strength")
+```
+
+Here is the table for the goalies only. The best goaltender who played more than 10 hours appears to be  Cal Petersen, who brings the average rate of goals against per 60 minutes down to a cool 2.08.    What do you think? 
+
+```{r}
+results %>% ungroup() %>% 
+  filter(player.primaryPosition.code== "G") %>% 
+  arrange(-differential) %>%
+  mutate(rank = row_number())%>%
+  select(rank, player = player.fullName, position = player.primaryPosition.code,
+         team = player.currentTeam.name,  offense, defense, differential, hours_played) %>% 
+  head(30) %>% 
+  knitr::kable(digits=2, caption = "Top 30 players with the highest impact of defensive strength")
+```
+
+# Caveats and conclusion  
+
+So this kinda worked.  Results aren't too different from expectations, with Crosby and Kucherov getting pretty good results.   There is one issue that remains:  everyone should be getting a specific value for offense and defense, but the model has allocated the "average" value for offense or defense to a very high number of players.  
+
+I tried increasing the number of trees ( to 50 000!) and reducing the learning rate to allow the model to better segment "average looking players", but the problem isnt solved.  
+
+So, what do you guys think of this idea?
+
+
+
+
+```{r}
+results %>% ggplot(aes(x=defense)) + geom_histogram() + ggtitle( "many players get the average defense rate of 2.58")
+```
+
+
+```{r}
+results %>% ggplot(aes(x=offense)) + geom_histogram()+ ggtitle( "many players get the average offense rate of 2.58")
+```
+
+
+```{r}
+results %>% ggplot(aes(x=defense, offense)) + geom_point()+ ggtitle( "few players have both offense and defense different of 2.58")
+```
+
+
+
+
+

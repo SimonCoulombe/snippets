@@ -1,0 +1,1337 @@
+---
+title: 'NHL: And the most useful player of the league is...'
+author: simon
+date: '2019-06-04'
+slug: plus-minus-on-steroids
+categories:
+  - hockey
+  - nhl
+tags:
+  - lightgbm
+  - poisson
+  - nhl
+keywords:
+  - tech
+thumbnailImage: "/post/2019-06-04-plus-minus-on-steroids_files/6wLLGg-5.jpg" 
+thumbnailImagePosition: left
+---
+
+
+
+<p>Hey everyone,</p>
+<p>We all know that the good old plus/minus is flawed. Most notably, it doesn’t take into account the quality of your teammates or that of the opposition. So here is my idea: why not use a Poisson regression?</p>
+<p>The Poisson regression is a special type of regression where the response variable is a count. For example, ecologists will model the number of fish in samples of a lake of varying volume, accounting for different characteristics of that volume, and actuaries will model the number of claims someone will make during a policy of varying duration accounting for different characteristics of the driver. My plan is to find out which factors (players) influence the rate at which a team will score during a shift taking into account the 6 players (including goalie) on that team, and the 6 players against them.</p>
+<p>More precisely, I model goals on 1003 “offense player dummies” and 1003 “defense player dummies” and I use duration of the shift as an offset variable. This will return an “offense strength” and a “defense strength” for each of the 1003 players that players during the 2018-2019 season.</p>
+<p>As usual, the code is available on <a href="https://github.com/SimonCoulombe/nhl_play_by_play">github</a>.</p>
+<p>If your team doesnt make it to the end of the playoffs, make sure to use my <a href="https://www.simoncoulombe.com/2019/06/crawl-home-app/">pub crawling app</a> to get you drunk and home optimally.</p>
+<p>Disclaimer: I haven’t watched a game with passion since <a href="https://www.youtube.com/watch?v=te8nwVlJ3uQ">Kovalev faked an injury</a> against my beloved nordiques in the year we were meant to win the damn cup. I also haven’t followed hockey advanced analytics ever, so this may be a very old or very bad idea, but I still thought I’d share it because I had fun :).</p>
+<div id="the-model" class="section level1">
+<h1>The model</h1>
+<p>Let’s look at this <a href="http://www.nhl.com/stats/shiftcharts?id=2018020001">shift chart</a> from a Montreal vs Toronto game.</p>
+<p><img src="/post/2019-06-04-plus-minus-on-steroids_files/shiftchart.png" />
+I define a “shift” as a period of time where all the players of both team are identical.</p>
+<p>The first shift is Price-Mete-Domi-Petry-Byron-Lehkonen vs Andersen-Ennis,Gardiner-Marleau-Matthews-Zaitsev and it lasts 38 seconds, until Byron and Lehkonen leave the ice.<br />
+The second shift is Price-Mete-Domi-Petry-<strong>Tatar-Gallagher</strong> vs Andersen-Ennis,Gardiner-Marleau-Matthews-Zaitsev and it only lasts 4 seconds, until the Leafs replace 4 players at 00:42.<br />
+The third shift is Price-Mete-Domi-Petry-Tatar-Gallagher vs Andersen-Ennis-<strong>Rielly-Hainsey-Hyman-Tavares</strong> and it lasts 14s, until the Mete-Domi-Petry line is replaced at 00:56.</p>
+<p>Etc..</p>
+<p>During a shift, both teams have a chance to score a goal, so I the model includes two lines for each shift, one for each team attempting to score. The columns included in the model are “did the team score?”, “how long did the shift last in seconds?” and “who was playing on offense and defense” ?</p>
+<p>In the case of our first shift, the two lines created would be as follow:
+0 goal, 38 seconds, offense: Price-Mete-Domi-Petry-Byron-Lehkonen , defense: Andersen-Ennis,Gardiner-Marleau-Matthews-Zaitsev
+0 goal, 38 seconds, offense: Andersen-Ennis,Gardiner-Marleau-Matthews-Zaitsev , defense: Price-Mete-Domi-Petry-Byron-Lehkonen</p>
+<p>For the model, I only keep “shifts” where the strength is an even 5 on 5 (plus goalies).</p>
+<p>There are many ways to model a Poisson regression. My go-to solution would have been to use a Generalized Linear Model (GLM) because it would have output a coefficient for each player for defense and offense and would have made the players directly comparable. However, I quickly ran into issues because the GLM had a hard time digesting the 2006 features and 622 502 rows and wouldn’t converge. The alternative was to use a more powerful but less straightforward Gradien-Boosting model (GBM). I chose to use LightGBM because its fast and has a low memory need, which made it possible to run on my 32GB RAM computer.</p>
+<p>Inversely, to get the offensive contribution of the player accounting for teammates and opposition, I use the model to predict how many goals per hour an average team including this player would score against an average team.</p>
+<p>To get the defensive contribution of the player accounting for teammates and opposition, I use the model to predict how many goals per hour an average team would score against an average team including this player.</p>
+<p>More precisely, I score the model using a value of “0” for all predictive variables, but “1” for the one I am interested in (ex: against_player_PK_Subban).</p>
+</div>
+<div id="getting-the-data" class="section level1">
+<h1>Getting the data</h1>
+<p>I create a few functions to allow me to download the data from NHL.com’s API. They are on the github repo mentionned above and have straightforward names such as get_schedule(), get_player_data(), get_data() and get_shift_data().</p>
+</div>
+<div id="the-results" class="section level1">
+<h1>The results !!</h1>
+<p>The average team will score an average of 2.58 goals per 60 minutes played played at 5 on 5.</p>
+<p>The players with the most positive impact on offense are John Carlson, Sidney Crosby and Nikita Kucherov. John Carlson and average teammates playing against average opposition would score an average of 3.76 goals per 60 minutes played. Crosby is slightly behind at 3.55 and Kucherov at 3.48.</p>
+<p>Crosby and Kucherov were kind of obvious. What surprised me is Carlson: he is a defenseman! He doesnt score goals himself. However, whoever is in front of him will receive better passes and play with more confidence, allowing them to score goals. The model doesnt appear to be broken: Ovechkin shows up in 27th position at 2.95.</p>
+<table>
+<caption><span id="tab:unnamed-chunk-2">Table 1: </span>Top 30 players with the highest impact of offense strength</caption>
+<thead>
+<tr class="header">
+<th align="right">rank</th>
+<th align="left">player</th>
+<th align="left">position</th>
+<th align="left">team</th>
+<th align="right">offense</th>
+<th align="right">defense</th>
+<th align="right">differential</th>
+<th align="right">hours_played</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="right">1</td>
+<td align="left">John Carlson</td>
+<td align="left">D</td>
+<td align="left">Washington Capitals</td>
+<td align="right">3.76</td>
+<td align="right">2.69</td>
+<td align="right">1.07</td>
+<td align="right">37.10</td>
+</tr>
+<tr class="even">
+<td align="right">2</td>
+<td align="left">Sidney Crosby</td>
+<td align="left">C</td>
+<td align="left">Pittsburgh Penguins</td>
+<td align="right">3.55</td>
+<td align="right">2.58</td>
+<td align="right">0.97</td>
+<td align="right">29.73</td>
+</tr>
+<tr class="odd">
+<td align="right">3</td>
+<td align="left">Nikita Kucherov</td>
+<td align="left">R</td>
+<td align="left">Tampa Bay Lightning</td>
+<td align="right">3.48</td>
+<td align="right">2.58</td>
+<td align="right">0.89</td>
+<td align="right">28.89</td>
+</tr>
+<tr class="even">
+<td align="right">4</td>
+<td align="left">Patrick Kane</td>
+<td align="left">R</td>
+<td align="left">Chicago Blackhawks</td>
+<td align="right">3.44</td>
+<td align="right">2.60</td>
+<td align="right">0.84</td>
+<td align="right">30.89</td>
+</tr>
+<tr class="odd">
+<td align="right">5</td>
+<td align="left">Leon Draisaitl</td>
+<td align="left">C</td>
+<td align="left">Edmonton Oilers</td>
+<td align="right">3.38</td>
+<td align="right">2.97</td>
+<td align="right">0.41</td>
+<td align="right">31.46</td>
+</tr>
+<tr class="even">
+<td align="right">6</td>
+<td align="left">Morgan Rielly</td>
+<td align="left">D</td>
+<td align="left">Toronto Maple Leafs</td>
+<td align="right">3.23</td>
+<td align="right">2.58</td>
+<td align="right">0.65</td>
+<td align="right">35.25</td>
+</tr>
+<tr class="odd">
+<td align="right">7</td>
+<td align="left">Mark Stone</td>
+<td align="left">R</td>
+<td align="left">Vegas Golden Knights</td>
+<td align="right">3.23</td>
+<td align="right">2.58</td>
+<td align="right">0.64</td>
+<td align="right">28.58</td>
+</tr>
+<tr class="even">
+<td align="right">8</td>
+<td align="left">John Tavares</td>
+<td align="left">C</td>
+<td align="left">Toronto Maple Leafs</td>
+<td align="right">3.22</td>
+<td align="right">2.71</td>
+<td align="right">0.51</td>
+<td align="right">28.98</td>
+</tr>
+<tr class="odd">
+<td align="right">9</td>
+<td align="left">Patrice Bergeron</td>
+<td align="left">C</td>
+<td align="left">Boston Bruins</td>
+<td align="right">3.21</td>
+<td align="right">2.58</td>
+<td align="right">0.63</td>
+<td align="right">27.14</td>
+</tr>
+<tr class="even">
+<td align="right">10</td>
+<td align="left">Tomas Hertl</td>
+<td align="left">C</td>
+<td align="left">San Jose Sharks</td>
+<td align="right">3.21</td>
+<td align="right">2.74</td>
+<td align="right">0.47</td>
+<td align="right">31.99</td>
+</tr>
+<tr class="odd">
+<td align="right">11</td>
+<td align="left">Matt Duchene</td>
+<td align="left">C</td>
+<td align="left">Columbus Blue Jackets</td>
+<td align="right">3.21</td>
+<td align="right">2.68</td>
+<td align="right">0.53</td>
+<td align="right">26.22</td>
+</tr>
+<tr class="even">
+<td align="right">12</td>
+<td align="left">Chris Kreider</td>
+<td align="left">L</td>
+<td align="left">New York Rangers</td>
+<td align="right">3.13</td>
+<td align="right">2.58</td>
+<td align="right">0.55</td>
+<td align="right">23.41</td>
+</tr>
+<tr class="odd">
+<td align="right">13</td>
+<td align="left">Artemi Panarin</td>
+<td align="left">L</td>
+<td align="left">Columbus Blue Jackets</td>
+<td align="right">3.10</td>
+<td align="right">2.58</td>
+<td align="right">0.51</td>
+<td align="right">30.34</td>
+</tr>
+<tr class="even">
+<td align="right">14</td>
+<td align="left">Connor McDavid</td>
+<td align="left">C</td>
+<td align="left">Edmonton Oilers</td>
+<td align="right">3.09</td>
+<td align="right">2.81</td>
+<td align="right">0.28</td>
+<td align="right">30.24</td>
+</tr>
+<tr class="odd">
+<td align="right">15</td>
+<td align="left">Alexander Radulov</td>
+<td align="left">R</td>
+<td align="left">Dallas Stars</td>
+<td align="right">3.09</td>
+<td align="right">2.58</td>
+<td align="right">0.51</td>
+<td align="right">27.88</td>
+</tr>
+<tr class="even">
+<td align="right">16</td>
+<td align="left">Claude Giroux</td>
+<td align="left">C</td>
+<td align="left">Philadelphia Flyers</td>
+<td align="right">3.08</td>
+<td align="right">2.58</td>
+<td align="right">0.49</td>
+<td align="right">29.92</td>
+</tr>
+<tr class="odd">
+<td align="right">17</td>
+<td align="left">Andrew Shaw</td>
+<td align="left">R</td>
+<td align="left">Montréal Canadiens</td>
+<td align="right">3.06</td>
+<td align="right">2.58</td>
+<td align="right">0.48</td>
+<td align="right">17.06</td>
+</tr>
+<tr class="even">
+<td align="right">18</td>
+<td align="left">Jeff Skinner</td>
+<td align="left">L</td>
+<td align="left">Buffalo Sabres</td>
+<td align="right">3.04</td>
+<td align="right">2.58</td>
+<td align="right">0.45</td>
+<td align="right">25.79</td>
+</tr>
+<tr class="odd">
+<td align="right">19</td>
+<td align="left">Sebastian Aho</td>
+<td align="left">C</td>
+<td align="left">Carolina Hurricanes</td>
+<td align="right">3.03</td>
+<td align="right">2.58</td>
+<td align="right">0.45</td>
+<td align="right">33.45</td>
+</tr>
+<tr class="even">
+<td align="right">20</td>
+<td align="left">Ryan Murray</td>
+<td align="left">D</td>
+<td align="left">Columbus Blue Jackets</td>
+<td align="right">3.01</td>
+<td align="right">2.58</td>
+<td align="right">0.42</td>
+<td align="right">20.43</td>
+</tr>
+<tr class="odd">
+<td align="right">21</td>
+<td align="left">Evgenii Dadonov</td>
+<td align="left">R</td>
+<td align="left">Florida Panthers</td>
+<td align="right">3.00</td>
+<td align="right">2.58</td>
+<td align="right">0.41</td>
+<td align="right">25.62</td>
+</tr>
+<tr class="even">
+<td align="right">22</td>
+<td align="left">Alex DeBrincat</td>
+<td align="left">L</td>
+<td align="left">Chicago Blackhawks</td>
+<td align="right">2.99</td>
+<td align="right">2.71</td>
+<td align="right">0.28</td>
+<td align="right">24.65</td>
+</tr>
+<tr class="odd">
+<td align="right">23</td>
+<td align="left">Max Domi</td>
+<td align="left">C</td>
+<td align="left">Montréal Canadiens</td>
+<td align="right">2.99</td>
+<td align="right">2.58</td>
+<td align="right">0.41</td>
+<td align="right">24.24</td>
+</tr>
+<tr class="even">
+<td align="right">24</td>
+<td align="left">Phillip Danault</td>
+<td align="left">C</td>
+<td align="left">Montréal Canadiens</td>
+<td align="right">2.97</td>
+<td align="right">2.58</td>
+<td align="right">0.38</td>
+<td align="right">24.54</td>
+</tr>
+<tr class="odd">
+<td align="right">25</td>
+<td align="left">Taylor Hall</td>
+<td align="left">L</td>
+<td align="left">New Jersey Devils</td>
+<td align="right">2.96</td>
+<td align="right">2.62</td>
+<td align="right">0.34</td>
+<td align="right">11.03</td>
+</tr>
+<tr class="even">
+<td align="right">26</td>
+<td align="left">Aleksander Barkov</td>
+<td align="left">C</td>
+<td align="left">Florida Panthers</td>
+<td align="right">2.95</td>
+<td align="right">2.63</td>
+<td align="right">0.32</td>
+<td align="right">31.17</td>
+</tr>
+<tr class="odd">
+<td align="right">27</td>
+<td align="left">Alex Ovechkin</td>
+<td align="left">L</td>
+<td align="left">Washington Capitals</td>
+<td align="right">2.95</td>
+<td align="right">2.91</td>
+<td align="right">0.05</td>
+<td align="right">31.30</td>
+</tr>
+<tr class="even">
+<td align="right">28</td>
+<td align="left">Ryan Johansen</td>
+<td align="left">C</td>
+<td align="left">Nashville Predators</td>
+<td align="right">2.95</td>
+<td align="right">2.77</td>
+<td align="right">0.18</td>
+<td align="right">28.76</td>
+</tr>
+<tr class="odd">
+<td align="right">29</td>
+<td align="left">Tony DeAngelo</td>
+<td align="left">D</td>
+<td align="left">New York Rangers</td>
+<td align="right">2.92</td>
+<td align="right">2.58</td>
+<td align="right">0.33</td>
+<td align="right">20.06</td>
+</tr>
+<tr class="even">
+<td align="right">30</td>
+<td align="left">Sean Couturier</td>
+<td align="left">C</td>
+<td align="left">Philadelphia Flyers</td>
+<td align="right">2.92</td>
+<td align="right">2.85</td>
+<td align="right">0.07</td>
+<td align="right">30.10</td>
+</tr>
+</tbody>
+</table>
+<p>The players that have the best defensive impact (reducing the rate at which the opponent score) are Andrew Cogliano (DAL), Derek Ryan (CGY)and Danton Heinen (BOS). I honestly don’t know them, so let me know what you think.</p>
+<table>
+<caption><span id="tab:unnamed-chunk-3">Table 2: </span>Top 30 players with the highest impact of defensive strength</caption>
+<thead>
+<tr class="header">
+<th align="right">rank</th>
+<th align="left">player</th>
+<th align="left">position</th>
+<th align="left">team</th>
+<th align="right">offense</th>
+<th align="right">defense</th>
+<th align="right">differential</th>
+<th align="right">hours_played</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="right">1</td>
+<td align="left">Andrew Cogliano</td>
+<td align="left">C</td>
+<td align="left">Dallas Stars</td>
+<td align="right">2.44</td>
+<td align="right">1.92</td>
+<td align="right">0.51</td>
+<td align="right">19.98</td>
+</tr>
+<tr class="even">
+<td align="right">2</td>
+<td align="left">Derek Ryan</td>
+<td align="left">C</td>
+<td align="left">Calgary Flames</td>
+<td align="right">2.58</td>
+<td align="right">1.93</td>
+<td align="right">0.65</td>
+<td align="right">20.29</td>
+</tr>
+<tr class="odd">
+<td align="right">3</td>
+<td align="left">Danton Heinen</td>
+<td align="left">C</td>
+<td align="left">Boston Bruins</td>
+<td align="right">2.58</td>
+<td align="right">1.97</td>
+<td align="right">0.61</td>
+<td align="right">23.14</td>
+</tr>
+<tr class="even">
+<td align="right">4</td>
+<td align="left">Sean Kuraly</td>
+<td align="left">C</td>
+<td align="left">Boston Bruins</td>
+<td align="right">2.58</td>
+<td align="right">2.00</td>
+<td align="right">0.58</td>
+<td align="right">21.18</td>
+</tr>
+<tr class="odd">
+<td align="right">5</td>
+<td align="left">Brandon Carlo</td>
+<td align="left">D</td>
+<td align="left">Boston Bruins</td>
+<td align="right">2.58</td>
+<td align="right">2.02</td>
+<td align="right">0.56</td>
+<td align="right">33.50</td>
+</tr>
+<tr class="even">
+<td align="right">6</td>
+<td align="left">Tobias Rieder</td>
+<td align="left">R</td>
+<td align="left">Edmonton Oilers</td>
+<td align="right">1.37</td>
+<td align="right">2.04</td>
+<td align="right">-0.67</td>
+<td align="right">14.46</td>
+</tr>
+<tr class="odd">
+<td align="right">7</td>
+<td align="left">Cal Petersen</td>
+<td align="left">G</td>
+<td align="left">Los Angeles Kings</td>
+<td align="right">2.58</td>
+<td align="right">2.08</td>
+<td align="right">0.50</td>
+<td align="right">10.37</td>
+</tr>
+<tr class="even">
+<td align="right">8</td>
+<td align="left">Jordan Binnington</td>
+<td align="left">G</td>
+<td align="left">St. Louis Blues</td>
+<td align="right">2.58</td>
+<td align="right">2.09</td>
+<td align="right">0.49</td>
+<td align="right">54.02</td>
+</tr>
+<tr class="odd">
+<td align="right">9</td>
+<td align="left">Adam Pelech</td>
+<td align="left">D</td>
+<td align="left">New York Islanders</td>
+<td align="right">2.58</td>
+<td align="right">2.15</td>
+<td align="right">0.43</td>
+<td align="right">27.55</td>
+</tr>
+<tr class="even">
+<td align="right">10</td>
+<td align="left">Jason Demers</td>
+<td align="left">D</td>
+<td align="left">Arizona Coyotes</td>
+<td align="right">2.58</td>
+<td align="right">2.18</td>
+<td align="right">0.41</td>
+<td align="right">11.92</td>
+</tr>
+<tr class="odd">
+<td align="right">11</td>
+<td align="left">Colton Parayko</td>
+<td align="left">D</td>
+<td align="left">St. Louis Blues</td>
+<td align="right">2.58</td>
+<td align="right">2.18</td>
+<td align="right">0.40</td>
+<td align="right">40.79</td>
+</tr>
+<tr class="even">
+<td align="right">12</td>
+<td align="left">Andrew Copp</td>
+<td align="left">C</td>
+<td align="left">Winnipeg Jets</td>
+<td align="right">2.69</td>
+<td align="right">2.19</td>
+<td align="right">0.50</td>
+<td align="right">15.74</td>
+</tr>
+<tr class="odd">
+<td align="right">13</td>
+<td align="left">Sven Andrighetto</td>
+<td align="left">R</td>
+<td align="left">Colorado Avalanche</td>
+<td align="right">2.58</td>
+<td align="right">2.24</td>
+<td align="right">0.35</td>
+<td align="right">12.74</td>
+</tr>
+<tr class="even">
+<td align="right">14</td>
+<td align="left">Petr Mrazek</td>
+<td align="left">G</td>
+<td align="left">Carolina Hurricanes</td>
+<td align="right">2.58</td>
+<td align="right">2.27</td>
+<td align="right">0.31</td>
+<td align="right">50.84</td>
+</tr>
+<tr class="odd">
+<td align="right">15</td>
+<td align="left">Connor Brown</td>
+<td align="left">R</td>
+<td align="left">Toronto Maple Leafs</td>
+<td align="right">2.58</td>
+<td align="right">2.28</td>
+<td align="right">0.30</td>
+<td align="right">20.86</td>
+</tr>
+<tr class="even">
+<td align="right">16</td>
+<td align="left">Carey Price</td>
+<td align="left">G</td>
+<td align="left">Montréal Canadiens</td>
+<td align="right">2.58</td>
+<td align="right">2.29</td>
+<td align="right">0.29</td>
+<td align="right">64.74</td>
+</tr>
+<tr class="odd">
+<td align="right">17</td>
+<td align="left">Matt Martin</td>
+<td align="left">L</td>
+<td align="left">New York Islanders</td>
+<td align="right">2.30</td>
+<td align="right">2.29</td>
+<td align="right">0.00</td>
+<td align="right">14.67</td>
+</tr>
+<tr class="even">
+<td align="right">18</td>
+<td align="left">Nick Bonino</td>
+<td align="left">C</td>
+<td align="left">Nashville Predators</td>
+<td align="right">2.58</td>
+<td align="right">2.32</td>
+<td align="right">0.26</td>
+<td align="right">24.12</td>
+</tr>
+<tr class="odd">
+<td align="right">19</td>
+<td align="left">Conor Garland</td>
+<td align="left">R</td>
+<td align="left">Arizona Coyotes</td>
+<td align="right">2.58</td>
+<td align="right">2.33</td>
+<td align="right">0.25</td>
+<td align="right">10.24</td>
+</tr>
+<tr class="even">
+<td align="right">20</td>
+<td align="left">Teuvo Teravainen</td>
+<td align="left">L</td>
+<td align="left">Carolina Hurricanes</td>
+<td align="right">2.70</td>
+<td align="right">2.34</td>
+<td align="right">0.36</td>
+<td align="right">30.11</td>
+</tr>
+<tr class="odd">
+<td align="right">21</td>
+<td align="left">Fredrik Claesson</td>
+<td align="left">D</td>
+<td align="left">New York Rangers</td>
+<td align="right">2.58</td>
+<td align="right">2.35</td>
+<td align="right">0.24</td>
+<td align="right">10.87</td>
+</tr>
+<tr class="even">
+<td align="right">22</td>
+<td align="left">Esa Lindell</td>
+<td align="left">D</td>
+<td align="left">Dallas Stars</td>
+<td align="right">2.58</td>
+<td align="right">2.35</td>
+<td align="right">0.23</td>
+<td align="right">39.84</td>
+</tr>
+<tr class="odd">
+<td align="right">23</td>
+<td align="left">Oscar Fantenberg</td>
+<td align="left">D</td>
+<td align="left">Calgary Flames</td>
+<td align="right">2.50</td>
+<td align="right">2.36</td>
+<td align="right">0.14</td>
+<td align="right">17.29</td>
+</tr>
+<tr class="even">
+<td align="right">24</td>
+<td align="left">Roman Polak</td>
+<td align="left">D</td>
+<td align="left">Dallas Stars</td>
+<td align="right">2.58</td>
+<td align="right">2.36</td>
+<td align="right">0.22</td>
+<td align="right">29.44</td>
+</tr>
+<tr class="odd">
+<td align="right">25</td>
+<td align="left">Brandon Tanev</td>
+<td align="left">L</td>
+<td align="left">Winnipeg Jets</td>
+<td align="right">2.58</td>
+<td align="right">2.36</td>
+<td align="right">0.22</td>
+<td align="right">20.46</td>
+</tr>
+<tr class="even">
+<td align="right">26</td>
+<td align="left">Frederik Andersen</td>
+<td align="left">G</td>
+<td align="left">Toronto Maple Leafs</td>
+<td align="right">2.58</td>
+<td align="right">2.38</td>
+<td align="right">0.21</td>
+<td align="right">65.47</td>
+</tr>
+<tr class="odd">
+<td align="right">27</td>
+<td align="left">Scott Mayfield</td>
+<td align="left">D</td>
+<td align="left">New York Islanders</td>
+<td align="right">2.58</td>
+<td align="right">2.38</td>
+<td align="right">0.20</td>
+<td align="right">27.70</td>
+</tr>
+<tr class="even">
+<td align="right">28</td>
+<td align="left">Marcus Pettersson</td>
+<td align="left">D</td>
+<td align="left">Pittsburgh Penguins</td>
+<td align="right">2.58</td>
+<td align="right">2.38</td>
+<td align="right">0.20</td>
+<td align="right">25.13</td>
+</tr>
+<tr class="odd">
+<td align="right">29</td>
+<td align="left">Brett Pesce</td>
+<td align="left">D</td>
+<td align="left">Carolina Hurricanes</td>
+<td align="right">2.58</td>
+<td align="right">2.39</td>
+<td align="right">0.19</td>
+<td align="right">31.33</td>
+</tr>
+<tr class="even">
+<td align="right">30</td>
+<td align="left">Jack Campbell</td>
+<td align="left">G</td>
+<td align="left">Los Angeles Kings</td>
+<td align="right">2.58</td>
+<td align="right">2.40</td>
+<td align="right">0.18</td>
+<td align="right">26.24</td>
+</tr>
+</tbody>
+</table>
+<p>Finally, who are the best of the best? Those who help their team score and prevent the other team from scoring? The difference between the offense and defense score is the expected amount of goals by which an average team employing that player for 60 minutes per game would win against an average team.</p>
+<p>The best players are still Carlson, Crosby and Kucherov.</p>
+<table>
+<caption><span id="tab:unnamed-chunk-4">Table 3: </span>Top 30 players with the highest impact of defensive strength</caption>
+<thead>
+<tr class="header">
+<th align="right">rank</th>
+<th align="left">player</th>
+<th align="left">position</th>
+<th align="left">team</th>
+<th align="right">offense</th>
+<th align="right">defense</th>
+<th align="right">differential</th>
+<th align="right">hours_played</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="right">1</td>
+<td align="left">John Carlson</td>
+<td align="left">D</td>
+<td align="left">Washington Capitals</td>
+<td align="right">3.76</td>
+<td align="right">2.69</td>
+<td align="right">1.07</td>
+<td align="right">37.10</td>
+</tr>
+<tr class="even">
+<td align="right">2</td>
+<td align="left">Sidney Crosby</td>
+<td align="left">C</td>
+<td align="left">Pittsburgh Penguins</td>
+<td align="right">3.55</td>
+<td align="right">2.58</td>
+<td align="right">0.97</td>
+<td align="right">29.73</td>
+</tr>
+<tr class="odd">
+<td align="right">3</td>
+<td align="left">Nikita Kucherov</td>
+<td align="left">R</td>
+<td align="left">Tampa Bay Lightning</td>
+<td align="right">3.48</td>
+<td align="right">2.58</td>
+<td align="right">0.89</td>
+<td align="right">28.89</td>
+</tr>
+<tr class="even">
+<td align="right">4</td>
+<td align="left">Patrick Kane</td>
+<td align="left">R</td>
+<td align="left">Chicago Blackhawks</td>
+<td align="right">3.44</td>
+<td align="right">2.60</td>
+<td align="right">0.84</td>
+<td align="right">30.89</td>
+</tr>
+<tr class="odd">
+<td align="right">5</td>
+<td align="left">Derek Ryan</td>
+<td align="left">C</td>
+<td align="left">Calgary Flames</td>
+<td align="right">2.58</td>
+<td align="right">1.93</td>
+<td align="right">0.65</td>
+<td align="right">20.29</td>
+</tr>
+<tr class="even">
+<td align="right">6</td>
+<td align="left">Morgan Rielly</td>
+<td align="left">D</td>
+<td align="left">Toronto Maple Leafs</td>
+<td align="right">3.23</td>
+<td align="right">2.58</td>
+<td align="right">0.65</td>
+<td align="right">35.25</td>
+</tr>
+<tr class="odd">
+<td align="right">7</td>
+<td align="left">Mark Stone</td>
+<td align="left">R</td>
+<td align="left">Vegas Golden Knights</td>
+<td align="right">3.23</td>
+<td align="right">2.58</td>
+<td align="right">0.64</td>
+<td align="right">28.58</td>
+</tr>
+<tr class="even">
+<td align="right">8</td>
+<td align="left">Patrice Bergeron</td>
+<td align="left">C</td>
+<td align="left">Boston Bruins</td>
+<td align="right">3.21</td>
+<td align="right">2.58</td>
+<td align="right">0.63</td>
+<td align="right">27.14</td>
+</tr>
+<tr class="odd">
+<td align="right">9</td>
+<td align="left">Danton Heinen</td>
+<td align="left">C</td>
+<td align="left">Boston Bruins</td>
+<td align="right">2.58</td>
+<td align="right">1.97</td>
+<td align="right">0.61</td>
+<td align="right">23.14</td>
+</tr>
+<tr class="even">
+<td align="right">10</td>
+<td align="left">Sean Kuraly</td>
+<td align="left">C</td>
+<td align="left">Boston Bruins</td>
+<td align="right">2.58</td>
+<td align="right">2.00</td>
+<td align="right">0.58</td>
+<td align="right">21.18</td>
+</tr>
+<tr class="odd">
+<td align="right">11</td>
+<td align="left">Brandon Carlo</td>
+<td align="left">D</td>
+<td align="left">Boston Bruins</td>
+<td align="right">2.58</td>
+<td align="right">2.02</td>
+<td align="right">0.56</td>
+<td align="right">33.50</td>
+</tr>
+<tr class="even">
+<td align="right">12</td>
+<td align="left">Chris Kreider</td>
+<td align="left">L</td>
+<td align="left">New York Rangers</td>
+<td align="right">3.13</td>
+<td align="right">2.58</td>
+<td align="right">0.55</td>
+<td align="right">23.41</td>
+</tr>
+<tr class="odd">
+<td align="right">13</td>
+<td align="left">Matt Duchene</td>
+<td align="left">C</td>
+<td align="left">Columbus Blue Jackets</td>
+<td align="right">3.21</td>
+<td align="right">2.68</td>
+<td align="right">0.53</td>
+<td align="right">26.22</td>
+</tr>
+<tr class="even">
+<td align="right">14</td>
+<td align="left">Artemi Panarin</td>
+<td align="left">L</td>
+<td align="left">Columbus Blue Jackets</td>
+<td align="right">3.10</td>
+<td align="right">2.58</td>
+<td align="right">0.51</td>
+<td align="right">30.34</td>
+</tr>
+<tr class="odd">
+<td align="right">15</td>
+<td align="left">Andrew Cogliano</td>
+<td align="left">C</td>
+<td align="left">Dallas Stars</td>
+<td align="right">2.44</td>
+<td align="right">1.92</td>
+<td align="right">0.51</td>
+<td align="right">19.98</td>
+</tr>
+<tr class="even">
+<td align="right">16</td>
+<td align="left">John Tavares</td>
+<td align="left">C</td>
+<td align="left">Toronto Maple Leafs</td>
+<td align="right">3.22</td>
+<td align="right">2.71</td>
+<td align="right">0.51</td>
+<td align="right">28.98</td>
+</tr>
+<tr class="odd">
+<td align="right">17</td>
+<td align="left">Alexander Radulov</td>
+<td align="left">R</td>
+<td align="left">Dallas Stars</td>
+<td align="right">3.09</td>
+<td align="right">2.58</td>
+<td align="right">0.51</td>
+<td align="right">27.88</td>
+</tr>
+<tr class="even">
+<td align="right">18</td>
+<td align="left">Cal Petersen</td>
+<td align="left">G</td>
+<td align="left">Los Angeles Kings</td>
+<td align="right">2.58</td>
+<td align="right">2.08</td>
+<td align="right">0.50</td>
+<td align="right">10.37</td>
+</tr>
+<tr class="odd">
+<td align="right">19</td>
+<td align="left">Andrew Copp</td>
+<td align="left">C</td>
+<td align="left">Winnipeg Jets</td>
+<td align="right">2.69</td>
+<td align="right">2.19</td>
+<td align="right">0.50</td>
+<td align="right">15.74</td>
+</tr>
+<tr class="even">
+<td align="right">20</td>
+<td align="left">Claude Giroux</td>
+<td align="left">C</td>
+<td align="left">Philadelphia Flyers</td>
+<td align="right">3.08</td>
+<td align="right">2.58</td>
+<td align="right">0.49</td>
+<td align="right">29.92</td>
+</tr>
+<tr class="odd">
+<td align="right">21</td>
+<td align="left">Jordan Binnington</td>
+<td align="left">G</td>
+<td align="left">St. Louis Blues</td>
+<td align="right">2.58</td>
+<td align="right">2.09</td>
+<td align="right">0.49</td>
+<td align="right">54.02</td>
+</tr>
+<tr class="even">
+<td align="right">22</td>
+<td align="left">Andrew Shaw</td>
+<td align="left">R</td>
+<td align="left">Montréal Canadiens</td>
+<td align="right">3.06</td>
+<td align="right">2.58</td>
+<td align="right">0.48</td>
+<td align="right">17.06</td>
+</tr>
+<tr class="odd">
+<td align="right">23</td>
+<td align="left">Tomas Hertl</td>
+<td align="left">C</td>
+<td align="left">San Jose Sharks</td>
+<td align="right">3.21</td>
+<td align="right">2.74</td>
+<td align="right">0.47</td>
+<td align="right">31.99</td>
+</tr>
+<tr class="even">
+<td align="right">24</td>
+<td align="left">Jeff Skinner</td>
+<td align="left">L</td>
+<td align="left">Buffalo Sabres</td>
+<td align="right">3.04</td>
+<td align="right">2.58</td>
+<td align="right">0.45</td>
+<td align="right">25.79</td>
+</tr>
+<tr class="odd">
+<td align="right">25</td>
+<td align="left">Sebastian Aho</td>
+<td align="left">C</td>
+<td align="left">Carolina Hurricanes</td>
+<td align="right">3.03</td>
+<td align="right">2.58</td>
+<td align="right">0.45</td>
+<td align="right">33.45</td>
+</tr>
+<tr class="even">
+<td align="right">26</td>
+<td align="left">Adam Pelech</td>
+<td align="left">D</td>
+<td align="left">New York Islanders</td>
+<td align="right">2.58</td>
+<td align="right">2.15</td>
+<td align="right">0.43</td>
+<td align="right">27.55</td>
+</tr>
+<tr class="odd">
+<td align="right">27</td>
+<td align="left">Ryan Murray</td>
+<td align="left">D</td>
+<td align="left">Columbus Blue Jackets</td>
+<td align="right">3.01</td>
+<td align="right">2.58</td>
+<td align="right">0.42</td>
+<td align="right">20.43</td>
+</tr>
+<tr class="even">
+<td align="right">28</td>
+<td align="left">Evgenii Dadonov</td>
+<td align="left">R</td>
+<td align="left">Florida Panthers</td>
+<td align="right">3.00</td>
+<td align="right">2.58</td>
+<td align="right">0.41</td>
+<td align="right">25.62</td>
+</tr>
+<tr class="odd">
+<td align="right">29</td>
+<td align="left">Leon Draisaitl</td>
+<td align="left">C</td>
+<td align="left">Edmonton Oilers</td>
+<td align="right">3.38</td>
+<td align="right">2.97</td>
+<td align="right">0.41</td>
+<td align="right">31.46</td>
+</tr>
+<tr class="even">
+<td align="right">30</td>
+<td align="left">Max Domi</td>
+<td align="left">C</td>
+<td align="left">Montréal Canadiens</td>
+<td align="right">2.99</td>
+<td align="right">2.58</td>
+<td align="right">0.41</td>
+<td align="right">24.24</td>
+</tr>
+</tbody>
+</table>
+<p>Here is the table for the goalies only. The best goaltender who played more than 10 hours appears to be Cal Petersen, who brings the average rate of goals against per 60 minutes down to a cool 2.08. What do you think?</p>
+<table>
+<caption><span id="tab:unnamed-chunk-5">Table 4: </span>Top 30 players with the highest impact of defensive strength</caption>
+<thead>
+<tr class="header">
+<th align="right">rank</th>
+<th align="left">player</th>
+<th align="left">position</th>
+<th align="left">team</th>
+<th align="right">offense</th>
+<th align="right">defense</th>
+<th align="right">differential</th>
+<th align="right">hours_played</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="right">1</td>
+<td align="left">Cal Petersen</td>
+<td align="left">G</td>
+<td align="left">Los Angeles Kings</td>
+<td align="right">2.58</td>
+<td align="right">2.08</td>
+<td align="right">0.50</td>
+<td align="right">10.37</td>
+</tr>
+<tr class="even">
+<td align="right">2</td>
+<td align="left">Jordan Binnington</td>
+<td align="left">G</td>
+<td align="left">St. Louis Blues</td>
+<td align="right">2.58</td>
+<td align="right">2.09</td>
+<td align="right">0.49</td>
+<td align="right">54.02</td>
+</tr>
+<tr class="odd">
+<td align="right">3</td>
+<td align="left">Petr Mrazek</td>
+<td align="left">G</td>
+<td align="left">Carolina Hurricanes</td>
+<td align="right">2.58</td>
+<td align="right">2.27</td>
+<td align="right">0.31</td>
+<td align="right">50.84</td>
+</tr>
+<tr class="even">
+<td align="right">4</td>
+<td align="left">Carey Price</td>
+<td align="left">G</td>
+<td align="left">Montréal Canadiens</td>
+<td align="right">2.58</td>
+<td align="right">2.29</td>
+<td align="right">0.29</td>
+<td align="right">64.74</td>
+</tr>
+<tr class="odd">
+<td align="right">5</td>
+<td align="left">Frederik Andersen</td>
+<td align="left">G</td>
+<td align="left">Toronto Maple Leafs</td>
+<td align="right">2.58</td>
+<td align="right">2.38</td>
+<td align="right">0.21</td>
+<td align="right">65.47</td>
+</tr>
+<tr class="even">
+<td align="right">6</td>
+<td align="left">Jack Campbell</td>
+<td align="left">G</td>
+<td align="left">Los Angeles Kings</td>
+<td align="right">2.58</td>
+<td align="right">2.40</td>
+<td align="right">0.18</td>
+<td align="right">26.24</td>
+</tr>
+<tr class="odd">
+<td align="right">7</td>
+<td align="left">Marc-Andre Fleury</td>
+<td align="left">G</td>
+<td align="left">Vegas Golden Knights</td>
+<td align="right">2.58</td>
+<td align="right">2.42</td>
+<td align="right">0.16</td>
+<td align="right">68.43</td>
+</tr>
+<tr class="even">
+<td align="right">8</td>
+<td align="left">Andrei Vasilevskiy</td>
+<td align="left">G</td>
+<td align="left">Tampa Bay Lightning</td>
+<td align="right">2.58</td>
+<td align="right">2.43</td>
+<td align="right">0.16</td>
+<td align="right">57.38</td>
+</tr>
+<tr class="odd">
+<td align="right">9</td>
+<td align="left">Ben Bishop</td>
+<td align="left">G</td>
+<td align="left">Dallas Stars</td>
+<td align="right">2.58</td>
+<td align="right">2.47</td>
+<td align="right">0.11</td>
+<td align="right">57.53</td>
+</tr>
+<tr class="even">
+<td align="right">10</td>
+<td align="left">Robin Lehner</td>
+<td align="left">G</td>
+<td align="left">New York Islanders</td>
+<td align="right">2.58</td>
+<td align="right">2.49</td>
+<td align="right">0.09</td>
+<td align="right">51.14</td>
+</tr>
+<tr class="odd">
+<td align="right">11</td>
+<td align="left">Juuse Saros</td>
+<td align="left">G</td>
+<td align="left">Nashville Predators</td>
+<td align="right">2.66</td>
+<td align="right">2.58</td>
+<td align="right">0.08</td>
+<td align="right">29.06</td>
+</tr>
+<tr class="even">
+<td align="right">12</td>
+<td align="left">Tuukka Rask</td>
+<td align="left">G</td>
+<td align="left">Boston Bruins</td>
+<td align="right">2.58</td>
+<td align="right">2.51</td>
+<td align="right">0.07</td>
+<td align="right">65.38</td>
+</tr>
+<tr class="odd">
+<td align="right">13</td>
+<td align="left">Thomas Greiss</td>
+<td align="left">G</td>
+<td align="left">New York Islanders</td>
+<td align="right">2.58</td>
+<td align="right">2.52</td>
+<td align="right">0.06</td>
+<td align="right">38.88</td>
+</tr>
+<tr class="even">
+<td align="right">14</td>
+<td align="left">Pekka Rinne</td>
+<td align="left">G</td>
+<td align="left">Nashville Predators</td>
+<td align="right">2.58</td>
+<td align="right">2.53</td>
+<td align="right">0.05</td>
+<td align="right">59.22</td>
+</tr>
+<tr class="odd">
+<td align="right">15</td>
+<td align="left">Laurent Brossoit</td>
+<td align="left">G</td>
+<td align="left">Winnipeg Jets</td>
+<td align="right">2.58</td>
+<td align="right">2.54</td>
+<td align="right">0.04</td>
+<td align="right">19.44</td>
+</tr>
+<tr class="even">
+<td align="right">16</td>
+<td align="left">Sergei Bobrovsky</td>
+<td align="left">G</td>
+<td align="left">Columbus Blue Jackets</td>
+<td align="right">2.58</td>
+<td align="right">2.57</td>
+<td align="right">0.01</td>
+<td align="right">69.73</td>
+</tr>
+<tr class="odd">
+<td align="right">17</td>
+<td align="left">Roberto Luongo</td>
+<td align="left">G</td>
+<td align="left">Florida Panthers</td>
+<td align="right">2.58</td>
+<td align="right">2.58</td>
+<td align="right">0.00</td>
+<td align="right">39.15</td>
+</tr>
+<tr class="even">
+<td align="right">18</td>
+<td align="left">Craig Anderson</td>
+<td align="left">G</td>
+<td align="left">Ottawa Senators</td>
+<td align="right">2.58</td>
+<td align="right">2.58</td>
+<td align="right">0.00</td>
+<td align="right">46.47</td>
+</tr>
+<tr class="odd">
+<td align="right">19</td>
+<td align="left">Ryan Miller</td>
+<td align="left">G</td>
+<td align="left">Anaheim Ducks</td>
+<td align="right">2.58</td>
+<td align="right">2.58</td>
+<td align="right">0.00</td>
+<td align="right">18.50</td>
+</tr>
+<tr class="even">
+<td align="right">20</td>
+<td align="left">Mike Smith</td>
+<td align="left">G</td>
+<td align="left">Calgary Flames</td>
+<td align="right">2.58</td>
+<td align="right">2.58</td>
+<td align="right">0.00</td>
+<td align="right">45.36</td>
+</tr>
+<tr class="odd">
+<td align="right">21</td>
+<td align="left">Curtis McElhinney</td>
+<td align="left">G</td>
+<td align="left">Carolina Hurricanes</td>
+<td align="right">2.58</td>
+<td align="right">2.58</td>
+<td align="right">0.00</td>
+<td align="right">37.47</td>
+</tr>
+<tr class="even">
+<td align="right">22</td>
+<td align="left">Cam Ward</td>
+<td align="left">G</td>
+<td align="left">Chicago Blackhawks</td>
+<td align="right">2.58</td>
+<td align="right">2.58</td>
+<td align="right">0.00</td>
+<td align="right">31.41</td>
+</tr>
+<tr class="odd">
+<td align="right">23</td>
+<td align="left">Corey Crawford</td>
+<td align="left">G</td>
+<td align="left">Chicago Blackhawks</td>
+<td align="right">2.58</td>
+<td align="right">2.58</td>
+<td align="right">0.00</td>
+<td align="right">36.92</td>
+</tr>
+<tr class="even">
+<td align="right">24</td>
+<td align="left">Jimmy Howard</td>
+<td align="left">G</td>
+<td align="left">Detroit Red Wings</td>
+<td align="right">2.58</td>
+<td align="right">2.58</td>
+<td align="right">0.00</td>
+<td align="right">50.94</td>
+</tr>
+<tr class="odd">
+<td align="right">25</td>
+<td align="left">Jaroslav Halak</td>
+<td align="left">G</td>
+<td align="left">Boston Bruins</td>
+<td align="right">2.58</td>
+<td align="right">2.58</td>
+<td align="right">0.00</td>
+<td align="right">38.51</td>
+</tr>
+<tr class="even">
+<td align="right">26</td>
+<td align="left">Brian Elliott</td>
+<td align="left">G</td>
+<td align="left">Philadelphia Flyers</td>
+<td align="right">2.58</td>
+<td align="right">2.58</td>
+<td align="right">0.00</td>
+<td align="right">22.97</td>
+</tr>
+<tr class="odd">
+<td align="right">27</td>
+<td align="left">Devan Dubnyk</td>
+<td align="left">G</td>
+<td align="left">Minnesota Wild</td>
+<td align="right">2.58</td>
+<td align="right">2.58</td>
+<td align="right">0.00</td>
+<td align="right">64.33</td>
+</tr>
+<tr class="even">
+<td align="right">28</td>
+<td align="left">Cory Schneider</td>
+<td align="left">G</td>
+<td align="left">New Jersey Devils</td>
+<td align="right">2.58</td>
+<td align="right">2.58</td>
+<td align="right">0.00</td>
+<td align="right">22.55</td>
+</tr>
+<tr class="odd">
+<td align="right">29</td>
+<td align="left">Anton Khudobin</td>
+<td align="left">G</td>
+<td align="left">Dallas Stars</td>
+<td align="right">2.58</td>
+<td align="right">2.58</td>
+<td align="right">0.00</td>
+<td align="right">37.22</td>
+</tr>
+<tr class="even">
+<td align="right">30</td>
+<td align="left">Jonathan Quick</td>
+<td align="left">G</td>
+<td align="left">Los Angeles Kings</td>
+<td align="right">2.58</td>
+<td align="right">2.58</td>
+<td align="right">0.00</td>
+<td align="right">44.09</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="caveats-and-conclusion" class="section level1">
+<h1>Caveats and conclusion</h1>
+<p>So this kinda worked. Results aren’t too different from expectations, with Crosby and Kucherov getting pretty good results. There is one issue that remains: everyone should be getting a specific value for offense and defense, but the model has allocated the “average” value for offense or defense to a very high number of players.</p>
+<p>I tried increasing the number of trees ( to 50 000!) and reducing the learning rate to allow the model to better segment “average looking players”, but the problem isnt solved.</p>
+<p>So, what do you guys think of this idea?</p>
+<p><img src="/post/2019-06-04-plus-minus-on-steroids_files/figure-html/unnamed-chunk-6-1.png" width="960" style="display: block; margin: auto;" /></p>
+<p><img src="/post/2019-06-04-plus-minus-on-steroids_files/figure-html/unnamed-chunk-7-1.png" width="960" style="display: block; margin: auto;" /></p>
+<p><img src="/post/2019-06-04-plus-minus-on-steroids_files/figure-html/unnamed-chunk-8-1.png" width="960" style="display: block; margin: auto;" /></p>
+</div>
