@@ -46,15 +46,17 @@ Hey everyone,
 
 We all know that the good old plus/minus is flawed.  Most notably, it doesn't take into account the quality of your teammates or that of the opposition.  So here is my idea: why not use a Poisson regression?  
 
-The Poisson regression is a special type of regression where the response variable is a count.  For example, ecologists will model the number of fish in samples  of a lake of varying volume, accounting for different characteristics of that volume, and actuaries will model the number of claims someone will make during a policy of varying duration accounting for different characteristics of the driver.  My plan is to find out which factors (players) influence the rate at which a team will score during a shift taking into account the 6 players (including goalie) on that team, and the 6 players against them.   
+The Poisson regression is a special type of regression where the response variable is a count.  For example, ecologists will model the number of fish in samples  of a lake of varying volume, accounting for different characteristics of that volume, and actuaries will model the number of claims someone will make during a car insurance policy of varying duration accounting for different characteristics of the driver.  
+
+My plan is to find out which factors (players) influence the rate at which a team will score during a shift taking into account the 6 players (including goalie) on that team, and the 6 players against them.   
 
 More precisely,  I model goals on 1003 "offense player dummies" and 1003 "defense player dummies" and I use duration of the shift as an offset variable.   This will return an "offense strength" and a "defense strength" for each of the 1003 players that players during the 2018-2019 season.    
 
 As usual, the code is available on [github](https://github.com/SimonCoulombe/nhl_play_by_play).  
 
-If your team doesnt make it to the end of the playoffs, make sure to use my [pub crawling app](https://www.simoncoulombe.com/2019/06/crawl-home-app/) to get you drunk and home optimally.
+If your team doesnt make it to the end of the playoffs, make sure to use my [pub crawling app](https://www.simoncoulombe.com/2019/06/crawl-home-app/) to get you drunk and home optimally.  
 
-Disclaimer: I haven't watched a game with passion since [Kovalev faked an injury](https://www.youtube.com/watch?v=te8nwVlJ3uQ) against my beloved nordiques in the year we were meant to win the damn cup.   I also haven't followed hockey advanced analytics ever, so this may be a very old or very bad idea, but I still thought I'd share it because I had fun :).
+Disclaimer: I haven't watched a game with passion since [Kovalev faked an injury](https://www.youtube.com/watch?v=te8nwVlJ3uQ) against my beloved Nordiques in the year we were meant to win the damn cup.   I also haven't followed hockey advanced analytics ever, so this may be a very old or very bad idea, but I still thought I'd share it because I had fun building this :).
 
 # The model  
 
@@ -64,26 +66,28 @@ Let's look at this [shift chart](http://www.nhl.com/stats/shiftcharts?id=2018020
 I define a "shift" as a period of time where all the players of both team are identical.  
 
 The first shift is Price-Mete-Domi-Petry-Byron-Lehkonen vs Andersen-Ennis,Gardiner-Marleau-Matthews-Zaitsev and it lasts 38 seconds, until Byron and Lehkonen leave the ice.  
+
 The second shift is Price-Mete-Domi-Petry-**Tatar-Gallagher** vs Andersen-Ennis,Gardiner-Marleau-Matthews-Zaitsev  and it only lasts 4 seconds, until the Leafs replace 4 players at 00:42.  
+
 The third shift is Price-Mete-Domi-Petry-Tatar-Gallagher vs Andersen-Ennis-**Rielly-Hainsey-Hyman-Tavares** and it lasts 14s, until the Mete-Domi-Petry line is replaced at 00:56.   
 
 Etc..
 
 During a shift, both teams have a chance to score a goal, so I the model includes two lines for each shift, one for each team attempting to score.  The columns included in the model are "did the team score?", "how long did the shift last in seconds?" and "who was playing on offense and defense" ?
 
-In the case of our first shift,  the two lines created would be as follow:
-0 goal, 38 seconds, offense: Price-Mete-Domi-Petry-Byron-Lehkonen , defense: Andersen-Ennis,Gardiner-Marleau-Matthews-Zaitsev
-0 goal, 38 seconds, offense: Andersen-Ennis,Gardiner-Marleau-Matthews-Zaitsev , defense: Price-Mete-Domi-Petry-Byron-Lehkonen
+In the case of our first shift,  the two lines created would be as follow:  
+0 goal, 38 seconds, offense: Price-Mete-Domi-Petry-Byron-Lehkonen , defense: Andersen-Ennis,Gardiner-Marleau-Matthews-Zaitsev.  
+
+0 goal, 38 seconds, offense: Andersen-Ennis,Gardiner-Marleau-Matthews-Zaitsev , defense: Price-Mete-Domi-Petry-Byron-Lehkonen.  
+
 
 For the model, I only keep "shifts" where the strength is an even 5 on 5 (plus goalies).  
 
-There are many ways to model a Poisson regression.  My go-to solution would have been to use a Generalized Linear Model (GLM) because it would have output a coefficient for each player for defense and offense and would have made the players directly comparable.  However, I quickly ran into issues because the GLM had a hard time digesting the 2006 features and 622 502 rows and wouldn't converge.  The alternative was to use a more powerful but less straightforward Gradien-Boosting model (GBM).  I chose to use LightGBM because its fast and has a low memory need, which made it possible to run on my 32GB RAM computer.  
+There are many ways to model a Poisson regression.  My go-to solution would have been to use a Generalized Linear Model (GLM) because it would have output a coefficient for each player for defense and offense and would have made the players directly comparable.  However, I quickly ran into issues because the GLM had a hard time digesting the 2006 features and 622 502 rows and wouldn't converge.  The alternative was to use a more powerful but less straightforward Gradien-Boosting model (GBM).  I chose to use LightGBM because its fast and has a low memory need, which made it possible to run on my 32GB RAM computer.   
 
-Inversely, to get the offensive contribution of the player accounting for teammates and opposition, I use the model to predict how many goals per hour an average team including this player would score against an average team. 
+To get the offensive contribution of the player accounting for teammates and opposition, I use the model to predict how many goals per hour an average team including this player would score against an average team.   Inversely, to get the defensive contribution of the player accounting for teammates and opposition, I use the model to predict how many goals per hour an average team would score against an average team including this player.   
 
-To get the defensive contribution of the player accounting for teammates and opposition, I use the model to predict how many goals per hour an average team would score against an average team including this player. 
-
-More precisely, I score the model using a value of "0" for all predictive variables, but "1" for the one I am interested in (ex: against_player_PK_Subban).
+More precisely, I score the model using a value of "0" for all features, except for the variable I am interested in (ex: against_player_PK_Subban), which is set to "1".  
 
 
 # Getting the data   
@@ -92,11 +96,11 @@ I create a few functions to allow me to download the data from NHL.com's API.  T
 
 # The results !!  
 
-The average team will score an average of 2.58 goals per 60 minutes played played at 5 on 5.  
+The average team will score an average of 2.58 goals per 60 minutes when playing at 5 on 5 against an average team.
 
-The players with the most positive impact on offense are John Carlson, Sidney Crosby and Nikita Kucherov.  John Carlson and average teammates playing against average opposition would score an average of 3.76 goals per 60 minutes played.  Crosby is slightly behind at 3.55 and Kucherov at 3.48.  
+Swap John Carlson and your team will suddenly score at a rate of average of 3.76 goals per 60 minutes played and suffer a slightly increased goal rate of 2.69.  
 
-Crosby and Kucherov were kind of obvious.  What surprised me is Carlson: he is a defenseman!  He doesnt score goals himself.  However, whoever is in front of him will receive better passes and play with more confidence, allowing them to score goals.  The model doesnt appear to be broken: Ovechkin shows up in 27th position at 2.95.  
+Crosby (3.55) and Kucherov (3.48) are  slightly behind.  They were kind of obvious, but what is Carlson doing there?  He is a defenseman!  Maybe whoever is in front of him will receive better passes and play offense with more confidence, allowing them to score goals.  
 
 
 
@@ -158,9 +162,9 @@ results %>% ungroup() %>%
 
 So this kinda worked.  Results aren't too different from expectations, with Crosby and Kucherov getting pretty good results.   There is one issue that remains:  everyone should be getting a specific value for offense and defense, but the model has allocated the "average" value for offense or defense to a very high number of players.  
 
-I tried increasing the number of trees ( to 50 000!) and reducing the learning rate to allow the model to better segment "average looking players", but the problem isnt solved.  
+I tried increasing the number of trees ( to 50 000!) and reducing the learning rate to allow the model to better segment "average looking players", but the problem isnt solved.  I probably need more data, so a solution might involve looking at more seasons looking at shots (controlling for quality) instead of goals.  
 
-So, what do you guys think of this idea?
+So, what do you guys think?
 
 
 
