@@ -1,5 +1,5 @@
 ---
-title: What does it look like at the top of the world?
+title: The ultimate trail map - What does it look like at the top of the world?
 author: simon
 date: '2019-06-16'
 slug: top-of-the-world
@@ -11,7 +11,7 @@ tags:
   - KUD3D
 keywords:
   - tech
-thumbnailImage: "/post/2019-06-16-what-does-it-look-like-at-the-top-of-the-world_files/drain13.png" 
+thumbnailImage: "/post/2019-06-16-what-does-it-look-like-at-the-top-of-the-world_files/trailmap.png" 
 thumbnailImagePosition: left
 ---
 
