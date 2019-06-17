@@ -1,5 +1,5 @@
 ---
-title: What does it look like at the top of the world?
+title: The ultimate trail map - What does it look like at the top of the world?
 author: simon
 date: '2019-06-16'
 slug: top-of-the-world
@@ -11,7 +11,7 @@ tags:
   - KUD3D
 keywords:
   - tech
-thumbnailImage: "/post/2019-06-16-what-does-it-look-like-at-the-top-of-the-world_files/drain13.png" 
+thumbnailImage: "/post/2019-06-16-what-does-it-look-like-at-the-top-of-the-world_files/trailmap.png" 
 thumbnailImagePosition: left
 ---
 
@@ -69,7 +69,8 @@ library(rayshader)
 library(KUD3D) # pour add_points
 library(sf)
 library(tidyverse)
-library(osmdata) # pour osm_elevation</code></pre>
+library(osmdata) # pour osm_elevation
+library(magick) # to rotate png overlay</code></pre>
 <p>some functions by william bishop:</p>
 <pre class="r"><code># functions by Will Bishop @wcmbishop ----
 # https://wcmbishop.github.io/rayshader-demo/ 
@@ -330,7 +331,14 @@ prj &lt;- &quot;+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs&quot;
 ## importer le GPX avec sf:st_read, rgdal::readOGR ou plotKML::readGPX 
 # perd les datetime  des points. J&#39;ai oublié où j&#39;ai lu ça, mais apparemment 
 # c&#39;est normal car les shapefile ont juste la date.  Faisons le quand même.
-st_layers(&quot;route4636025-Untitled_route.gpx&quot;)     </code></pre>
+#st_layers(&quot;route4636025-Untitled_route.gpx&quot;)     
+
+gpx_file &lt;- &quot;route4636025-Untitled_route.gpx&quot;
+my_layer &lt;- &quot;route_points&quot; 
+elevation_raster_zoom &lt;- 10
+
+
+st_layers(gpx_file)     </code></pre>
 <pre><code>## Driver: GPX 
 ## Available layers:
 ##     layer_name     geometry_type features fields
@@ -339,7 +347,7 @@ st_layers(&quot;route4636025-Untitled_route.gpx&quot;)     </code></pre>
 ## 3       tracks Multi Line String        0     12
 ## 4 route_points             Point      544     25
 ## 5 track_points             Point        0     26</code></pre>
-<pre class="r"><code>everest_gpx &lt;- st_read(&quot;route4636025-Untitled_route.gpx&quot;, layer = &quot;route_points&quot;) %&gt;% st_transform(., &quot;+proj=longlat +datum=WGS84&quot;) </code></pre>
+<pre class="r"><code>everest_gpx &lt;- st_read(gpx_file, layer = my_layer) %&gt;% st_transform(., &quot;+proj=longlat +datum=WGS84&quot;) </code></pre>
 <pre><code>## Reading layer `route_points&#39; from data source `/home/simon/git/snippets/content/post/route4636025-Untitled_route.gpx&#39; using driver `GPX&#39;
 ## Simple feature collection with 544 features and 25 fields
 ## geometry type:  POINT
@@ -366,7 +374,7 @@ ex.df &lt;- data.frame(x=seq(from=bbox$xmin , to=bbox$xmax, length.out=100),
                     y=seq(from=bbox$ymin , to=bbox$ymax, length.out=100))
 
 # Use elevatr package to get elevation data for each point.
-elev &lt;- get_elev_raster(ex.df, prj = prj, z = 10, clip = &quot;bbox&quot;)
+elev &lt;- get_elev_raster(ex.df, prj = prj, z = elevation_raster_zoom, clip = &quot;bbox&quot;)
 
 # contourmap 2d
 raster::contour(elev)</code></pre>
@@ -394,77 +402,79 @@ kilian_path  &lt;- latlons %&gt;%
 
 overlay_file &lt;- &quot;images.png&quot;
 get_arcgis_map_image(bbox2, map_type = &quot;World_Imagery&quot;, file = overlay_file,
-                     width = dim(elev)[1], height = dim(elev)[2], 
+                     width = dim(elev)[2], height = dim(elev)[1], 
                      sr_bbox = 4326)
-overlay_img &lt;- png::readPNG(overlay_file)</code></pre>
-<p>rayshade :</p>
-<pre class="r"><code># rayshader de l&#39;everest, because we can ----
-# 
-# ## reconfigure bathymetry data for 3D plotting (** to correct mirrored plotting in rayshader)
-# elmat &lt;-
-#   as.matrix(elev) %&gt;%
-#   apply(., 2, rev)
-# 
-# 
-# shadow = ray_shade(elmat,zscale=50,lambert=FALSE)
-# ambient = ambient_shade(elmat,zscale=50)
-# 
-# 
-# # plot_3d
-# # sphere_shade retourne RGB array of hillshaded texture mappings.
-# sphere_shade(heightmap = elmat, zscale=50,texture = &quot;imhof4&quot;) %&gt;% 
-#   add_shadow(shadow) %&gt;%
-#   add_shadow(ambient)  %&gt;% 
-#   add_overlay(., overlay = overlay_img, alphalayer = 0.5)  %&gt;%
-#   plot_3d(., heightmap = elmat,
-#           zscale=50,fov=0,theta=90,phi=20,windowsize=c(1000,800),zoom=0.6,
-#           water=FALSE,          baseshape = &quot;circle&quot; 
-#   )
-# 
-# 
-# # render labels
-# # locaton founds by trial and error
-# render_label(heightmap = elmat,x=363,y=281, z=8000,zscale=50,
-#              text = &quot;Base Camp&quot;,textsize = 2,linewidth = 5)
-# 
-# 
-# render_label(heightmap = elmat,x=124,y=178, z=8000,zscale=50,
-#              text = &quot;Summit&quot;,textsize = 2,linewidth = 5)
-# 
-# 
-# #KUD3D adds points and axes
-# add_points(
-#   ras = elev,
-#   det = kilian_path,
-#   zscale = 50,
-#   cont = c(95, 50),
-#   alphavec = c(0.1, 0.9),
-#   drawpoints = T,
-#   size = 1,
-#   col.pt = &quot;black&quot;,
-#   colors = c(&quot;red&quot;,&quot;red&quot;)
-# )  
-# add_axes(elev,
-#          zscale = 50,
-#          axis.col = grey(0.5))
-# </code></pre>
-<p><img src="/post/2019-06-16-what-does-it-look-like-at-the-top-of-the-world_files/drain13.png" /></p>
-<p>generate gif</p>
-<pre class="r"><code># gif !! ----
+#attempt1 (wrong because image needs to be rotated)
+#overlay_img &lt;- png::readPNG(overlay_file)
 
-# 
-# # montery water gif ====
-# elev_matrix &lt;- elmat
-# n_frames &lt;- 64
-# zscale &lt;- 50
+# attemp2 : rotate image 90 degrees
+image_write(image_rotate(image_read(overlay_file), 90) ,&quot;rotated.png&quot;)
+overlay_img &lt;- png::readPNG(&quot;rotated.png&quot;)</code></pre>
+<p>rayshade :</p>
+<pre class="r"><code>## reconfigure bathymetry data for 3D plotting (** to correct mirrored plotting in rayshader)
+elmat &lt;-
+  as.matrix(elev) %&gt;%
+  apply(., 2, rev)
+
+
+myzscale = 50000 / (elevation_raster_zoom * elevation_raster_zoom * elevation_raster_zoom)
+shadow = ray_shade(elmat,zscale=myzscale,lambert=FALSE)
+ambient = ambient_shade(elmat,zscale=myzscale)
+
+
+# plot_3d
+# sphere_shade retourne RGB array of hillshaded texture mappings.
+sphere_shade(heightmap = elmat, zscale=myzscale,texture = &quot;imhof4&quot;) %&gt;% 
+  add_shadow(shadow) %&gt;%
+  add_shadow(ambient)  %&gt;% 
+  #add_water(detect_water(elmat)) %&gt;%
+  add_overlay(., overlay = overlay_img, alphacolor = NULL,alphalayer = 0.9)  %&gt;%
+  plot_3d(., heightmap = elmat,
+          zscale=myzscale,fov=0,theta=80,phi=29,windowsize=c(1000,800),zoom=0.6,
+          water=FALSE,          baseshape = &quot;circle&quot; 
+  )
+
+
+# render labels
+# locaton founds by trial and error
+render_label(heightmap = elmat,x=363,y=281, z=1000,zscale=myzscale,
+             text = &quot;Base Camp&quot;,textsize = 2,linewidth = 5)
+
+
+render_label(heightmap = elmat,x=124,y=178, z=1000,zscale=myzscale,
+             text = &quot;Summit&quot;,textsize = 2,linewidth = 5)
+
+
+#KUD3D adds points and axes
+add_points(
+  ras = elev,
+  det = kilian_path,
+  zscale=myzscale,
+  cont = c(95, 5),
+  alphavec = c(0.1, 0.9),
+  drawpoints = T,
+  size = 3,
+  col.pt = &quot;black&quot;,
+  colors = c(&quot;red&quot;,&quot;red&quot;)
+)  
+add_axes(elev,
+         zscale=myzscale,
+         axis.col = grey(0.5))
+
+render_snapshot(&quot;trailmap&quot;)</code></pre>
+<p><img src="/post/2019-06-16-what-does-it-look-like-at-the-top-of-the-world_files/trailmap.png" /></p>
+<p>generate gif</p>
+<pre class="r"><code># elev_matrix &lt;- elmat
+# n_frames &lt;- 60
+# zscale &lt;- myzscale
 # # frame transition variables
-# thetavalues &lt;- transition_values(from = 0, to = 360, steps = n_frames, 
+# thetavalues &lt;- transition_values(from = 80, to = 35, steps = n_frames, 
 #                                  one_way = TRUE, type = &quot;lin&quot;)
 # 
-# phivalues &lt;- transition_values(from = 10, to = 70, steps = n_frames, 
+# phivalues &lt;- transition_values(from = 28, to = 73, steps = n_frames, 
 #                                one_way = FALSE, type = &quot;cos&quot;)
 # 
-# zoomvalues &lt;- transition_values(from = 0.4, to = 0.8, steps = n_frames, 
+# zoomvalues &lt;- transition_values(from = 0.6, to = 0.8, steps = n_frames, 
 #                                 one_way = FALSE, type = &quot;cos&quot;)
 # # shadow layers
 # ambmat &lt;- ambient_shade(elev_matrix, zscale = zscale)
@@ -475,23 +485,24 @@ overlay_img &lt;- png::readPNG(overlay_file)</code></pre>
 # for (i in seq_len(n_frames)) {
 #   message(paste(&quot; - image&quot;, i, &quot;of&quot;, n_frames))
 #   
-#   sphere_shade(heightmap = elmat, zscale=50,texture = &quot;imhof4&quot;) %&gt;% 
+#   sphere_shade(heightmap = elmat, zscale=myzscale,texture = &quot;imhof4&quot;) %&gt;% 
 #     add_shadow(shadow) %&gt;%
 #     add_shadow(ambient)  %&gt;% 
-#     add_overlay(., overlay = overlay_img, alphalayer = 0.5)  %&gt;%
+#     #add_water(detect_water(elmat)) %&gt;%
+#     add_overlay(., overlay = overlay_img, alphacolor = NULL,alphalayer = 0.9)  %&gt;%
 #     plot_3d(., heightmap = elmat,
-#             zscale=50,fov=0,theta=thetavalues[i],phi=phivalues[i],windowsize=c(1000,800),zoom=zoomvalues[i],
+#             zscale=myzscale,fov=0,theta=thetavalues[i],phi=phivalues[i],windowsize=c(1000,800),zoom=zoomvalues[i],
 #             water=FALSE,          baseshape = &quot;circle&quot; 
 #     )
 #   
 #   
 #   # render labels
 #   # locaton founds by trial and error
-#   render_label(heightmap = elmat,x=363,y=281, z=8000,zscale=50,
+#   render_label(heightmap = elmat,x=363,y=281, z=1000,zscale=myzscale,
 #                text = &quot;Base Camp&quot;,textsize = 2,linewidth = 5)
 #   
 #   
-#   render_label(heightmap = elmat,x=124,y=178, z=8000,zscale=50,
+#   render_label(heightmap = elmat,x=124,y=178, z=1000,zscale=myzscale,
 #                text = &quot;Summit&quot;,textsize = 2,linewidth = 5)
 #   
 #   
@@ -499,19 +510,17 @@ overlay_img &lt;- png::readPNG(overlay_file)</code></pre>
 #   add_points(
 #     ras = elev,
 #     det = kilian_path,
-#     zscale = 50,
-#     cont = c(95, 50),
+#     zscale=myzscale,
+#     cont = c(95, 5),
 #     alphavec = c(0.1, 0.9),
 #     drawpoints = T,
-#     size = 1,
+#     size = 3,
 #     col.pt = &quot;black&quot;,
 #     colors = c(&quot;red&quot;,&quot;red&quot;)
 #   )  
 #   add_axes(elev,
-#            zscale = 50,
+#            zscale=myzscale,
 #            axis.col = grey(0.5))
-#   
-#   
 #   
 #   
 #   render_snapshot(img_frames[i])
@@ -521,4 +530,4 @@ overlay_img &lt;- png::readPNG(overlay_file)</code></pre>
 # # build gif
 # magick::image_write_gif(magick::image_read(img_frames), 
 #                         path = &quot;everest.gif&quot;, 
-#                         delay = 6/n_frames)</code></pre>
+#                         delay = 2/n_frames)</code></pre>
