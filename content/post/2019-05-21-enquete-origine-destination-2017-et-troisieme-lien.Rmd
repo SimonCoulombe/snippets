@@ -44,6 +44,8 @@ library(readxl)
 library(janitor)
 library(tmap)
 library(widgetframe) # add leaflets to blog
+library(htmltools) # tags pour leaflet title
+library(leaflet)
 ```
 
 
@@ -511,7 +513,22 @@ final_data <- shp_sm %>%
   left_join(destination_am) %>%
   left_join(origine_am_traverse_fleuve) %>%
   left_join(destination_am_traverse_fleuve) %>%
-  mutate(pct_destination_traverse_fleuve = destination_am_traverse_fleuve / destination_am)
+  mutate(pct_destination_traverse_fleuve = destination_am_traverse_fleuve / destination_am) %>%
+    mutate(
+    rivesud_to_rivenord = ifelse(rivenord==1, destination_am_traverse_fleuve, origine_am_traverse_fleuve)
+  ) %>% 
+  sf::st_transform( crs = 4326)
+```
+
+
+```{r}
+tunnel <- tibble( lat = c(46.868885, 46.812506),
+                  lon =  c(-71.159546,-71.100411)) %>%
+  mutate(group = "groupe") %>%
+  st_as_sf(coords= c("lon","lat")) %>%
+  group_by(group)%>%
+  summarize(., do_union = FALSE) %>%
+  st_cast("LINESTRING") 
 ```
 
 
@@ -519,14 +536,76 @@ La carte suivante montre la destination des gens qui prennent leur auto le matin
 
 ```{r}
 
-mapview(final_data, zcol= "destination_am")
+m <- mapview(final_data, zcol= "rivesud_to_rivenord",
+        layer.name= "Number of cars leaving (South Shore) <br> and entering (North Shore) each  <br>sectors during the morning commute")
+
+m@map %>% 
+  addPolylines(data=tunnel, color= "red")
+  
+# 
+# 
+# tag.map.title <- tags$style(HTML("
+#   .leaflet-control.map-title { 
+#     transform: translate(-50%,20%);
+#     position: fixed !important;
+#     left: 50%;
+#     text-align: center;
+#     padding-left: 10px; 
+#     padding-right: 10px; 
+#     background: rgba(255,255,255,0.75);
+#     font-weight: bold;
+#     font-size: 28px;
+#   }
+# "))
+# 
+# 
+# title <- tags$div(
+#   tag.map.title, HTML("Most cars leaving the South Shore for the North Shore are travelling from and to the western half of the city.")
+# )  
+# 
+# 
+# mypalette <- leaflet::colorNumeric(palette = "viridis", 
+#                                        domain = c(final_data$rivesud_to_rivenord))
+# 
+# 
+# 
+# 
+# 
+# 
+# leaflet(data= final_data) %>%
+#   addPolygons(fillColor = ~mypalette(rivesud_to_rivenord),
+#               opacity=1, fillOpacity =0.6, weight= 1, color= "black" ) %>%
+#   addProviderTiles(providers$CartoDB.Positron) %>% 
+#   addControl(title, position = "topright") %>%
+#   addPolylines(data=tunnel, color= "red") %>%
+#   addLegend("topright",pal = mypalette, values = ~rivesud_to_rivenord,
+#             title = "Number of cars leaving (South Shore) <br> and entering (North Shore) each  <br>sectors during the morning commute",
+#             opacity = 0.5)
+
 ```
 
 
 La carte suivante montre la destination des gens qui prennent leur voiture et qui traversent dans un sens ou dans l'autre.  Sans surprise vu la distance, Lebourgneuf et la colline parlementaire sont moins attractifs pour les gens qui doivent traverser le fleuve, tandis que Ste-Foy et Lévis-Centre demeurent très attractif.  
 ```{r}
 
-mapview(final_data, zcol= "destination_am_traverse_fleuve")
+
+m <- mapview(final_data, zcol= "destination_am_traverse_fleuve", 
+             layer.name = "Nombre de voiture <br> atteignant ce secteur <br> après avoir traversé le fleuve")
+
+m@map %>% addPolylines(data=tunnel, color ="red")
+# 
+# mypalette <- leaflet::colorNumeric(palette = "viridis", 
+#                                        domain = c(final_data$destination_am_traverse_fleuve))
+# 
+# leaflet(data= final_data) %>%
+#   addPolygons(fillColor = ~mypalette(destination_am_traverse_fleuve),
+#               opacity=1, fillOpacity =0.6, weight= 1, color= "black" ) %>%
+#   addProviderTiles(providers$CartoDB.Positron) %>% 
+#   addPolylines(data=tunnel, color= "red") %>%
+#   addLegend("topright",pal = mypalette, values = ~destination_am_traverse_fleuve,
+#             title = "Nombre de voiture <br> atteignant ce secteur <br> après avoir traversé le fleuve",
+#             opacity = 0.5)
+# 
 
 
 ```
@@ -534,7 +613,28 @@ mapview(final_data, zcol= "destination_am_traverse_fleuve")
 La présence importante de Lévis-Centre chez les traverseurs de fleuve m'a un peu surpris.  J'ai donc sorti le pourcentage de personnes qui arrivent dans une région qui ont dû traverser le fleuve.  C'est 23% à Lévis, 18% à Ste-Foy,  13% sur la colline et 6% à Lebourgneuf.  
 
 ```{r}
-mapview(final_data, zcol= "pct_destination_traverse_fleuve")
+m <- mapview(final_data, zcol= "pct_destination_traverse_fleuve", 
+        layer.name = "Pourcentage des voitures <br> arrivant dans ce secteur <br> qui ont dû traverser le fleuve")  
+
+m@map %>%
+  addPolylines(data=tunnel, color="red")
+  
+
+
+
+# mypalette <- leaflet::colorNumeric(palette = "viridis", 
+#                                        domain = c(final_data$pct_destination_traverse_fleuve))
+# 
+# leaflet(data= final_data) %>%
+#   addPolygons(fillColor = ~mypalette(pct_destination_traverse_fleuve),
+#               opacity=1, fillOpacity =0.6, weight= 1, color= "black" ) %>%
+#   addProviderTiles(providers$CartoDB.Positron) %>% 
+#   addPolylines(data=tunnel, color= "red") %>%
+#   addLegend("topright",pal = mypalette, values = ~pct_destination_traverse_fleuve,
+#             title = "Pourcentage des voitures <br> arrivant dans ce secteur <br> qui ont dû traverser le fleuve",
+#             opacity = 0.5)
+
+
 ```
 
 
@@ -577,16 +677,7 @@ final_data %>%
 
 ```
 
-Format carte interactive, pour les gens qui veulent creuser:  
 
-```{r}
-final_data %>% 
-      mutate(
-        rivesud_to_rivenord = ifelse(rivenord==1, destination_am_traverse_fleuve, -origine_am_traverse_fleuve)
-      ) %>%
-  mapview(zcol= "rivesud_to_rivenord")
-
-```
 
 ## Du nord au sud  
 
@@ -632,11 +723,17 @@ final_data %>%
 
 
 ```{r}
-final_data %>% 
+m <- final_data %>% 
       mutate(
         rivenord_to_rivesud = ifelse(rivenord==1, origine_am_traverse_fleuve, destination_am_traverse_fleuve)
       ) %>%
-  mapview(zcol= "rivenord_to_rivesud")
+  mapview(zcol= "rivenord_to_rivesud",
+          layer.name= "Number of cars leaving (North Shore) <br> and entering (South Shore) each  <br>sectors during the morning commute")
+
+m@map %>% 
+  addPolylines(data=tunnel, color= "red")
+  
+
 ```
 
 
