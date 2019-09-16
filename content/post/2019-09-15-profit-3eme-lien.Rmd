@@ -42,8 +42,6 @@ Pour ce projet je tente de répondre à deux questions :
 
 Pour cet exercice, je m'attarde aux terrains dans le secteur Lauzon.  J'ignore les terres agricoles et les exploitations forestières, car elles ont une grande superficie et sont censées être protégées par le MAPAQ.  J'exclus aussi de ce palmarès les propriétaires gouvernementaux.      
 
-
-
 ## Données  
 
 Je combine deux sources de données:
@@ -68,39 +66,41 @@ library(rvest)
 library(tidyverse)
 library(mapview)
 library(leaflet)
-
+library(RColorBrewer)
 set.seed(1234)
 # Load shapefile secteurs municipaux enquête origine destination québec----
 sm <- st_read("data/shp_eod_qc_2017/SM2017_Que_region.shp",  
               options = "ENCODING=windows-1252") %>%
-  st_set_crs(., "+init=epsg:3347") %>%  #définir la projection, qui est 3347 lambert canada
-  st_transform(., "+proj=longlat +datum=WGS84")  # convertir en lat-long
+   st_set_crs(., "+init=epsg:3347") %>%  #définir la projection, qui est 3347 lambert canada
+   st_transform(., "+proj=longlat +datum=WGS84")  # convertir en lat-long
 
 levis_anonymous <- read_rds("data/levis_anonymous.rds")
 
 
-
+tunnel_extremite_levis <- tibble(lat = 46.815 , 
+                                 lon = -71.100) %>%
+   st_as_sf(coords= c("lon","lat"))
 ```
 
 ```{r, echo = F}
 
 if(FALSE){
-
-tictoc::tic()
-map_utilisation_predominante <- levis_anonymous %>% 
-  group_by(utilisation1, SM2017) %>%
-  summarize(., do_union = TRUE) %>% # convert to a single line
-  st_cast()
-tictoc::toc()
-
-
-
-map_utilisation_predominante <- map_utilisation_predominante %>% rmapshaper::ms_simplify(keep=0.2)
-
-
-write_rds(map_utilisation_predominante, "map_utilisation_predominante.rds")
+   
+   tictoc::tic()
+   map_utilisation_predominante <- levis_anonymous %>% 
+      group_by(utilisation1, SM2017) %>%
+      summarize(., do_union = TRUE) %>% # convert to a single line
+      st_cast()
+   tictoc::toc()
+   
+   
+   
+   map_utilisation_predominante <- map_utilisation_predominante %>% rmapshaper::ms_simplify(keep=0.2)
+   
+   
+   write_rds(map_utilisation_predominante, "map_utilisation_predominante.rds")
 } else {
-  map_utilisation_predominante <- read_rds("map_utilisation_predominante.rds")
+   map_utilisation_predominante <- read_rds("map_utilisation_predominante.rds")
 }
 
 ```
@@ -111,16 +111,16 @@ write_rds(map_utilisation_predominante, "map_utilisation_predominante.rds")
 Cette carte présente le nombre de rôles d'évaluation que j'ai téléchargé par secteur municipal.  Nous avons un total de 52 750 rôles.
 ```{r, echo= F}
 sm_levis <- sm %>%
-  inner_join(
-    levis_anonymous %>%
-      st_set_geometry(NULL) %>% 
-      count(SM2017) %>%
-      filter(!is.na(SM2017), n>5)
-  ) 
+   inner_join(
+      levis_anonymous %>%
+         st_set_geometry(NULL) %>% 
+         count(SM2017) %>%
+         filter(!is.na(SM2017), n>5)
+   ) 
 
 sm_levis %>%
    mapview(zcol = "n",
-        layer.name = "Nombre de rôles d'évaluations <br> dans chacun des secteurs municipaux de Lévis")
+           layer.name = "Nombre de rôles d'évaluations <br> dans chacun des secteurs municipaux de Lévis")
 
 ```
 
@@ -131,7 +131,10 @@ sm_levis %>%
 La carte ci-dessous donne une vue globale de l'utilisation prédominante de tous les lots à Lévis.  Les voisisn sont fusionnées pour accélérer un peu le chargement de  tout ça.  Les fermes sont dans le groupe 8, "production et extraction de richesses naturelles".   
 
 ```{r utilisation_prédominante, echo =F}
-mapview(map_utilisation_predominante, zcol= "utilisation1", layer.name = "Utilisation prédominante")
+mapview(map_utilisation_predominante, 
+        zcol= "utilisation1",
+        layer.name = "Utilisation prédominante",
+        col.region = RColorBrewer::brewer.pal(8, "Accent"))
 ```
 
 
@@ -141,17 +144,18 @@ On peut déjà voir que la personne/compagnie anonymisée sous le numéro anon =
 ```{r, echo =F}
 
 levis_anonymous  %>%  
-  filter(date_inscription >= lubridate::ymd("20181001")) %>% 
-  mapview::mapview(zcol="utilisation1",
-                   layer.name = "Utilisation prédominante des terrains achetés <br> entre le 1er octobre 2018 et le 18 juin 2019") %>% 
-  .@map %>%
-  addPolygons(data= sm_levis, fillColor = "transparent", color="black", weight=1)
+   filter(date_inscription >= lubridate::ymd("20181001")) %>% 
+   mapview::mapview(zcol="utilisation1",
+                    layer.name = "Utilisation prédominante des terrains achetés <br> entre le 1er octobre 2018 et le 18 juin 2019",
+                    col.region = RColorBrewer::brewer.pal(8, "Accent")) %>% 
+   .@map %>%
+   addPolygons(data= sm_levis, fillColor = "transparent", color="black", weight=1)
 
 
 ```
 
 
-## Les top 10  
+## Les top 8  
 
 À partir d'ici, je souhaite déterminer qui sont les plus grands propriétaires à Lévis.  J'ignore les principaux propriétaires gouvernementaux, ainsi que les lots dont l'utilisation prédominante est liée à l'agriculture ou à la foresterie.  
 
@@ -163,7 +167,7 @@ Voici les codes d'utilisation prédominante que j'ai retiré (fermes et forêts)
 
 
 
-### Top 10 de la valeur totale   
+### Top 8 de la valeur totale   
 
 Le lecteur avisé reconnaitra une grande coopérative, une compagnie de logis,  une raffinerie ...
 
@@ -193,7 +197,7 @@ top10_valeur_de_la_ville <- levis_anonymous %>%
    arrange(-valeur_immeuble_total) %>%
    filter(n>=3, area_total >= 5000) %>%
    mutate(rang = row_number()) %>%
-   head(10)
+   head(8)
 
 
 levis_anonymous %>%
@@ -210,15 +214,16 @@ levis_anonymous %>%
                                            anon, 
                                            " - ", n , " terrains")) %>%
    mapview(zcol= "rang_valeur_surface_id", 
-           layer.name = "Top 10 des propriétaires selon la valeur totale<br> 
+           layer.name = "Top 8 des propriétaires selon la valeur totale<br> 
            minimum 3 terrains et 5 000 m2 <br>           
            excluant gouvernement, fermes et industrie forestière <br> 
-           (rang - valeur-surface - id)")
+           (rang - valeur-surface - id)",
+           col.region = RColorBrewer::brewer.pal(8, "Accent"))
 ```
 
-### Top 10 de la superficie totale  
+### Top 8 de la superficie totale  
 
-Le gros bloc mauve entre Charny et St-Romuald appartient à un groupe qui souhaite construire un Phare à Québec.  C'était une surprise pour moi, mais [le Soleil en a déjà parlé en 2012](https://www.lesoleil.com/actualite/la-capitale/groupe-dallaire-projette-une-petite-ville-a-la-tete-sud-des-ponts-5875be1470fbade53669d33cf4c1d5b5).   
+Le gros bloc Charny et St-Romuald appartient à un groupe qui souhaite construire un Phare à Québec.  C'était une surprise pour moi, mais [le Soleil en a déjà parlé en 2012](https://www.lesoleil.com/actualite/la-capitale/groupe-dallaire-projette-une-petite-ville-a-la-tete-sud-des-ponts-5875be1470fbade53669d33cf4c1d5b5).   
 
 ```{r,echo =F}
 top10_superficie_de_la_ville <- levis_anonymous %>% 
@@ -233,7 +238,7 @@ top10_superficie_de_la_ville <- levis_anonymous %>%
    arrange(-area_total) %>%
    filter(n>=3, area_total >= 5000) %>%
    mutate(rang = row_number()) %>%
-   head(10)
+   head(8)
 
 
 levis_anonymous %>%
@@ -250,15 +255,16 @@ levis_anonymous %>%
                                            anon, 
                                            " - ", n , " terrains")) %>%
    mapview(zcol= "rang_valeur_surface_id", 
-           layer.name = "Top 10 des propriétaires selon la superficie totale<br> 
+           layer.name = "Top 8 des propriétaires selon la superficie totale<br> 
            minimum 3 terrains et 5 000 m2 <br>
            excluant gouvernement, fermes et industrie forestière <br> 
-           (rang - valeur-surface - id)")
+           (rang - valeur-surface - id)",
+           col.region = RColorBrewer::brewer.pal(8, "Accent"))
 
 
 ```
 
-### Top 10 de la superficie dans Lauzon (près du tunnel projeté)  
+### Top 8 de la superficie dans Lauzon (près du tunnel projeté)  
 
 On retrouve enfin les propriétaires dont les terrains sont les plus à risques de gagner de la valeur si le troisième lien est construit.  Certains possèdent le terrain depuis des dizaines d'années et ne donc pas des spéculateurs sur ce projet, mais ça n'enlève rien à l'attrait de ce gain.  
 
@@ -281,7 +287,7 @@ top10_superficie_de_l_est <- levis_anonymous %>%
    arrange(-area_total) %>%
    filter(n>=3, area_total >= 5000) %>%
    mutate(rang = row_number()) %>%
-   head(10)
+   head(8)
 
 
 levis_anonymous %>%
@@ -301,27 +307,27 @@ levis_anonymous %>%
                                            anon, 
                                            " - ", n , " terrains")) %>%
    mapview(zcol= "rang_valeur_surface_id", 
-           layer.name = "Top 10 des propriétaires selon la superficie totale, secteur Lauzon <br> 
+           layer.name = "Top 8 des propriétaires selon la superficie totale, secteur Lauzon <br> 
            minimum 3 terrains et 5 000 m2 <br>
            excluant gouvernement, fermes et industrie forestière <br> 
-           (rang - valeur-surface - id)") %>%
+           (rang - valeur-surface - id)",
+           col.region = RColorBrewer::brewer.pal(8, "Accent")) %>%
    .@map %>%
-   addPolygons(data= sm_levis %>% filter(SM2017 == 430), fillColor = "transparent", color="black", weight=1)# %>% 
+   addPolygons(data= sm_levis %>% filter(SM2017 == 430), fillColor = "transparent", color="black", weight=1)%>% 
+   addCircleMarkers(data=tunnel_extremite_levis, color= "red")
 ```
 
-### Top 10 des spéculateurs  
+### Top 8 des spéculateurs  
 
 Finalement, on chercher à savoir s'il y a des personnes Seulement 3 joueurs ont   acheté au moins 2 terrains pour au moins 5 000 mètres carrés depuis l'élection de la CAQ.
-  Le propriétaire avec l'identifiant anonymisé "23920" est bien le plus gros acheteur avec 3 terrains pour 37 455 mètres carrés de terrains juste à côté de l'emplacement où le tunnel devrait sortir (indiqué par un cercle rouge).   
-  Je ne révèlerai pas l'identité de ces joueurs, mais il serait intéressant de voir si ces personnes sont intervenues dans le débat.  Une visite au  site "[Recherche sur les donateurs](https://www.electionsquebec.qc.ca/francais/provincial/financement-et-depenses-electorales/recherche-sur-les-donateurs.php)" à Élections Québec pourrait être intéressante.  
+Le propriétaire avec l'identifiant anonymisé "23920" est bien le plus gros acheteur avec 3 terrains pour 37 455 mètres carrés de terrains juste à côté de l'emplacement où le tunnel devrait sortir (indiqué par un cercle rouge).   
+Je ne révèlerai pas l'identité de ces joueurs, mais il serait intéressant de voir si ces personnes sont intervenues dans le débat.  Une visite au  site "[Recherche sur les donateurs](https://www.electionsquebec.qc.ca/francais/provincial/financement-et-depenses-electorales/recherche-sur-les-donateurs.php)" à Élections Québec pourrait être intéressante.  
 
 Voilà, c'est tout.      
 
 
 ```{r, echo = F}
-tunnel_extremite_levis <- tibble(lat = 46.815 , 
-                      lon = -71.100) %>%
-   st_as_sf(coords= c("lon","lat"))
+
 
 top10_superficie_de_l_est_recente <- levis_anonymous %>% 
    filter(SM2017 %in% c(430)) %>%
@@ -349,7 +355,7 @@ levis_anonymous %>%
    #select(MATRICULE, nom1, nom2, adresse,  adresse_postale_fixed, utilisation,  date_inscription, SM2017, SM2017_Nom ) %>%
    inner_join(top10_superficie_de_l_est_recente# %>%
               #   select(rang, adresse_postale_fixed, n, area_total, valeur_immeuble_total, nom_principal = nom1)
-              ) %>%
+   ) %>%
    mutate(rang_valeur_surface_id = paste0( str_pad(rang,2, pad= "0"),
                                            " - ", 
                                            
@@ -360,10 +366,11 @@ levis_anonymous %>%
                                            anon, 
                                            " - ", n , " terrains")) %>%
    mapview(zcol= "rang_valeur_surface_id", 
-           layer.name = "Top 10 des spéculateurs selon la superficie totale, secteur Lauzon, <br>
+           layer.name = "Top 8 des spéculateurs selon la superficie totale, secteur Lauzon, <br>
            **achats depuis 1er octobre 2018, minimum 2 terrains et 5 000 m 2 <br> 
            excluant gouvernement, fermes et industrie forestière <br> 
-           (rang - valeur-surface - id)") %>%
+           (rang - valeur-surface - id)",
+           col.region = RColorBrewer::brewer.pal(8, "Accent")) %>%
    .@map %>%
    addPolygons(data= sm_levis %>% filter(SM2017 == 430), fillColor = "transparent", color="black", weight=1) %>% 
    addCircleMarkers(data=tunnel_extremite_levis, color= "red")
