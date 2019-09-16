@@ -1,0 +1,39 @@
+Rép :	GEOG:\que\od_2017\lim_od
+
+Fich : 	SM2017_Que.*
+
+Desc :	Secteurs Municipaux (SM) de l’Enquête O-D 2017 de Québec
+
+
+Type :	Fichier de régions
+
+Form :	MapInfo  et Shapefile
+
+NbEnr :	69
+
+NbObj :	69
+
+Proj :	Longitude/Latitude
+
+Index :	SM2017
+
+
+
+CLICHÉ :
+
+Champ		Type	Description
+----------	----	-----------------------------
+SM2017		Int	No de Secteur Municipal (SM)
+SM2017_Nom	C99	Nom du Secteur Municipal (SM)
+Date_AMJ	C10	Date de production du fichier
+
+
+Sources :	StatCan – Fichier numérique des limites (FNL) 2016
+
+
+NOTES :	Fichier constitué d’agrégations de Secteurs de Recensement (SR) 
+et de Subdivisions de Recensement (SDR)
+
+MÉTA
+Par :	MTQ – DMST – Module Collecte et Gestion de données 
+Date :	31 mai 2019

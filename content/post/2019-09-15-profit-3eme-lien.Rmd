@@ -1,0 +1,384 @@
+---
+title: Qui spécule sur le 3ème lien?
+author: Simon
+date: '2019-09-15'
+slug: profit-3e-lien
+categories:
+  - R
+tags:
+  - 3elien
+  - selenium
+  - esri2geojson
+keywords:
+  - tech
+thumbnailImage: "/post/2019-09-15-profit-3eme-lien_files/screenshot_speculateurs.png" 
+thumbnailImagePosition: left
+---
+
+```{r setup, include =F, echo =F}
+#
+# TODO : valider ceci : Chunk options must be written in one line; no line breaks are allowed inside chunk options;
+# https://yihui.name/knitr/options/
+knitr::opts_chunk$set(echo = TRUE, 
+                      collapse = FALSE,
+                      warning = FALSE,
+                      error = FALSE,
+                      message = FALSE,
+                      fig.align= "center",
+                      fig.width = 10,
+                      highlight = TRUE,
+                      cache = FALSE,
+                      cache.lazy = FALSE) # fixes long vecto rnot supported quand on cache des gros éléments https://stackoverflow.com/questions/39417003/long-vectors-not-supported-yet-error-in-rmd-but-not-in-r-script
+```
+
+Gilles Lehouillier a déjà dit que "Les études de circulation nous démontrent hors de tout doute que ce ne serait pas justifié d'investir environ 1,5 milliard de dollars pour un tunnel à l'est" [Le Soleil, 29 novembre 2011](https://www.lesoleil.com/actualite/est-de-levis-des-voies-reservees-plutot-quun-tunnel-2cd51a96185eee1bb7ab117d87da8817).  Le prix du projet a explosé depuis, mais on attend toujours les études de circulations qui l'ont fait changer d'idée.  
+
+Je me suis donc demandé comme plusieurs à qui profiterait ce fameux troisième lien.  Comme on n'a pas l'habitude de [capter la plus-value foncière](http://ici.radio-canada.ca/emissions/c_est_pas_trop_tot/2014-2015/chronique.asp?idChronique=364588) au Québec, les premiers intéressés par ce projets sont certainement les promoteurs immobiliers à Lévis.  
+
+Pour ce projet je tente de répondre à deux questions :
+
+* Qui a le plus à gagner de ce troisième lien?  
+* Est-ce que quelqu'un place ses pions pour profiter encore plus de la manne depuis l'élection de la CAQ le 1er octobre 2018?   
+
+Je considère que la personne qui a le plus à gagner de ce troisième lien est celle qui possède la plus grande superficie totale aux abords de la sortie prévue du tunnel.  Pour cet exercice, ça correspond au secteur Lauzon.  J'ignore les terres agricoles, car elles ont une grande superficie et elles sont censées être protégées par le MAPAQ.  
+
+Le plus grand spéculateur est définit comme étant celui qui a acheté le plus de pieds carrés non-agricoles dans le secteur Lauzon depuis l'élection de la CAQ.    
+
+J'exclus de ce palmarès les propriétaires gouvernementaux.  
+
+## Données  
+
+Je combine deux sources de données:
+
+* La "matrice graphique" de Lévis, qui montre la forme des terrains associés à chaque rôle d'évaluation.  
+* Les rôles d'évaluation, qui indique la valeur, la superficie, la date d'achat et le nom et l'adresse postale du propriétaire.  
+
+Finalement, j'ai décidé d'anonymiser les noms/adresses car les données du rôle d'évaluation ne sont pas rendues disponibles à l'aide de ces variables.  Le "qui" serait donc un numéro généré aléatoirement par moi-même.  Ça ne me dérange pas de divulguer le nom des grands groupes, mais je souhaite laisser les petits joueurs tranquilles.  
+
+J'ai considéré que plusieurs propriétés avaient le même propriétaire lorsque l'adresse postale étaient la même.  Mon premier choix était d'utiliser le nom, mais un employé de la ville de Montréal m'a fait remarquer que les compagnies à numéro permettaient à une personne d'acheter 15 terrains sous 15 noms différents.  Merci pour le tuyau :)  
+
+Chaque propriété a une utilisation prédominante.  Ces codes peuvent être consultés sur le site du [Ministères des affaires municipales et Habitation](https://www.mamh.gouv.qc.ca/evaluation-fonciere/manuel-devaluation-fonciere-du-quebec/codes-dutilisation-des-biens-fonds/).  J'utilise ces codes pour enlever les fermes et les entreprises forestières de mon étude.
+
+
+
+
+```{r, echo =F, include = F}
+library(sf)
+library(httr)
+library(rvest)
+library(RSelenium)
+library(wdman)
+library(rvest)
+library(tidyverse)
+library(mapview)
+library(leaflet)
+
+set.seed(1234)
+# Load shapefile secteurs municipaux enquête origine destination québec----
+sm <- st_read("data/shp_eod_qc_2017/SM2017_Que_region.shp",  
+              options = "ENCODING=windows-1252") %>%
+  st_set_crs(., "+init=epsg:3347") %>%  #définir la projection, qui est 3347 lambert canada
+  st_transform(., "+proj=longlat +datum=WGS84")  # convertir en lat-long
+
+levis_anonymous <- read_rds("data/levis_anonymous.rds")
+
+
+
+```
+
+```{r, echo = F}
+
+if(FALSE){
+
+tictoc::tic()
+map_utilisation_predominante <- levis_anonymous %>% 
+  group_by(utilisation1, SM2017) %>%
+  summarize(., do_union = TRUE) %>% # convert to a single line
+  st_cast()
+tictoc::toc()
+
+
+
+map_utilisation_predominante <- map_utilisation_predominante %>% rmapshaper::ms_simplify(keep=0.2)
+
+
+write_rds(map_utilisation_predominante, "map_utilisation_predominante.rds")
+} else {
+  map_utilisation_predominante <- read_rds("map_utilisation_predominante.rds")
+}
+
+```
+
+
+## Un peu d'exploration  
+
+Cette carte présente le nombre de rôles d'évaluation que j'ai téléchargé par secteur municipal.  Nous avons un total de 52 750 rôles.
+```{r, echo= F}
+sm_levis <- sm %>%
+  inner_join(
+    levis_anonymous %>%
+      st_set_geometry(NULL) %>% 
+      count(SM2017) %>%
+      filter(!is.na(SM2017), n>5)
+  ) 
+
+sm_levis %>%
+   mapview(zcol = "n",
+        layer.name = "Nombre de rôles d'évaluations <br> dans chacun des secteurs municipaux de Lévis")
+
+```
+
+
+
+
+
+La carte ci-dessous donne une vue globale de l'utilisation prédominante de tous les lots à Lévis.  Les voisisn sont fusionnées pour accélérer un peu le chargement de  tout ça .
+
+```{r utilisation_prédominante, echo =F}
+mapview(map_utilisation_predominante, zcol= "utilisation1", layer.name = "Utilisation prédominante")
+```
+
+
+La carte ci-dessous présente l'utilisation prédominante de tous les terrains achetés entre l'élection de la CAQ et le 18 juin 2019, date de la collecte des données.
+On peut déjà voir que la personne/compagnie anonymisée sous le numéro anon = "23920" a acheté quelques terrains près de l'intersection de l'autoroute 20 et de la route l'allemand.
+
+```{r, echo =F}
+
+levis_anonymous  %>%  
+  filter(date_inscription >= lubridate::ymd("20181001")) %>% 
+  mapview::mapview(zcol="utilisation1",
+                   layer.name = "Utilisation prédominante des terrains achetés <br> entre le 1er octobre 2018 et le 18 juin 2019") %>% 
+  .@map %>%
+  addPolygons(data= sm_levis, fillColor = "transparent", color="black", weight=1)
+
+
+```
+
+
+## Les top 10  
+
+À partir d'ici, je souhaite déterminer qui sont les plus grands propriétaires à Lévis.  J'ignore les principaux propriétaires gouvernementaux, ainsi que les lots dont l'utilisation prédominante est liée à l'agriculture ou à la foresterie.  
+
+Voici les propriétaires gouvernementaux que j'ai exclus:  
+"VILLE DE LEVIS", "MINISTERE DES TRANSPORTS", "MDDELCC", "GOUVERNEMENT DU QUEBEC","HYDRO-QUEBEC", "CHEMINS DE FER NATIONAUX DU CANADA", "COMMISSION SCOLAIRE NAVIGATEURS", "CORPORATION CEGEP LEVIS-LAUZON","CORPORATION DU CIMETIERE DU MONT-MARIE", "CORPORATION DU CIMETIERE MONT-MARIE", "FRATERNITE SAINT-PIE X QUEBEC INC. (LA)", "TRAVAUX PUBLICS CANADA (REG. QUE)",                        "TRAVAUX PUBLICS CANADA (REG. QUE)", "SOCIETE D'HABITATION DU QUEBEC (SHQ)"
+
+
+Voici les codes d'utilisation prédominante que j'ai retiré (fermes et forêts): "81", "82", "83", "92").
+
+
+
+### Top 10 de la valeur totale   
+
+Le lecteur avisé reconnaitra une grande coopérative, une compagnie de logis,  une raffinerie ...
+
+
+```{r top10valeur, echo= F}
+
+
+# define noms du gouvernement
+noms_gouvernement <- c( "VILLE DE LEVIS", "MINISTERE DES TRANSPORTS", "MDDELCC", "GOUVERNEMENT DU QUEBEC","HYDRO-QUEBEC",
+                        "CHEMINS DE FER NATIONAUX DU CANADA", "COMMISSION SCOLAIRE NAVIGATEURS", "CORPORATION CEGEP LEVIS-LAUZON",
+                        "CORPORATION DU CIMETIERE DU MONT-MARIE", "CORPORATION DU CIMETIERE MONT-MARIE", "FRATERNITE SAINT-PIE X QUEBEC INC. (LA)", "TRAVAUX PUBLICS CANADA (REG. QUE)",
+                        "TRAVAUX PUBLICS CANADA (REG. QUE)", "SOCIETE D'HABITATION DU QUEBEC (SHQ)"
+)
+
+codes_fermes_forets <- c("81", "82", "83", "92") # code utilisation fermes et foret
+
+
+top10_valeur_de_la_ville <- levis_anonymous %>% 
+   filter(!(str_sub(utilisation,1,2) %in% codes_fermes_forets)) %>%   
+   filter(gouv == 0 ) %>%
+   st_set_geometry(NULL) %>% 
+   group_by(anon) %>%
+   summarise(n = n(),
+             area_total=sum(superficie),
+             valeur_immeuble_total = sum(valeur_immeuble)) %>% 
+   ungroup() %>%
+   arrange(-valeur_immeuble_total) %>%
+   filter(n>=3, area_total >= 5000) %>%
+   mutate(rang = row_number()) %>%
+   head(10)
+
+
+levis_anonymous %>%
+   filter(!(str_sub(utilisation,1,2) %in% codes_fermes_forets)) %>%   
+   filter(gouv == 0) %>%
+   inner_join(top10_valeur_de_la_ville) %>%
+   mutate(rang_valeur_surface_id = paste0( str_pad(rang,2, pad= "0"),
+                                           " - ", 
+                                           
+                                           format(round(valeur_immeuble_total), scientific= FALSE, big.mark = " "),
+                                           " $ - ",
+                                           format(round(area_total), scientific= FALSE, big.mark=" "),
+                                           " m2 - ",
+                                           anon, 
+                                           " - ", n , " terrains")) %>%
+   mapview(zcol= "rang_valeur_surface_id", 
+           layer.name = "Top 10 des propriétaires selon la valeur totale<br> 
+           minimum 3 terrains et 5 000 m2 <br>           
+           excluant gouvernement, fermes et industrie forestière <br> 
+           (rang - valeur-surface - id)")
+```
+
+### Top 10 de la superficie totale  
+
+Le gros bloc mauve entre Charny et St-Romuald appartient à un groupe qui souhaite construire un Phare à Québec...   
+
+```{r,echo =F}
+top10_superficie_de_la_ville <- levis_anonymous %>% 
+   filter(!(str_sub(utilisation,1,2) %in% codes_fermes_forets)) %>%   
+   filter(gouv == 0 ) %>%
+   st_set_geometry(NULL) %>% 
+   group_by(anon) %>%
+   summarise(n = n(),
+             area_total=sum(superficie),
+             valeur_immeuble_total = sum(valeur_immeuble)) %>% 
+   ungroup() %>%
+   arrange(-area_total) %>%
+   filter(n>=3, area_total >= 5000) %>%
+   mutate(rang = row_number()) %>%
+   head(10)
+
+
+levis_anonymous %>%
+   filter(!(str_sub(utilisation,1,2) %in% codes_fermes_forets)) %>%   
+   filter(gouv == 0) %>%
+   inner_join(top10_superficie_de_la_ville ) %>%
+   mutate(rang_valeur_surface_id = paste0( str_pad(rang,2, pad= "0"),
+                                           " - ", 
+                                           
+                                           format(round(valeur_immeuble_total), scientific= FALSE, big.mark = " "),
+                                           " $ - ",
+                                           format(round(area_total), scientific= FALSE, big.mark=" "),
+                                           " m2 - ",
+                                           anon, 
+                                           " - ", n , " terrains")) %>%
+   mapview(zcol= "rang_valeur_surface_id", 
+           layer.name = "Top 10 des propriétaires selon la superficie totale<br> 
+           minimum 3 terrains et 5 000 m2 <br>
+           excluant gouvernement, fermes et industrie forestière <br> 
+           (rang - valeur-surface - id)")
+
+
+```
+
+### Top 10 de la superficie dans Lauzon (près du tunnel projeté)  
+
+Ce sont les propriétaires dont les terrains sont les plus à risques de gagner de la valeur si le troisième lien est construits.  Certains possèdent le terrain depuis des dizaines d'années, mais ça n'enlève rien à l'attrait de ce gain.  
+
+Le premier rang appartient à une corporation portant le nom d'un gros canot qui souhait construire un port méthanie il y a une quinzaine d'années.     
+
+```{r, echo =F}
+# carte du top 10 de la superficie total dans l'est (Lauzon)
+top10_superficie_de_l_est <- levis_anonymous %>% 
+   filter(SM2017 %in% c(430)) %>%
+   filter(!(str_sub(utilisation,1,2) %in% codes_fermes_forets)) %>%   
+   filter(gouv == 0 ) %>%
+   #filter(date_inscription >= lubridate::ymd("20181001")) %>%
+   st_set_geometry(NULL) %>% 
+   group_by(anon) %>%
+   filter(!(str_sub(utilisation,1,2) %in% codes_fermes_forets)) %>%   
+   summarise(n = n(),
+             area_total=sum(superficie),
+             valeur_immeuble_total = sum(valeur_immeuble)) %>% 
+   ungroup() %>%
+   arrange(-area_total) %>%
+   filter(n>=3, area_total >= 5000) %>%
+   mutate(rang = row_number()) %>%
+   head(10)
+
+
+levis_anonymous %>%
+   filter(SM2017 %in% c(430)) %>%
+   filter(!(str_sub(utilisation,1,2) %in% codes_fermes_forets)) %>%   
+   filter(gouv==0) %>%
+   #filter(date_inscription >= lubridate::ymd("20181001")) %>%
+   #select(MATRICULE, nom1, nom2, adresse,  adresse_postale_fixed, utilisation,  date_inscription, SM2017, SM2017_Nom ) %>%
+   inner_join(top10_superficie_de_l_est ) %>%
+   mutate(rang_valeur_surface_id = paste0( str_pad(rang,2, pad= "0"),
+                                           " - ", 
+                                           
+                                           format(round(valeur_immeuble_total), scientific= FALSE, big.mark = " "),
+                                           " $ - ",
+                                           format(round(area_total), scientific= FALSE, big.mark=" "),
+                                           " m2 - ",
+                                           anon, 
+                                           " - ", n , " terrains")) %>%
+   mapview(zcol= "rang_valeur_surface_id", 
+           layer.name = "Top 10 des propriétaires selon la superficie totale, secteur Lauzon <br> 
+           minimum 3 terrains et 5 000 m2 <br>
+           excluant gouvernement, fermes et industrie forestière <br> 
+           (rang - valeur-surface - id)") %>%
+   .@map %>%
+   addPolygons(data= sm_levis %>% filter(SM2017 == 430), fillColor = "transparent", color="black", weight=1)# %>% 
+```
+
+### Top 10 des spéculateurs  
+
+Je ne révèlerait pas l'identité des joueurs.  Seulement 3 joueurs ont acheté au moins 2 terrains pour au moins 5 000 mètres carrés depuis l'élection de la CAQ.  
+
+  Ça permet de voir que le propriétaire avec l'identifiant anonymisé "23920" a acheté 3 terrains pour 37 455 mètres carrés de terrains juste à côté de l'emplacement où le tunnel devrait sortir (indiqué par un cercle rouge).  Coincidence?   Il faudrait visiter le site "[Recherche sur les donateurs](https://www.electionsquebec.qc.ca/francais/provincial/financement-et-depenses-electorales/recherche-sur-les-donateurs.php)" à Élections Québec pour le savoir... :)
+
+Voilà, c'est tout !   
+
+
+```{r, echo = F}
+tunnel_extremite_levis <- tibble(lat = 46.815 , 
+                      lon = -71.100) %>%
+   st_as_sf(coords= c("lon","lat"))
+
+top10_superficie_de_l_est_recente <- levis_anonymous %>% 
+   filter(SM2017 %in% c(430)) %>%
+   filter(!(str_sub(utilisation,1,2) %in% codes_fermes_forets)) %>%   
+   filter(gouv ==0) %>%
+   filter(date_inscription >= lubridate::ymd("20181001")) %>%
+   st_set_geometry(NULL) %>% 
+   group_by(anon) %>%
+   filter(!(str_sub(utilisation,1,2) %in% codes_fermes_forets)) %>%   
+   summarise(n = n(),
+             area_total=sum(superficie),
+             valeur_immeuble_total = sum(valeur_immeuble)) %>% 
+   ungroup() %>%
+   arrange(-area_total) %>%
+   filter(n>=2, area_total >= 5000) %>%
+   mutate(rang = row_number()) %>%
+   head(10)
+
+
+levis_anonymous %>%
+   filter(SM2017 %in% c(430)) %>%
+   filter(!(str_sub(utilisation,1,2) %in% codes_fermes_forets)) %>%   
+   filter(gouv==0) %>%
+   filter(date_inscription >= lubridate::ymd("20181001")) %>%
+   #select(MATRICULE, nom1, nom2, adresse,  adresse_postale_fixed, utilisation,  date_inscription, SM2017, SM2017_Nom ) %>%
+   inner_join(top10_superficie_de_l_est_recente# %>%
+              #   select(rang, adresse_postale_fixed, n, area_total, valeur_immeuble_total, nom_principal = nom1)
+              ) %>%
+   mutate(rang_valeur_surface_id = paste0( str_pad(rang,2, pad= "0"),
+                                           " - ", 
+                                           
+                                           format(round(valeur_immeuble_total), scientific= FALSE, big.mark = " "),
+                                           " $ - ",
+                                           format(round(area_total), scientific= FALSE, big.mark=" "),
+                                           " m2 - ",
+                                           anon, 
+                                           " - ", n , " terrains")) %>%
+   mapview(zcol= "rang_valeur_surface_id", 
+           layer.name = "Top 10 des spéculateurs selon la superficie totale, secteur Lauzon, <br>
+           **achats depuis 1er octobre 2018, minimum 2 terrains et 5 000 m 2 <br> 
+           excluant gouvernement, fermes et industrie forestière <br> 
+           (rang - valeur-surface - id)") %>%
+   .@map %>%
+   addPolygons(data= sm_levis %>% filter(SM2017 == 430), fillColor = "transparent", color="black", weight=1) %>% 
+   addCircleMarkers(data=tunnel_extremite_levis, color= "red")
+
+
+```
+
+
+## Acquisition des données    
+
+Je n'ai pas ouvert le code que j'ai utilisé pour le scraping des rôles d'évaluation.  Je le ferai peut-être un jour.  C'est basé sur Selenium, qui automatise un navigateur Firefox pour aller chercher chaque rôle individuellement.  Je l'ai programmé pour aller lentement (un clic aux 5 secondes) et procéder à sa récolte la nuit.  
+
+
+![selenium](/post/2019-09-15-profit-3eme-lien_files/simplescreenrecorder-2019-09-04_20.14.22.gif)

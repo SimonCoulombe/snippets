@@ -1,0 +1,27 @@
+						CONVENTION.txt		
+
+
+
+La présente convention a pour objet de préciser les modalités en vertu desquelles les données géomatiques sont rendues disponibles :
+
+-	Le MINISTÈRE rend disponible ces données en tant que complément aux produits dérivés des Enquêtes Origine-Destination.
+
+-	Les niveaux de découpage géographiques rendus disponibles sont ceux qui peuvent l’être tout en respectant les contraintes de confidentialité des données ainsi que les contraintes des licences de données liées aux produits de données géomatiques sources utilisés pour l’élaboration de ces découpages.
+
+-	Les découpages rendus disponibles ont été réalisés en fonction des besoins des Enquêtes Origine-Destination correspondantes. Il se pourrait donc que ceux-ci ne soient pas appropriés pour d’autres fins que celles pour lesquelles ils ont été conçus. Il est donc de la responsabilité de l’UTILISATEUR de valider si ces données sont adéquates pour ses propres besoins.
+
+-	Les données rendues disponibles ne doivent pas être redistribuées ou diffusées ou rendues disponibles à des tiers. En effet le MINISTÈRE souhaite que les utilisateurs ayant besoin de ses données s’approvisionnent directement auprès de celui-ci afin de disposer des fichiers les plus à jour et corrigés au besoin le cas échéant.
+
+-	Les données sont rendues disponibles dans le format habituel utilisé au MINISTÈRE dans le cadre des Enquêtes Origine-Destination (format TAB de MapInfo) ou dans le format d’exportation SHP d’ESRI que peut générer MapInfo. Si l’UTILISATEUR de la donnée souhaite un autre format, il est de sa responsabilité de le générer ou de trouver un moyen approprié pour le produire.
+
+-	L’UTILISATEUR des données fournies doit s’assurer de lire le fichier texte de métadonnées du même nom que le fichier géomatique correspondant afin de s’assurer de disposer de l’information nécessaire à la bonne compréhension de l’information contenue, de sa précision et de la portée te des limites de celle-ci.
+
+-	Si des problématiques particulières sont constatées par l’UTILISATEUR de la donnée, il peut en informer le CONTACT suggéré ci-dessous qui verra à sa discrétion à prendre action ou non.
+
+
+CONTACT :	Direction de la modélisation des systèmes de transport
+		Module Collecte de gestion de données
+		Tél : (514) 864-1750
+		Responsable : Mme Assia Bellazoug, poste 35052
+
+ 
