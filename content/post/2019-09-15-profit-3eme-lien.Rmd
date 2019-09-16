@@ -33,18 +33,16 @@ knitr::opts_chunk$set(echo = TRUE,
 
 Gilles Lehouillier a déjà dit que "Les études de circulation nous démontrent hors de tout doute que ce ne serait pas justifié d'investir environ 1,5 milliard de dollars pour un tunnel à l'est" [Le Soleil, 29 novembre 2011](https://www.lesoleil.com/actualite/est-de-levis-des-voies-reservees-plutot-quun-tunnel-2cd51a96185eee1bb7ab117d87da8817).  Le prix du projet a explosé depuis, mais on attend toujours les études de circulations qui l'ont fait changer d'idée.  
 
-Je me suis donc demandé comme plusieurs à qui profiterait ce fameux troisième lien.  Comme on n'a pas l'habitude de [capter la plus-value foncière](http://ici.radio-canada.ca/emissions/c_est_pas_trop_tot/2014-2015/chronique.asp?idChronique=364588) au Québec, les premiers intéressés par ce projets sont certainement les promoteurs immobiliers à Lévis.  
+Je me suis donc demandé à qui profiterait ce fameux troisième lien.  Comme on n'a pas l'habitude de [capter la plus-value foncière](http://ici.radio-canada.ca/emissions/c_est_pas_trop_tot/2014-2015/chronique.asp?idChronique=364588) au Québec, plusieurs considèrent que les grands gagant de ce projets seraient les promoteurs immobiliers à Lévis.  
 
 Pour ce projet je tente de répondre à deux questions :
 
-* Qui a le plus à gagner de ce troisième lien?  
-* Est-ce que quelqu'un place ses pions pour profiter encore plus de la manne depuis l'élection de la CAQ le 1er octobre 2018?   
+* Qui a le plus à de terrain près du troisième lien?  
+* Est-ce que quelqu'un achète des terrains depuis l'élection de la CAQ le 1er octobre 2018?   
 
-Je considère que la personne qui a le plus à gagner de ce troisième lien est celle qui possède la plus grande superficie totale aux abords de la sortie prévue du tunnel.  Pour cet exercice, ça correspond au secteur Lauzon.  J'ignore les terres agricoles, car elles ont une grande superficie et elles sont censées être protégées par le MAPAQ.  
+Pour cet exercice, je m'attarde aux terrains dans le secteur Lauzon.  J'ignore les terres agricoles et les exploitations forestières, car elles ont une grande superficie et sont censées être protégées par le MAPAQ.  J'exclus aussi de ce palmarès les propriétaires gouvernementaux.      
 
-Le plus grand spéculateur est définit comme étant celui qui a acheté le plus de pieds carrés non-agricoles dans le secteur Lauzon depuis l'élection de la CAQ.    
 
-J'exclus de ce palmarès les propriétaires gouvernementaux.  
 
 ## Données  
 
@@ -53,13 +51,11 @@ Je combine deux sources de données:
 * La "matrice graphique" de Lévis, qui montre la forme des terrains associés à chaque rôle d'évaluation.  
 * Les rôles d'évaluation, qui indique la valeur, la superficie, la date d'achat et le nom et l'adresse postale du propriétaire.  
 
-Finalement, j'ai décidé d'anonymiser les noms/adresses car les données du rôle d'évaluation ne sont pas rendues disponibles à l'aide de ces variables.  Le "qui" serait donc un numéro généré aléatoirement par moi-même.  Ça ne me dérange pas de divulguer le nom des grands groupes, mais je souhaite laisser les petits joueurs tranquilles.  
+J'ai anonymisé les noms/adresses car les données du rôle d'évaluation ne sont pas rendues disponibles à l'aide de ces variables.  Le "qui" sera donc un numéro que j'ai généré aléatoirement.   
 
-J'ai considéré que plusieurs propriétés avaient le même propriétaire lorsque l'adresse postale étaient la même.  Mon premier choix était d'utiliser le nom, mais un employé de la ville de Montréal m'a fait remarquer que les compagnies à numéro permettaient à une personne d'acheter 15 terrains sous 15 noms différents.  Merci pour le tuyau :)  
+J'ai considéré que plusieurs propriétés avaient le même propriétaire lorsque l'adresse postale étaient la même.  Ma première idée était d'utiliser le nom, mais un employé de la ville de Montréal m'a fait remarquer que les compagnies à numéro permettaient à une personne d'acheter 15 terrains sous 15 noms différents.  Merci pour le tuyau, ça a fait une différence pour au moins un très gros propriétaire.  
 
 Chaque propriété a une utilisation prédominante.  Ces codes peuvent être consultés sur le site du [Ministères des affaires municipales et Habitation](https://www.mamh.gouv.qc.ca/evaluation-fonciere/manuel-devaluation-fonciere-du-quebec/codes-dutilisation-des-biens-fonds/).  J'utilise ces codes pour enlever les fermes et les entreprises forestières de mon étude.
-
-
 
 
 ```{r, echo =F, include = F}
@@ -132,7 +128,7 @@ sm_levis %>%
 
 
 
-La carte ci-dessous donne une vue globale de l'utilisation prédominante de tous les lots à Lévis.  Les voisisn sont fusionnées pour accélérer un peu le chargement de  tout ça .
+La carte ci-dessous donne une vue globale de l'utilisation prédominante de tous les lots à Lévis.  Les voisisn sont fusionnées pour accélérer un peu le chargement de  tout ça.  Les fermes sont dans le groupe 8, "production et extraction de richesses naturelles".   
 
 ```{r utilisation_prédominante, echo =F}
 mapview(map_utilisation_predominante, zcol= "utilisation1", layer.name = "Utilisation prédominante")
@@ -140,7 +136,7 @@ mapview(map_utilisation_predominante, zcol= "utilisation1", layer.name = "Utilis
 
 
 La carte ci-dessous présente l'utilisation prédominante de tous les terrains achetés entre l'élection de la CAQ et le 18 juin 2019, date de la collecte des données.
-On peut déjà voir que la personne/compagnie anonymisée sous le numéro anon = "23920" a acheté quelques terrains près de l'intersection de l'autoroute 20 et de la route l'allemand.
+On peut déjà voir que la personne/compagnie anonymisée sous le numéro anon = "23920" a acheté quelques terrains près de l'intersection de l'autoroute 20 et de la route l'allemand.  Reste à voir si c'est bien est la plus grande acheteuse.  
 
 ```{r, echo =F}
 
@@ -222,7 +218,7 @@ levis_anonymous %>%
 
 ### Top 10 de la superficie totale  
 
-Le gros bloc mauve entre Charny et St-Romuald appartient à un groupe qui souhaite construire un Phare à Québec...   
+Le gros bloc mauve entre Charny et St-Romuald appartient à un groupe qui souhaite construire un Phare à Québec.  C'était une surprise pour moi, mais [le Soleil en a déjà parlé en 2012](https://www.lesoleil.com/actualite/la-capitale/groupe-dallaire-projette-une-petite-ville-a-la-tete-sud-des-ponts-5875be1470fbade53669d33cf4c1d5b5).   
 
 ```{r,echo =F}
 top10_superficie_de_la_ville <- levis_anonymous %>% 
@@ -264,9 +260,9 @@ levis_anonymous %>%
 
 ### Top 10 de la superficie dans Lauzon (près du tunnel projeté)  
 
-Ce sont les propriétaires dont les terrains sont les plus à risques de gagner de la valeur si le troisième lien est construits.  Certains possèdent le terrain depuis des dizaines d'années, mais ça n'enlève rien à l'attrait de ce gain.  
+On retrouve enfin les propriétaires dont les terrains sont les plus à risques de gagner de la valeur si le troisième lien est construit.  Certains possèdent le terrain depuis des dizaines d'années et ne donc pas des spéculateurs sur ce projet, mais ça n'enlève rien à l'attrait de ce gain.  
 
-Le premier rang appartient à une corporation portant le nom d'un gros canot qui souhait construire un port méthanie il y a une quinzaine d'années.     
+Le premier rang appartient à une corporation portant le nom d'un gros canot qui souhaitait construire un port méthanier il y a une quinzaine d'années.     
 
 ```{r, echo =F}
 # carte du top 10 de la superficie total dans l'est (Lauzon)
@@ -315,11 +311,11 @@ levis_anonymous %>%
 
 ### Top 10 des spéculateurs  
 
-Je ne révèlerait pas l'identité des joueurs.  Seulement 3 joueurs ont acheté au moins 2 terrains pour au moins 5 000 mètres carrés depuis l'élection de la CAQ.  
+Finalement, on chercher à savoir s'il y a des personnes Seulement 3 joueurs ont   acheté au moins 2 terrains pour au moins 5 000 mètres carrés depuis l'élection de la CAQ.
+  Le propriétaire avec l'identifiant anonymisé "23920" est bien le plus gros acheteur avec 3 terrains pour 37 455 mètres carrés de terrains juste à côté de l'emplacement où le tunnel devrait sortir (indiqué par un cercle rouge).   
+  Je ne révèlerai pas l'identité de ces joueurs, mais il serait intéressant de voir si ces personnes sont intervenues dans le débat.  Une visite au  site "[Recherche sur les donateurs](https://www.electionsquebec.qc.ca/francais/provincial/financement-et-depenses-electorales/recherche-sur-les-donateurs.php)" à Élections Québec pourrait être intéressante.  
 
-  Ça permet de voir que le propriétaire avec l'identifiant anonymisé "23920" a acheté 3 terrains pour 37 455 mètres carrés de terrains juste à côté de l'emplacement où le tunnel devrait sortir (indiqué par un cercle rouge).  Coincidence?   Il faudrait visiter le site "[Recherche sur les donateurs](https://www.electionsquebec.qc.ca/francais/provincial/financement-et-depenses-electorales/recherche-sur-les-donateurs.php)" à Élections Québec pour le savoir... :)
-
-Voilà, c'est tout !   
+Voilà, c'est tout.      
 
 
 ```{r, echo = F}
