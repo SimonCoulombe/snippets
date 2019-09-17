@@ -317,6 +317,60 @@ levis_anonymous %>%
    addCircleMarkers(data=tunnel_extremite_levis, color= "red")
 ```
 
+
+### Top 8 "cynique" de la superficie dans Lauzon (incluant les fermes et exploitations forestières) (près du tunnel projeté)  
+
+Même chose qu'en haut, mais ici on ne croit plus à la protection du territoire.  Holy shit le canot!!
+
+
+```{r, echo =F}
+# carte du top 10 de la superficie total dans l'est (Lauzon)
+top10_superficie_de_l_est <- levis_anonymous %>% 
+   filter(SM2017 %in% c(430)) %>%
+   #filter(!(str_sub(utilisation,1,2) %in% codes_fermes_forets)) %>%   
+   filter(gouv == 0 ) %>%
+   #filter(date_inscription >= lubridate::ymd("20181001")) %>%
+   st_set_geometry(NULL) %>% 
+   group_by(anon) %>%
+  # filter(!(str_sub(utilisation,1,2) %in% codes_fermes_forets)) %>%   
+   summarise(n = n(),
+             area_total=sum(superficie),
+             valeur_immeuble_total = sum(valeur_immeuble)) %>% 
+   ungroup() %>%
+   arrange(-area_total) %>%
+   filter(n>=3, area_total >= 5000) %>%
+   mutate(rang = row_number()) %>%
+   head(8)
+
+
+levis_anonymous %>%
+   filter(SM2017 %in% c(430)) %>%
+   #filter(!(str_sub(utilisation,1,2) %in% codes_fermes_forets)) %>%   
+   filter(gouv==0) %>%
+   #filter(date_inscription >= lubridate::ymd("20181001")) %>%
+   #select(MATRICULE, nom1, nom2, adresse,  adresse_postale_fixed, utilisation,  date_inscription, SM2017, SM2017_Nom ) %>%
+   inner_join(top10_superficie_de_l_est ) %>%
+   mutate(rang_valeur_surface_id = paste0( str_pad(rang,2, pad= "0"),
+                                           " - ", 
+                                           
+                                           format(round(valeur_immeuble_total), scientific= FALSE, big.mark = " "),
+                                           " $ - ",
+                                           format(round(area_total), scientific= FALSE, big.mark=" "),
+                                           " m2 - ",
+                                           anon, 
+                                           " - ", n , " terrains")) %>%
+   mapview(zcol= "rang_valeur_surface_id", 
+           layer.name = "Top 8 cynique des propriétaires selon la superficie totale, secteur Lauzon <br> 
+           minimum 3 terrains et 5 000 m2 <br>
+           excluant gouvernement<br> 
+           (rang - valeur-surface - id)",
+           col.region = RColorBrewer::brewer.pal(8, "Accent")) %>%
+   .@map %>%
+   addPolygons(data= sm_levis %>% filter(SM2017 == 430), fillColor = "transparent", color="black", weight=1)%>% 
+   addCircleMarkers(data=tunnel_extremite_levis, color= "red")
+```
+
+
 ### Top 8 des spéculateurs  
 
 Finalement, on chercher à savoir s'il y a des personnes Seulement 3 joueurs ont   acheté au moins 2 terrains pour au moins 5 000 mètres carrés depuis l'élection de la CAQ.
