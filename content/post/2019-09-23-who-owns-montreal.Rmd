@@ -64,9 +64,10 @@ mapdata_mtl_non_gouv <- read_rds("data/mapdata_mtl_non_gouv.rds")
 ```{r, echo = F}
 mapdata_mtl_everyone %>% 
   sf::st_set_geometry(NULL) %>%
-  knitr::kable(caption = "Top 8 owners, overall  "#,
-               #digits=c(0,0,0,0,0,0,0,3,3),
-               #format.args = list(big.mark = " ")
+  select(rang, nom_principal_a_cette_adresse,valeur_immeuble_total, area_total) %>%
+  knitr::kable(caption = "Top 8 owners, overall ",
+               digits=c(0,0,0,0),
+               format.args = list(big.mark = " ")
                )
 
 ```
@@ -74,10 +75,13 @@ mapdata_mtl_everyone %>%
 
 ```{r, echo=F, include = T,  out.width = '100%'}
 
-mapdata_mtl_everyone %>%
-  mapview(zcol= "rang_valeur_surface_id", 
-          layer.name = "Top 8 des propriétaires selon la valeur totale<br> 
-           (rang global - valeur - superficie - nom principal)",
+mapdata_mtl_everyone %>% 
+  mutate(rang_nom = paste0( str_pad(rang,2, pad= "0"),
+                            " - ", 
+                            nom_principal_a_cette_adresse)
+         ) %>%
+  mapview(zcol= "rang_nom", 
+          layer.name = "Top 8 des propriétaires selon la valeur totale", 
           col.region = RColorBrewer::brewer.pal(8, "Accent"))
 
 
@@ -90,19 +94,24 @@ Removing owners from the 3 levels of governemnt (including 'commission scolaires
 ```{r, echo=F}
 mapdata_mtl_non_gouv  %>%
   sf::st_set_geometry(NULL) %>%
-  knitr::kable(caption = "Top 8 owners, excluding government"#,
-               #digits=c(0,0,0,0,0,0,0,3,3),
-               #format.args = list(big.mark = " ")
+  select(rang, nom_principal_a_cette_adresse,valeur_immeuble_total, area_total) %>%
+  knitr::kable(caption = "Top 8 owners, overall ",
+               digits=c(0,0,0,0),
+               format.args = list(big.mark = " ")
                )
 ```
 
 ```{r, echo=F, include = T,  out.width = '100%' }
 # #out.width = '10in', out.height='8in'
 mapdata_mtl_non_gouv %>% 
-  mapview(zcol= "rang_valeur_surface_id", 
-          layer.name = "Top 8 des propriétaires non-gouvernementaux selon la valeur totale<br> 
-           (rang global - valeur - superficie - nom principal)",
+   mutate(rang_nom = paste0( str_pad(rang,2, pad= "0"),
+                            " - ", 
+                            nom_principal_a_cette_adresse)
+         ) %>%
+  mapview(zcol= "rang_nom", 
+          layer.name = "Top 8 des propriétaires non-gouvernementaux selon la valeur totale", 
           col.region = RColorBrewer::brewer.pal(8, "Accent"))
+
 
 
 ```
