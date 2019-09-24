@@ -37,18 +37,19 @@ I've been wondering who are the real estate magnates in Montreal for a while.   
 We use two data sources:  
 
 * The shape of all the lots in Montreal (more than 500 000) are available as open data on Montreal's [open data website](http://donnees.ville.montreal.qc.ca/dataset/unites-evaluation-fonciere).  This is awesome and we will use it to build maps.  
-* The owner and value of each lot had to be scraped from city's [EvalWeb website](https://servicesenligne2.ville.montreal.qc.ca/sel/evalweb/index) individually.  This involves breaking a (thankfully weak) captcha.     
+* The owner and value of each lot had to be scraped from city's [EvalWeb website](https://servicesenligne2.ville.montreal.qc.ca/sel/evalweb/index) individually.  This involves breaking a (thankfully weak) captcha and letting a robot run every night for a month.       
 
 Some trial and error was required when deciding whether two properties have the same owner.  I consider that two properties had the same owner if the postal adresse to reach the owner is the same for both properties.  My initial plan was to use the owner's name, but a single individual can generate 15 companies to buy 15 different properties and evade the "by name" grouping.   I tried to use the name most known by the public when merging different buildings using a different name.  Some properties have the same postal address, but really belong to different persons, such as those managed by the "curateur public du québec".   Some very large companies also register their buildings under different postal addresses - these companies were merged by hand.    
 
 There definitely could still be errors in the data.  
 
+*edit:  I found an error with CN railroads.  They were considered "government" which they arent.  The updated map below shows them as the 2nd largest private owner.  *
+
+
 
 ## Results and maps 
 
 It turns out that Montreal is mostly owned by the public   Only Cominar appears in the top 8, reaching 5th place thanks to a total of 1.7 billion dollars worth of real property.  
-
-
 
 
 ```{r, echo=F, include = F}
@@ -60,7 +61,18 @@ mapdata_mtl_non_gouv <- read_rds("data/mapdata_mtl_non_gouv.rds")
 ```
 
 
-```{r, echo=F, include = T,   out.width = '15in', out.height='12in'}
+```{r, echo = F}
+mapdata_mtl_everyone %>% 
+  sf::st_set_geometry(NULL) %>%
+  knitr::kable(caption = "Top 8 owners, overall  "#,
+               #digits=c(0,0,0,0,0,0,0,3,3),
+               #format.args = list(big.mark = " ")
+               )
+
+```
+
+
+```{r, echo=F, include = T,  out.width = '100%'}
 
 mapdata_mtl_everyone %>%
   mapview(zcol= "rang_valeur_surface_id", 
@@ -74,8 +86,18 @@ mapdata_mtl_everyone %>%
 
 Removing owners from the 3 levels of governemnt (including 'commission scolaires', hospitals,universities ) we find the big private players.  
 
-```{r, echo=F, include = T,   out.width = '15in', out.height='12in'}
 
+```{r, echo=F}
+mapdata_mtl_non_gouv  %>%
+  sf::st_set_geometry(NULL) %>%
+  knitr::kable(caption = "Top 8 owners, excluding government"#,
+               #digits=c(0,0,0,0,0,0,0,3,3),
+               #format.args = list(big.mark = " ")
+               )
+```
+
+```{r, echo=F, include = T,  out.width = '100%' }
+# #out.width = '10in', out.height='8in'
 mapdata_mtl_non_gouv %>% 
   mapview(zcol= "rang_valeur_surface_id", 
           layer.name = "Top 8 des propriétaires non-gouvernementaux selon la valeur totale<br> 
