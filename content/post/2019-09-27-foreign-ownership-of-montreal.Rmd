@@ -91,6 +91,22 @@ blog_logements_solo_pour_tableau %>%
                )
 ```
 
+
+Overall this means that only 0.4 % of all homes (exluding plexes and rental appartments) that are foreign owned in Montreal 
+
+
+```{r}
+blog_logements_solo_pour_tableau %>%
+  group_by(mailing_address_region) %>%
+  summarise(n = sum(n)) %>%
+  mutate(pct = 100* n / sum(n)) %>%
+  knitr::kable(caption = "Foreign ownership of all homes in Montreal",
+               digits=c(0,0,1),
+               format.args = list(big.mark = " ")
+               )
+```
+
+
 A more detailed table including the sector of the appartments and the status of the owner (physical or moral) is shown below for the enthusiast.  
 
 ```{r}
