@@ -34,7 +34,7 @@ knitr::opts_chunk$set(echo = FALSE,
 
 There is a lot of talk in Canada about foreign speculators buying houses and appartments in Canadian cities  such as Vancouver and Toronto.  It mostly relies on hearsay as there is a huge lack of actual data.   I have been wondering what the situation looks like in Montreal.  
 
-In this blog post, we will focus on properties that only include 1 dwelling on the tax roll.  This includes condominiums where each appartment belongs to a separate person, but excludes duplexes and triplexes where a single person owns both appartments.  
+In this blog post, we will focus on properties that only include 1 dwelling on the tax roll.  This includes houses and condominiums where each appartment belongs to a separate person, but excludes duplexes and triplexes where a single person owns all appartments.  
 
 The data used is the same as was described earlier on my "Who owns Montreal" post.  
 
@@ -50,11 +50,11 @@ blog_logements_solo_pour_carte <- read_rds("data/blog_logements_solo_pour_carte.
 ```
 
 I found  `r paste0(blog_logements_solo_pour_tableau %>% tally(n) %>% pull(n) )` residential tax assessements related to a single dwelling, `r paste0(blog_logements_solo_pour_tableau %>% filter(meme_adresse == FALSE) %>% tally(n) %>% pull(n))` of which are registered to a different mailing address.  This means that `r paste0(round(100*blog_logements_solo_pour_tableau %>% filter(meme_adresse == FALSE) %>% tally(n) %>% pull(n) / 
-  blog_logements_solo_pour_tableau %>% tally(n) %>% pull(n),1)) ` %  of appartments/houses are second homes in Montreal.   
+  blog_logements_solo_pour_tableau %>% tally(n) %>% pull(n),1)) ` %  of appartments/houses are either "second homes" or used as investments (airbnb anyone?) in Montreal.   
   
-  Does anyone know if this rate of 11.7%  is high or low?   I don't.  We need more #opendata.  
+Does anyone know if this rate of 11.7%  is high or low?   I don't.  We need more #opendata.  
   
-  This rate peaks downtown, reaching 38 %, as shown on the following map :      
+This rate peaks downtown, reaching 38 %, as shown on the following map :      
 
 
 
@@ -75,7 +75,9 @@ mymapview@map %>%
 
 ```
 
-I also wondered what percentage of these "second homes" are foreign owned.  This percentage appears to be around 3.6% in Montreal.  Is this high or low?  Who knows.  We need more #opendata.  
+I also wondered what percentage of these "second homes/investments" are foreign owned.  This percentage appears to be around 3.6% in Montreal.  Is this high or low?    Who knows.  We need more #opendata.  
+
+It is interesting to note that 75% of these non-lived homes are owned by owners who live on the island of Montreal (psotal code starting with "H"). These are probably not second homes but really investments.
 
 That's it, have a nice day. 
 
@@ -85,7 +87,7 @@ blog_logements_solo_pour_tableau %>%
   group_by(mailing_address_region) %>%
   summarise(n = sum(n)) %>%
   mutate(pct = 100* n / sum(n)) %>%
-  knitr::kable(caption = "Foreign ownership of second homes in Montreal",
+  knitr::kable(caption = "Foreign ownership of dwellings not lived in by owner in Montreal",
                digits=c(0,0,1),
                format.args = list(big.mark = " ")
                )
@@ -100,7 +102,7 @@ blog_logements_solo_pour_tableau %>%
   group_by(mailing_address_region) %>%
   summarise(n = sum(n)) %>%
   mutate(pct = 100* n / sum(n)) %>%
-  knitr::kable(caption = "Foreign ownership of all homes in Montreal",
+  knitr::kable(caption = "Foreign ownership of all dwellings  in Montreal",
                digits=c(0,0,1),
                format.args = list(big.mark = " ")
                )
