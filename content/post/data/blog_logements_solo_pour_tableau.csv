@@ -1,0 +1,372 @@
+meme_adresse,SM13,mailing_address_region,statut1,n
+TRUE,101,Montreal,Personne morale,100
+TRUE,101,Montreal,Personne physique,5982
+TRUE,102,Montreal,Personne morale,126
+TRUE,102,Montreal,Personne physique,8953
+TRUE,103,Montreal,Personne morale,55
+TRUE,103,Montreal,Personne physique,8212
+TRUE,104,Montreal,Personne morale,34
+TRUE,104,Montreal,Personne physique,6722
+TRUE,105,Montreal,Personne morale,56
+TRUE,105,Montreal,Personne physique,5554
+TRUE,106,Montreal,Personne morale,72
+TRUE,106,Montreal,Personne physique,9145
+TRUE,107,Montreal,Personne morale,155
+TRUE,107,Montreal,Personne physique,7046
+TRUE,108,Montreal,Personne morale,62
+TRUE,108,Montreal,Personne physique,13778
+TRUE,109,Montreal,Personne morale,19
+TRUE,109,Montreal,Personne physique,2833
+TRUE,110,Montreal,Personne morale,27
+TRUE,110,Montreal,Personne physique,8059
+TRUE,111,Montreal,Personne morale,25
+TRUE,111,Montreal,Personne physique,5986
+TRUE,112,Montreal,Personne morale,22
+TRUE,112,Montreal,Personne physique,8680
+TRUE,113,Montreal,Personne morale,11
+TRUE,113,Montreal,Personne physique,10894
+TRUE,114,Montreal,Personne morale,19
+TRUE,114,Montreal,Personne physique,13483
+TRUE,115,Montreal,Personne morale,4
+TRUE,115,Montreal,Personne physique,456
+TRUE,116,Montreal,Personne morale,17
+TRUE,116,Montreal,Personne physique,5487
+TRUE,117,Montreal,Personne morale,27
+TRUE,117,Montreal,Personne physique,4395
+TRUE,118,Montreal,Personne morale,17
+TRUE,118,Montreal,Personne physique,5047
+TRUE,119,Montreal,Personne morale,103
+TRUE,119,Montreal,Personne physique,15754
+TRUE,120,Montreal,Personne morale,58
+TRUE,120,Montreal,Personne physique,4447
+TRUE,121,Montreal,Personne morale,52
+TRUE,121,Montreal,Personne physique,3737
+TRUE,122,Montreal,Personne morale,61
+TRUE,122,Montreal,Personne physique,3924
+TRUE,123,Montreal,Personne morale,16
+TRUE,123,Montreal,Personne physique,1423
+TRUE,124,Montreal,Personne morale,63
+TRUE,124,Montreal,Personne physique,6036
+TRUE,125,Montreal,Personne morale,1
+TRUE,125,Montreal,Personne physique,1129
+TRUE,126,Montreal,Personne morale,2
+TRUE,126,Montreal,Personne physique,481
+TRUE,127,Montreal,Personne morale,112
+TRUE,127,Montreal,Personne physique,9354
+TRUE,128,Montreal,Personne morale,28
+TRUE,128,Montreal,Personne physique,6565
+TRUE,129,Montreal,Personne morale,24
+TRUE,129,Montreal,Personne physique,6182
+TRUE,130,Montreal,Personne morale,10
+TRUE,130,Montreal,Personne physique,4924
+TRUE,131,Montreal,Personne morale,19
+TRUE,131,Montreal,Personne physique,8503
+TRUE,132,Montreal,Personne morale,32
+TRUE,132,Montreal,Personne physique,13173
+TRUE,133,Montreal,Personne morale,8
+TRUE,133,Montreal,Personne physique,1671
+TRUE,134,Montreal,Personne morale,14
+TRUE,134,Montreal,Personne physique,4344
+TRUE,135,Montreal,Personne morale,4
+TRUE,135,Montreal,Personne physique,410
+TRUE,136,Montreal,Personne morale,25
+TRUE,136,Montreal,Personne physique,15204
+TRUE,137,Montreal,Personne morale,8
+TRUE,137,Montreal,Personne physique,5928
+TRUE,138,Montreal,Personne morale,24
+TRUE,138,Montreal,Personne physique,5841
+TRUE,139,Montreal,Personne morale,2
+TRUE,139,Montreal,Personne physique,1239
+TRUE,140,Montreal,Personne morale,4
+TRUE,140,Montreal,Personne physique,969
+TRUE,141,Montreal,Personne morale,3
+TRUE,141,Montreal,Personne physique,280
+TRUE,NA,Montreal,Personne morale,13
+TRUE,NA,Montreal,Personne physique,3259
+FALSE,101,Montreal,Personne morale,531
+FALSE,101,Montreal,Personne physique,1801
+FALSE,101,Rest of Quebec,Personne morale,174
+FALSE,101,Rest of Quebec,Personne physique,553
+FALSE,101,Rest of Canada,Personne morale,182
+FALSE,101,Rest of Canada,Personne physique,237
+FALSE,101,Outside Canada,Personne morale,15
+FALSE,101,Outside Canada,Personne physique,206
+FALSE,101,Missing postal address,Personne physique,1
+FALSE,102,Montreal,Personne morale,841
+FALSE,102,Montreal,Personne physique,2381
+FALSE,102,Rest of Quebec,Personne morale,180
+FALSE,102,Rest of Quebec,Personne physique,670
+FALSE,102,Rest of Canada,Personne morale,78
+FALSE,102,Rest of Canada,Personne physique,349
+FALSE,102,Outside Canada,Personne morale,28
+FALSE,102,Outside Canada,Personne physique,314
+FALSE,103,Montreal,Personne morale,208
+FALSE,103,Montreal,Personne physique,1080
+FALSE,103,Rest of Quebec,Personne morale,52
+FALSE,103,Rest of Quebec,Personne physique,319
+FALSE,103,Rest of Canada,Personne morale,12
+FALSE,103,Rest of Canada,Personne physique,91
+FALSE,103,Outside Canada,Personne morale,2
+FALSE,103,Outside Canada,Personne physique,75
+FALSE,104,Montreal,Personne morale,347
+FALSE,104,Montreal,Personne physique,443
+FALSE,104,Rest of Quebec,Personne morale,7
+FALSE,104,Rest of Quebec,Personne physique,63
+FALSE,104,Rest of Canada,Personne morale,10
+FALSE,104,Rest of Canada,Personne physique,39
+FALSE,104,Outside Canada,Personne physique,24
+FALSE,105,Montreal,Personne morale,162
+FALSE,105,Montreal,Personne physique,663
+FALSE,105,Rest of Quebec,Personne morale,28
+FALSE,105,Rest of Quebec,Personne physique,123
+FALSE,105,Rest of Canada,Personne morale,9
+FALSE,105,Rest of Canada,Personne physique,44
+FALSE,105,Outside Canada,Personne morale,2
+FALSE,105,Outside Canada,Personne physique,27
+FALSE,106,Montreal,Personne morale,251
+FALSE,106,Montreal,Personne physique,1253
+FALSE,106,Rest of Quebec,Personne morale,61
+FALSE,106,Rest of Quebec,Personne physique,336
+FALSE,106,Rest of Canada,Personne morale,15
+FALSE,106,Rest of Canada,Personne physique,141
+FALSE,106,Outside Canada,Personne morale,2
+FALSE,106,Outside Canada,Personne physique,144
+FALSE,107,Montreal,Personne morale,243
+FALSE,107,Montreal,Personne physique,916
+FALSE,107,Rest of Quebec,Personne morale,46
+FALSE,107,Rest of Quebec,Personne physique,197
+FALSE,107,Rest of Canada,Personne morale,4
+FALSE,107,Rest of Canada,Personne physique,38
+FALSE,107,Outside Canada,Personne morale,1
+FALSE,107,Outside Canada,Personne physique,24
+FALSE,108,Montreal,Personne morale,167
+FALSE,108,Montreal,Personne physique,936
+FALSE,108,Rest of Quebec,Personne morale,46
+FALSE,108,Rest of Quebec,Personne physique,159
+FALSE,108,Rest of Canada,Personne morale,1
+FALSE,108,Rest of Canada,Personne physique,30
+FALSE,108,Outside Canada,Personne physique,13
+FALSE,109,Montreal,Personne morale,59
+FALSE,109,Montreal,Personne physique,180
+FALSE,109,Rest of Quebec,Personne morale,12
+FALSE,109,Rest of Quebec,Personne physique,50
+FALSE,109,Rest of Canada,Personne morale,1
+FALSE,109,Rest of Canada,Personne physique,10
+FALSE,109,Outside Canada,Personne physique,4
+FALSE,110,Montreal,Personne morale,108
+FALSE,110,Montreal,Personne physique,512
+FALSE,110,Rest of Quebec,Personne morale,17
+FALSE,110,Rest of Quebec,Personne physique,156
+FALSE,110,Rest of Canada,Personne physique,23
+FALSE,110,Outside Canada,Personne physique,13
+FALSE,111,Montreal,Personne morale,61
+FALSE,111,Montreal,Personne physique,489
+FALSE,111,Rest of Quebec,Personne morale,56
+FALSE,111,Rest of Quebec,Personne physique,190
+FALSE,111,Rest of Canada,Personne morale,4
+FALSE,111,Rest of Canada,Personne physique,33
+FALSE,111,Outside Canada,Personne physique,18
+FALSE,112,Montreal,Personne morale,75
+FALSE,112,Montreal,Personne physique,347
+FALSE,112,Rest of Quebec,Personne morale,38
+FALSE,112,Rest of Quebec,Personne physique,144
+FALSE,112,Rest of Canada,Personne physique,15
+FALSE,112,Outside Canada,Personne physique,8
+FALSE,113,Montreal,Personne morale,79
+FALSE,113,Montreal,Personne physique,268
+FALSE,113,Rest of Quebec,Personne morale,21
+FALSE,113,Rest of Quebec,Personne physique,131
+FALSE,113,Rest of Canada,Personne morale,1
+FALSE,113,Rest of Canada,Personne physique,2
+FALSE,113,Outside Canada,Personne physique,5
+FALSE,114,Montreal,Personne morale,88
+FALSE,114,Montreal,Personne physique,511
+FALSE,114,Rest of Quebec,Personne morale,18
+FALSE,114,Rest of Quebec,Personne physique,86
+FALSE,114,Rest of Canada,Personne morale,2
+FALSE,114,Rest of Canada,Personne physique,10
+FALSE,114,Outside Canada,Personne physique,7
+FALSE,115,Montreal,Personne morale,4
+FALSE,115,Montreal,Personne physique,26
+FALSE,115,Rest of Quebec,Personne morale,4
+FALSE,115,Rest of Quebec,Personne physique,20
+FALSE,115,Rest of Canada,Personne physique,1
+FALSE,116,Montreal,Personne morale,163
+FALSE,116,Montreal,Personne physique,469
+FALSE,116,Rest of Quebec,Personne morale,7
+FALSE,116,Rest of Quebec,Personne physique,98
+FALSE,116,Rest of Canada,Personne physique,10
+FALSE,116,Outside Canada,Personne morale,1
+FALSE,116,Outside Canada,Personne physique,4
+FALSE,117,Montreal,Personne morale,41
+FALSE,117,Montreal,Personne physique,309
+FALSE,117,Rest of Quebec,Personne morale,11
+FALSE,117,Rest of Quebec,Personne physique,37
+FALSE,117,Rest of Canada,Personne physique,10
+FALSE,117,Outside Canada,Personne physique,3
+FALSE,118,Montreal,Personne morale,71
+FALSE,118,Montreal,Personne physique,311
+FALSE,118,Rest of Quebec,Personne morale,5
+FALSE,118,Rest of Quebec,Personne physique,51
+FALSE,118,Rest of Canada,Personne physique,8
+FALSE,118,Outside Canada,Personne physique,2
+FALSE,119,Montreal,Personne morale,273
+FALSE,119,Montreal,Personne physique,1648
+FALSE,119,Rest of Quebec,Personne morale,34
+FALSE,119,Rest of Quebec,Personne physique,140
+FALSE,119,Rest of Canada,Personne morale,6
+FALSE,119,Rest of Canada,Personne physique,67
+FALSE,119,Outside Canada,Personne physique,38
+FALSE,119,Missing postal address,Personne physique,1
+FALSE,120,Montreal,Personne morale,80
+FALSE,120,Montreal,Personne physique,241
+FALSE,120,Rest of Quebec,Personne morale,2
+FALSE,120,Rest of Quebec,Personne physique,19
+FALSE,120,Rest of Canada,Personne physique,3
+FALSE,120,Outside Canada,Personne physique,8
+FALSE,121,Montreal,Personne morale,89
+FALSE,121,Montreal,Personne physique,444
+FALSE,121,Rest of Quebec,Personne morale,12
+FALSE,121,Rest of Quebec,Personne physique,53
+FALSE,121,Rest of Canada,Personne morale,6
+FALSE,121,Rest of Canada,Personne physique,16
+FALSE,121,Outside Canada,Personne morale,4
+FALSE,121,Outside Canada,Personne physique,24
+FALSE,122,Montreal,Personne morale,127
+FALSE,122,Montreal,Personne physique,194
+FALSE,122,Rest of Quebec,Personne morale,14
+FALSE,122,Rest of Quebec,Personne physique,15
+FALSE,122,Rest of Canada,Personne morale,4
+FALSE,122,Rest of Canada,Personne physique,9
+FALSE,122,Outside Canada,Personne morale,3
+FALSE,122,Outside Canada,Personne physique,12
+FALSE,123,Montreal,Personne morale,19
+FALSE,123,Montreal,Personne physique,60
+FALSE,124,Montreal,Personne morale,93
+FALSE,124,Montreal,Personne physique,310
+FALSE,124,Rest of Quebec,Personne morale,3
+FALSE,124,Rest of Quebec,Personne physique,14
+FALSE,124,Rest of Canada,Personne morale,4
+FALSE,124,Rest of Canada,Personne physique,10
+FALSE,124,Outside Canada,Personne physique,8
+FALSE,125,Montreal,Personne morale,4
+FALSE,125,Montreal,Personne physique,37
+FALSE,125,Rest of Quebec,Personne morale,1
+FALSE,125,Rest of Quebec,Personne physique,3
+FALSE,125,Rest of Canada,Personne morale,1
+FALSE,125,Rest of Canada,Personne physique,2
+FALSE,126,Montreal,Personne morale,6
+FALSE,126,Montreal,Personne physique,20
+FALSE,126,Rest of Quebec,Personne physique,4
+FALSE,126,Rest of Canada,Personne physique,4
+FALSE,127,Montreal,Personne morale,178
+FALSE,127,Montreal,Personne physique,862
+FALSE,127,Rest of Quebec,Personne morale,52
+FALSE,127,Rest of Quebec,Personne physique,251
+FALSE,127,Rest of Canada,Personne morale,11
+FALSE,127,Rest of Canada,Personne physique,69
+FALSE,127,Outside Canada,Personne morale,12
+FALSE,127,Outside Canada,Personne physique,85
+FALSE,128,Montreal,Personne morale,133
+FALSE,128,Montreal,Personne physique,526
+FALSE,128,Rest of Quebec,Personne morale,6
+FALSE,128,Rest of Quebec,Personne physique,116
+FALSE,128,Rest of Canada,Personne morale,2
+FALSE,128,Rest of Canada,Personne physique,26
+FALSE,128,Outside Canada,Personne physique,5
+FALSE,129,Montreal,Personne morale,49
+FALSE,129,Montreal,Personne physique,341
+FALSE,129,Rest of Quebec,Personne morale,15
+FALSE,129,Rest of Quebec,Personne physique,81
+FALSE,129,Rest of Canada,Personne morale,2
+FALSE,129,Rest of Canada,Personne physique,22
+FALSE,129,Outside Canada,Personne physique,10
+FALSE,130,Montreal,Personne morale,48
+FALSE,130,Montreal,Personne physique,287
+FALSE,130,Rest of Quebec,Personne morale,4
+FALSE,130,Rest of Quebec,Personne physique,31
+FALSE,130,Rest of Canada,Personne morale,2
+FALSE,130,Rest of Canada,Personne physique,10
+FALSE,130,Outside Canada,Personne morale,1
+FALSE,130,Outside Canada,Personne physique,6
+FALSE,131,Montreal,Personne morale,80
+FALSE,131,Montreal,Personne physique,460
+FALSE,131,Rest of Quebec,Personne morale,5
+FALSE,131,Rest of Quebec,Personne physique,30
+FALSE,131,Rest of Canada,Personne morale,3
+FALSE,131,Rest of Canada,Personne physique,22
+FALSE,131,Outside Canada,Personne morale,1
+FALSE,131,Outside Canada,Personne physique,7
+FALSE,132,Montreal,Personne morale,116
+FALSE,132,Montreal,Personne physique,525
+FALSE,132,Rest of Quebec,Personne morale,7
+FALSE,132,Rest of Quebec,Personne physique,17
+FALSE,132,Rest of Canada,Personne morale,1
+FALSE,132,Rest of Canada,Personne physique,20
+FALSE,132,Outside Canada,Personne physique,3
+FALSE,133,Montreal,Personne morale,6
+FALSE,133,Montreal,Personne physique,71
+FALSE,133,Rest of Quebec,Personne morale,6
+FALSE,133,Rest of Quebec,Personne physique,15
+FALSE,133,Rest of Canada,Personne physique,1
+FALSE,133,Outside Canada,Personne physique,2
+FALSE,134,Montreal,Personne morale,15
+FALSE,134,Montreal,Personne physique,159
+FALSE,134,Rest of Quebec,Personne morale,2
+FALSE,134,Rest of Quebec,Personne physique,20
+FALSE,134,Rest of Canada,Personne physique,7
+FALSE,134,Outside Canada,Personne physique,1
+FALSE,135,Montreal,Personne morale,14
+FALSE,135,Montreal,Personne physique,61
+FALSE,135,Rest of Quebec,Personne morale,4
+FALSE,135,Rest of Quebec,Personne physique,8
+FALSE,135,Rest of Canada,Personne morale,1
+FALSE,135,Rest of Canada,Personne physique,4
+FALSE,135,Outside Canada,Personne morale,1
+FALSE,135,Outside Canada,Personne physique,1
+FALSE,136,Montreal,Personne morale,134
+FALSE,136,Montreal,Personne physique,681
+FALSE,136,Rest of Quebec,Personne morale,7
+FALSE,136,Rest of Quebec,Personne physique,74
+FALSE,136,Rest of Canada,Personne morale,38
+FALSE,136,Rest of Canada,Personne physique,35
+FALSE,136,Outside Canada,Personne physique,16
+FALSE,137,Montreal,Personne morale,21
+FALSE,137,Montreal,Personne physique,186
+FALSE,137,Rest of Quebec,Personne morale,4
+FALSE,137,Rest of Quebec,Personne physique,9
+FALSE,137,Rest of Canada,Personne morale,1
+FALSE,137,Rest of Canada,Personne physique,6
+FALSE,137,Outside Canada,Personne physique,6
+FALSE,138,Montreal,Personne morale,123
+FALSE,138,Montreal,Personne physique,262
+FALSE,138,Rest of Quebec,Personne morale,3
+FALSE,138,Rest of Quebec,Personne physique,8
+FALSE,138,Rest of Canada,Personne physique,10
+FALSE,138,Outside Canada,Personne morale,2
+FALSE,138,Outside Canada,Personne physique,15
+FALSE,139,Montreal,Personne morale,11
+FALSE,139,Montreal,Personne physique,63
+FALSE,139,Rest of Quebec,Personne morale,3
+FALSE,139,Rest of Quebec,Personne physique,4
+FALSE,139,Rest of Canada,Personne morale,1
+FALSE,139,Rest of Canada,Personne physique,4
+FALSE,139,Outside Canada,Personne physique,5
+FALSE,140,Montreal,Personne morale,6
+FALSE,140,Montreal,Personne physique,51
+FALSE,140,Rest of Quebec,Personne morale,1
+FALSE,140,Rest of Quebec,Personne physique,10
+FALSE,140,Rest of Canada,Personne physique,2
+FALSE,141,Montreal,Personne morale,1
+FALSE,141,Montreal,Personne physique,16
+FALSE,141,Rest of Quebec,Personne morale,1
+FALSE,141,Rest of Quebec,Personne physique,3
+FALSE,141,Rest of Canada,Personne physique,2
+FALSE,141,Outside Canada,Personne physique,1
+FALSE,NA,Montreal,Personne morale,29
+FALSE,NA,Montreal,Personne physique,178
+FALSE,NA,Rest of Quebec,Personne morale,68
+FALSE,NA,Rest of Quebec,Personne physique,25
+FALSE,NA,Rest of Canada,Personne morale,2
+FALSE,NA,Rest of Canada,Personne physique,5
+FALSE,NA,Outside Canada,Personne physique,8

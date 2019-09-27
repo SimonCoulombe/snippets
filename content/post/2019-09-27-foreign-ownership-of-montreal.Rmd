@@ -1,0 +1,106 @@
+---
+title: Foreign ownership of Montreal
+author: Simon
+date: '2019-09-27'
+slug: foreign-ownership-of-montreal
+categories:
+  - R
+tags: []
+keywords:
+  - tech
+  
+thumbnailImage: "/post/2019-09-27-foreign-ownership-of-montreal_files/foreign_ownership_mtl.png" 
+thumbnailImagePosition: left  
+---
+
+
+
+```{r setup, include =F, echo =F}
+#
+# TODO : valider ceci : Chunk options must be written in one line; no line breaks are allowed inside chunk options;
+# https://yihui.name/knitr/options/
+knitr::opts_chunk$set(echo = FALSE, 
+                      collapse = FALSE,
+                      warning = FALSE,
+                      error = FALSE,
+                      message = FALSE,
+                      fig.align= "center",
+                      fig.width = 10,
+                      highlight = TRUE,
+                      cache = FALSE,
+                      cache.lazy = FALSE) # fixes long vecto rnot supported quand on cache des gros éléments https://stackoverflow.com/questions/39417003/long-vectors-not-supported-yet-error-in-rmd-but-not-in-r-script
+```
+
+
+There is a lot of talk in Canada about foreign speculators buying houses and appartments in Canadian cities  such as Vancouver and Toronto.  It mostly relies on hearsay as there is a huge lack of actual data.   I have been wondering what the situation looks like in Montreal.  
+
+In this blog post, we will focus on properties that only include 1 dwelling on the tax roll.  This includes condominiums where each appartment belongs to a separate person, but excludes duplexes and triplexes where a single person owns both appartments.  
+
+The data used is the same as was described earlier on my "Who owns Montreal" post.  
+
+```{r, echo=F, include = F}
+library(tidyverse)
+library(mapview)
+library(sf)
+library(leaflet)
+blog_logements_solo_pour_tableau <- read_csv("data/blog_logements_solo_pour_tableau.csv") %>%
+  mutate(
+   mailing_address_region= fct_relevel(factor(mailing_address_region), "Montreal", "Rest of Quebec", "Rest of Canada", "Outside Canada", "Missing postal address"))
+blog_logements_solo_pour_carte <- read_rds("data/blog_logements_solo_pour_carte.rds")
+```
+
+I found  `r paste0(blog_logements_solo_pour_tableau %>% tally(n) %>% pull(n) )` residential tax assessements related to a single dwelling, `r paste0(blog_logements_solo_pour_tableau %>% filter(meme_adresse == FALSE) %>% tally(n) %>% pull(n))` of which are registered to a different mailing address.  This means that `r paste0(round(100*blog_logements_solo_pour_tableau %>% filter(meme_adresse == FALSE) %>% tally(n) %>% pull(n) / 
+  blog_logements_solo_pour_tableau %>% tally(n) %>% pull(n),1)) ` %  of appartments/houses are second homes in Montreal.   
+  
+  Does anyone know if this rate of 11.7%  is high or low?   I don't.  We need more #opendata.  
+  
+  This rate peaks downtown, reaching 38 %, as shown on the following map :      
+
+
+
+
+
+```{r}
+blog_logements_solo_pour_cartez <- blog_logements_solo_pour_carte %>%  
+  st_point_on_surface()
+
+
+mymapview <-blog_logements_solo_pour_carte %>% 
+  mapview(zcol="pct_same_address", layer.name = "Percentage of single-dwelling tax reports <br> whose owner live elsewhere <br> (includes condominiums)")
+
+mymapview@map %>%
+  addCircleMarkers(data=blog_logements_solo_pour_cartez ,
+                   radius = ~20* sqrt(pieds_a_terre)/ sqrt(max(pieds_a_terre)), popup = ~ paste0(pieds_a_terre),
+                   color = "red", fillColor = "red", fillOpacity = 1, opacity=1)
+
+```
+
+I also wondered what percentage of these "second homes" are foreign owned.  This percentage appears to be around 3.6% in Montreal.  Is this high or low?  Who knows.  We need more #opendata.  
+
+That's it, have a nice day. 
+
+```{r}
+blog_logements_solo_pour_tableau %>%
+  filter(meme_adresse == FALSE)  %>% 
+  group_by(mailing_address_region) %>%
+  summarise(n = sum(n)) %>%
+  mutate(pct = 100* n / sum(n)) %>%
+  knitr::kable(caption = "Foreign ownership of second homes in Montreal",
+               digits=c(0,0,1),
+               format.args = list(big.mark = " ")
+               )
+```
+
+A more detailed table including the sector of the appartments and the status of the owner (physical or moral) is shown below for the enthusiast.  
+
+```{r}
+
+blog_logements_solo_pour_tableau  %>%
+    knitr::kable(caption = "Counts of all single-dwellings in Montreal by 'same mailing address as building address' status, municipal sector, mailing address region, owner status",
+               digits=c(0,0,0,0,0,0),
+               format.args = list(big.mark = " ")
+               )
+
+
+```
+
