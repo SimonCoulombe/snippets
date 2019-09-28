@@ -42,14 +42,16 @@ Pour ce projet je tente de répondre à deux questions :
 
 Pour cet exercice, je m'attarde aux terrains dans le secteur Lauzon.  J'ignore les terres agricoles et les exploitations forestières, car elles ont une grande superficie et sont censées être protégées par le MAPAQ.  J'exclus aussi de ce palmarès les propriétaires gouvernementaux.      
 
+Note importante: je ne suis pas spécialiste de cette industrie ni de ces données, alors des grossières erreurs d'interprétation peuvent s'être glissée.  N'hésitez pas à me suggérer des améliorations.  Merci!  
+
 ## Données  
 
 Je combine deux sources de données:
 
 * La "matrice graphique" de Lévis, qui montre la forme des terrains associés à chaque rôle d'évaluation.  
-* Les rôles d'évaluation, qui indique la valeur, la superficie, la date d'achat et le nom et l'adresse postale du propriétaire.  
+* Les rôles d'évaluation, qui indiquent la valeur, la superficie, la date d'achat et le nom et l'adresse postale du propriétaire.  
 
-J'ai anonymisé les noms/adresses car les données du rôle d'évaluation ne sont pas rendues disponibles à l'aide de ces variables.  Le "qui" sera donc un numéro que j'ai généré aléatoirement.   
+J'ai anonymisé les noms/adresses car bien que le site les donnent avec le rôle, il ne permet pas de faire de recherche à l'aide de ces variables.  Je ne veux pas être celui qui les rend encore plus disponibles.  Le "qui" sera donc un numéro que j'ai généré aléatoirement.   
 
 J'ai considéré que plusieurs propriétés avaient le même propriétaire lorsque l'adresse postale étaient la même.  Ma première idée était d'utiliser le nom, mais un employé de la ville de Montréal m'a fait remarquer que les compagnies à numéro permettaient à une personne d'acheter 15 terrains sous 15 noms différents.  Merci pour le tuyau, ça a fait une différence pour au moins un très gros propriétaire.  
 
@@ -157,24 +159,41 @@ levis_anonymous  %>%
 
 ## Les top 8  
 
-À partir d'ici, je souhaite déterminer qui sont les plus grands propriétaires à Lévis.  J'ignore les principaux propriétaires gouvernementaux, ainsi que les lots dont l'utilisation prédominante est liée à l'agriculture ou à la foresterie.  
+À partir d'ici, je souhaite déterminer qui sont les plus grands propriétaires à Lévis.  Je retire les principaux propriétaires gouvernementaux, ainsi que les lots dont l'utilisation prédominante est liée à l'agriculture ou à la foresterie.  
 
 Voici les propriétaires gouvernementaux que j'ai exclus:  
-"VILLE DE LEVIS", "MINISTERE DES TRANSPORTS", "MDDELCC", "GOUVERNEMENT DU QUEBEC","HYDRO-QUEBEC", "CHEMINS DE FER NATIONAUX DU CANADA", "COMMISSION SCOLAIRE NAVIGATEURS", "CORPORATION CEGEP LEVIS-LAUZON","CORPORATION DU CIMETIERE DU MONT-MARIE", "CORPORATION DU CIMETIERE MONT-MARIE", "FRATERNITE SAINT-PIE X QUEBEC INC. (LA)", "TRAVAUX PUBLICS CANADA (REG. QUE)",                        "TRAVAUX PUBLICS CANADA (REG. QUE)", "SOCIETE D'HABITATION DU QUEBEC (SHQ)"
+
+* VILLE DE LEVIS,   
+* MINISTERE DES TRANSPORTS,   
+* MDDELCC,   
+* GOUVERNEMENT DU QUEBEC,  
+* HYDRO-QUEBEC,   
+* CHEMINS DE FER NATIONAUX DU CANADA,   
+* COMMISSION SCOLAIRE NAVIGATEURS,   
+* CORPORATION CEGEP LEVIS-LAUZON,  
+* CORPORATION DU CIMETIERE DU MONT-MARIE,   
+* CORPORATION DU CIMETIERE MONT-MARIE,   
+* FRATERNITE SAINT-PIE X QUEBEC INC. (LA),   
+* TRAVAUX PUBLICS CANADA (REG. QUE),                          
+* TRAVAUX PUBLICS CANADA (REG. QUE),   
+* SOCIETE D'HABITATION DU QUEBEC (SHQ)  
+
+Voici les codes d'utilisation prédominante que j'ai retiré (fermes et forêts):   
+
+*  81, 
+*  82, 
+*  83, 
+*  92.
 
 
-Voici les codes d'utilisation prédominante que j'ai retiré (fermes et forêts): "81", "82", "83", "92").
-
-
+*errata: je n'aurais pas dû considérer le CN comme gouvernemental.*
 
 ### Top 8 de la valeur totale   
 
-Le lecteur avisé reconnaitra une grande coopérative, une compagnie de logis,  une raffinerie ...
+Le lecteur avisé reconnaitra une grande coopérative, une compagnie de logis et une raffinerie parmi les plus grands propriétaires de la région.
 
 
 ```{r top10valeur, echo= F}
-
-
 # define noms du gouvernement
 noms_gouvernement <- c( "VILLE DE LEVIS", "MINISTERE DES TRANSPORTS", "MDDELCC", "GOUVERNEMENT DU QUEBEC","HYDRO-QUEBEC",
                         "CHEMINS DE FER NATIONAUX DU CANADA", "COMMISSION SCOLAIRE NAVIGATEURS", "CORPORATION CEGEP LEVIS-LAUZON",
@@ -199,7 +218,17 @@ top10_valeur_de_la_ville <- levis_anonymous %>%
    mutate(rang = row_number()) %>%
    head(8)
 
+top10_valeur_de_la_ville %>%
+  select(rang, anon, valeur_immeuble_total, superficie_totale = area_total , matricules= n) %>%
+  knitr::kable(caption = "Top 8 des propriétaires selon la valeur totale",
+               digits=c(0,0,0,0),
+               format.args = list(big.mark = " ")
+               )
 
+```
+
+
+```{r , echo= F}
 levis_anonymous %>%
    filter(!(str_sub(utilisation,1,2) %in% codes_fermes_forets)) %>%   
    filter(gouv == 0) %>%
@@ -212,7 +241,7 @@ levis_anonymous %>%
                                            format(round(area_total), scientific= FALSE, big.mark=" "),
                                            " m2 - ",
                                            anon, 
-                                           " - ", n , " terrains")) %>%
+                                           " - ", n , " matricules")) %>%
    mapview(zcol= "rang_valeur_surface_id", 
            layer.name = "Top 8 des propriétaires selon la valeur totale<br> 
            minimum 3 terrains et 5 000 m2 <br>           
@@ -223,7 +252,7 @@ levis_anonymous %>%
 
 ### Top 8 de la superficie totale  
 
-Le gros bloc Charny et St-Romuald appartient à un groupe qui souhaite construire un Phare à Québec.  C'était une surprise pour moi, mais [le Soleil en a déjà parlé en 2012](https://www.lesoleil.com/actualite/la-capitale/groupe-dallaire-projette-une-petite-ville-a-la-tete-sud-des-ponts-5875be1470fbade53669d33cf4c1d5b5).   
+Si on s'attarde plutôt à la superficie, on remarque un gros bloc qui apparait à l'entrée du pont de Québec.  Ce gros bloc entre Charny et St-Romuald appartient à un groupe qui souhaite construire un Phare à Québec.  C'était une surprise pour moi, mais [le Soleil en a déjà parlé en 2012](https://www.lesoleil.com/actualite/la-capitale/groupe-dallaire-projette-une-petite-ville-a-la-tete-sud-des-ponts-5875be1470fbade53669d33cf4c1d5b5).   
 
 ```{r,echo =F}
 top10_superficie_de_la_ville <- levis_anonymous %>% 
@@ -241,6 +270,18 @@ top10_superficie_de_la_ville <- levis_anonymous %>%
    head(8)
 
 
+
+top10_valeur_de_la_ville %>%
+  select(rang, anon, valeur_immeuble_total, superficie_totale = area_total , matricules= n) %>%
+  knitr::kable(caption = "Top 8 des propriétaires selon la superficie totale",
+               digits=c(0,0,0,0),
+               format.args = list(big.mark = " ")
+               )
+
+```
+
+```{r, echo = F}
+
 levis_anonymous %>%
    filter(!(str_sub(utilisation,1,2) %in% codes_fermes_forets)) %>%   
    filter(gouv == 0) %>%
@@ -253,7 +294,7 @@ levis_anonymous %>%
                                            format(round(area_total), scientific= FALSE, big.mark=" "),
                                            " m2 - ",
                                            anon, 
-                                           " - ", n , " terrains")) %>%
+                                           " - ", n , " matricules")) %>%
    mapview(zcol= "rang_valeur_surface_id", 
            layer.name = "Top 8 des propriétaires selon la superficie totale<br> 
            minimum 3 terrains et 5 000 m2 <br>
@@ -261,14 +302,14 @@ levis_anonymous %>%
            (rang - valeur-surface - id)",
            col.region = RColorBrewer::brewer.pal(8, "Accent"))
 
-
 ```
+
 
 ### Top 8 de la superficie dans Lauzon (près du tunnel projeté)  
 
-On retrouve enfin les propriétaires dont les terrains sont les plus à risques de gagner de la valeur si le troisième lien est construit.  Certains possèdent le terrain depuis des dizaines d'années et ne donc pas des spéculateurs sur ce projet, mais ça n'enlève rien à l'attrait de ce gain.  
+On retrouve enfin les propriétaires dont les terrains sont les plus à risques de gagner de la valeur si le troisième lien est construit.  Certains possèdent le terrain depuis des dizaines d'années et ne donc pas des spéculateurs sur ce projet, mais ça n'enlève rien à l'attrait de ce gain pour eux.  
 
-Le premier rang appartient à une corporation portant le nom d'un gros canot qui souhaitait construire un port méthanier il y a une quinzaine d'années.     
+Le premier rang appartient à une corporation portant le nom d'un gros canot qui souhaitait construire un port méthanier à l'est de Lévis il y a une quinzaine d'années.     
 
 ```{r, echo =F}
 # carte du top 10 de la superficie total dans l'est (Lauzon)
@@ -290,6 +331,18 @@ top10_superficie_de_l_est <- levis_anonymous %>%
    head(8)
 
 
+top10_superficie_de_l_est %>%
+  select(rang, anon, valeur_immeuble_total, superficie_totale = area_total , matricules= n) %>%
+  knitr::kable(caption = "Top 8 des propriétaires selon la superficie totale à Lauzon",
+               digits=c(0,0,0,0),
+               format.args = list(big.mark = " ")
+               
+               )
+
+```
+
+
+```{r, echo =F}
 levis_anonymous %>%
    filter(SM2017 %in% c(430)) %>%
    filter(!(str_sub(utilisation,1,2) %in% codes_fermes_forets)) %>%   
@@ -305,7 +358,7 @@ levis_anonymous %>%
                                            format(round(area_total), scientific= FALSE, big.mark=" "),
                                            " m2 - ",
                                            anon, 
-                                           " - ", n , " terrains")) %>%
+                                           " - ", n , " matricules")) %>%
    mapview(zcol= "rang_valeur_surface_id", 
            layer.name = "Top 8 des propriétaires selon la superficie totale, secteur Lauzon <br> 
            minimum 3 terrains et 5 000 m2 <br>
@@ -343,6 +396,18 @@ top10_superficie_de_l_est <- levis_anonymous %>%
    head(8)
 
 
+
+top10_superficie_de_l_est %>%
+  select(rang, anon, valeur_immeuble_total, superficie_totale = area_total , matricules= n) %>%
+  knitr::kable(caption = "Top 8 'cynique' des propriétaires selon la superficie totale à Lauzon",
+               digits=c(0,0,0,0),
+               format.args = list(big.mark = " ")
+               )
+
+```
+
+
+```{r, echo =F}
 levis_anonymous %>%
    filter(SM2017 %in% c(430)) %>%
    #filter(!(str_sub(utilisation,1,2) %in% codes_fermes_forets)) %>%   
@@ -358,7 +423,7 @@ levis_anonymous %>%
                                            format(round(area_total), scientific= FALSE, big.mark=" "),
                                            " m2 - ",
                                            anon, 
-                                           " - ", n , " terrains")) %>%
+                                           " - ", n , " matricules")) %>%
    mapview(zcol= "rang_valeur_surface_id", 
            layer.name = "Top 8 cynique des propriétaires selon la superficie totale, secteur Lauzon <br> 
            minimum 3 terrains et 5 000 m2 <br>
@@ -381,8 +446,6 @@ Voilà, c'est tout.
 
 
 ```{r, echo = F}
-
-
 top10_superficie_de_l_est_recente <- levis_anonymous %>% 
    filter(SM2017 %in% c(430)) %>%
    filter(!(str_sub(utilisation,1,2) %in% codes_fermes_forets)) %>%   
@@ -401,6 +464,18 @@ top10_superficie_de_l_est_recente <- levis_anonymous %>%
    head(10)
 
 
+
+top10_superficie_de_l_est_recente %>%
+  select(rang, anon, valeur_immeuble_total, superficie_totale = area_total , matricules= n) %>%
+  knitr::kable(caption = "Top 8 des propriétaires selon la superficie totale achetée à Lauzon depuis l'élection de la CAQ",
+               digits=c(0,0,0,0),
+               format.args = list(big.mark = " ")
+               )
+
+```
+
+
+```{r, echo = F}
 levis_anonymous %>%
    filter(SM2017 %in% c(430)) %>%
    filter(!(str_sub(utilisation,1,2) %in% codes_fermes_forets)) %>%   
@@ -418,7 +493,7 @@ levis_anonymous %>%
                                            format(round(area_total), scientific= FALSE, big.mark=" "),
                                            " m2 - ",
                                            anon, 
-                                           " - ", n , " terrains")) %>%
+                                           " - ", n , " matricules")) %>%
    mapview(zcol= "rang_valeur_surface_id", 
            layer.name = "Top 8 des spéculateurs selon la superficie totale, secteur Lauzon, <br>
            **achats depuis 1er octobre 2018, minimum 2 terrains et 5 000 m 2 <br> 
@@ -435,7 +510,7 @@ levis_anonymous %>%
 
 ## Acquisition des données    
 
-Je n'ai pas ouvert le code que j'ai utilisé pour le scraping des rôles d'évaluation.  Je le ferai peut-être un jour.  C'est basé sur Selenium, qui automatise un navigateur Firefox pour aller chercher chaque rôle individuellement.  Je l'ai programmé pour aller lentement (un clic aux 5 secondes) et procéder à sa récolte la nuit.  
+Je n'ai pas ouvert le code que j'ai utilisé pour le scraping des rôles d'évaluation.  Je le ferai peut-être un jour.  C'est basé sur Selenium, qui automatise un navigateur Firefox pour aller chercher chaque rôle individuellement.  Je l'ai programmé pour être poli : un clic aux 5 secondes et seulement la nuit.  
 
 
 ![selenium](/post/2019-09-15-profit-3eme-lien_files/simplescreenrecorder-2019-09-04_20.14.22.gif)
