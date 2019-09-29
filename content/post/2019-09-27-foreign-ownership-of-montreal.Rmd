@@ -78,7 +78,7 @@ Again, I have no idea if this is high or low.  Note that this may be a gross und
 
 It is interesting to note that 75% of these non-lived-in homes are owned by owners who live on the island of Montreal (postal code starting with "H"). These are probably not second homes a few kilometers away from your real home but investments.
 
-That's it, have a nice day. 
+
 
 ```{r}
 pct_not_lived_in_foreign_owned  <- blog_logements_solo_pour_tableau %>%
@@ -111,7 +111,7 @@ blog_logements_solo_pour_tableau %>%
 
 
 
-Overall this means that only 0.4 % of all homes (exluding plexes and rental appartments)  are have a foreign mailing address in Montreal 
+Overall this means that only 0.4 % of all homes (exluding plexes and rental appartments)   have a foreign mailing address in Montreal.  This peaks at 2.4% downtown.
 
 
 ```{r}
@@ -142,7 +142,7 @@ blog_logements_solo_pour_carte %>%
   
 ```
 
-
+That's it, have a nice day.  
 # Appendix  
 
 I have included a more detailed table including the sector of the appartments and the status of the owner (physical or moral) shown below for the enthusiast.  
