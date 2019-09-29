@@ -125,6 +125,24 @@ blog_logements_solo_pour_tableau %>%
                )
 ```
 
+```{r}
+pct_not_lived_in_foreign_owned  <- blog_logements_solo_pour_tableau %>%
+  filter(mailing_address_region != "Missing postal address")  %>% 
+  group_by(mailing_address_region, SM13) %>%
+  summarise(n = sum(n)) %>%
+  group_by(SM13) %>%
+  summarise(pct_foreign_owned = 100*sum(n * (mailing_address_region =="Outside Canada")) /    sum(n)) %>%
+  ungroup() %>%
+  select(SM13, pct_foreign_owned)
+
+
+blog_logements_solo_pour_carte %>% 
+  inner_join(pct_not_lived_in_foreign_owned) %>% 
+   mapview(zcol="pct_foreign_owned", layer.name = "Percentage of all dwellings <br> with mailing address outside Canada <br>")
+  
+```
+
+
 # Appendix  
 
 I have included a more detailed table including the sector of the appartments and the status of the owner (physical or moral) shown below for the enthusiast.  
