@@ -31,12 +31,13 @@ knitr::opts_chunk$set(echo = FALSE,
                       cache.lazy = FALSE) # fixes long vecto rnot supported quand on cache des gros éléments https://stackoverflow.com/questions/39417003/long-vectors-not-supported-yet-error-in-rmd-but-not-in-r-script
 ```
 
-
 There is a lot of talk in Canada about foreign speculators buying houses and appartments in Canadian cities  such as Vancouver and Toronto.  It mostly relies on hearsay as there is a huge lack of actual data.   I have been wondering what the situation looks like in Montreal.  
 
-In this blog post, we will focus on properties that only include 1 dwelling on the tax roll.  This includes houses and condominiums where each appartment belongs to a separate person, but excludes duplexes and triplexes where a single person owns all appartments.  
+In this blog post, we will focus on properties that only include 1 dwelling on the tax roll.  My understanding is this includes houses and condominiums where each appartment belongs to a separate person, but excludes duplexes and triplexes where a single person owns all appartments.  
 
-The data used is the same as was described earlier on my "Who owns Montreal" post.  
+*Disclaimer:  I am not familiar with the real estate industry, I am just a guy messing with new data.*  
+
+The data used is the same as was described earlier in my [Who owns Montreal](https://www.simoncoulombe.com/2019/09/who-owns-montreal/) post.  
 
 ```{r, echo=F, include = F}
 library(tidyverse)
@@ -50,15 +51,11 @@ blog_logements_solo_pour_carte <- read_rds("data/blog_logements_solo_pour_carte.
 ```
 
 I found  `r paste0(blog_logements_solo_pour_tableau %>% tally(n) %>% pull(n) )` residential tax assessements related to a single dwelling, `r paste0(blog_logements_solo_pour_tableau %>% filter(meme_adresse == FALSE) %>% tally(n) %>% pull(n))` of which are registered to a different mailing address.  This means that `r paste0(round(100*blog_logements_solo_pour_tableau %>% filter(meme_adresse == FALSE) %>% tally(n) %>% pull(n) / 
-  blog_logements_solo_pour_tableau %>% tally(n) %>% pull(n),1)) ` %  of appartments/houses are either "second homes" or used as investments (airbnb anyone?) in Montreal.   
+  blog_logements_solo_pour_tableau %>% tally(n) %>% pull(n),1)) ` %  of appartments/houses are either "second homes" or used as investments (long term rental or airbnb) in Montreal.   
   
 Does anyone know if this rate of 11.7%  is high or low?   I don't.  We need more #opendata.  
   
 This rate peaks downtown, reaching 38 %, as shown on the following map :      
-
-
-
-
 
 ```{r}
 blog_logements_solo_pour_cartez <- blog_logements_solo_pour_carte %>%  
@@ -75,11 +72,30 @@ mymapview@map %>%
 
 ```
 
-I also wondered what percentage of these "second homes/investments" are foreign owned.  This percentage appears to be around 3.6% in Montreal.  Is this high or low?    Who knows.  We need more #opendata.  
+The next step is finding out what percentage of these "second homes/investments" are foreign owned.  We turn again to the mailing address and find that 3.6% of these addresses are located outside Canada.    
 
-It is interesting to note that 75% of these non-lived homes are owned by owners who live on the island of Montreal (psotal code starting with "H"). These are probably not second homes but really investments.
+Again, I have no idea if this is high or low.  Note that this may be a gross under-estimation.  Foreign buyers could hire local agencies to manage their wealth, or create a local company to manage it.   
+
+It is interesting to note that 75% of these non-lived-in homes are owned by owners who live on the island of Montreal (postal code starting with "H"). These are probably not second homes a few kilometers away from your real home but investments.
 
 That's it, have a nice day. 
+
+```{r}
+pct_not_lived_in_foreign_owned  <- blog_logements_solo_pour_tableau %>%
+  filter(meme_adresse == FALSE, mailing_address_region != "Missing postal address")  %>% 
+  group_by(mailing_address_region, SM13) %>%
+  summarise(n_not_lived_in = sum(n)) %>%
+  group_by(SM13) %>%
+  summarise(pct_not_lived_in_foreign_owned = 100*sum(n_not_lived_in * (mailing_address_region =="Outside Canada")) /    sum(n_not_lived_in)) %>%
+  ungroup() %>%
+  select(SM13, pct_not_lived_in_foreign_owned)
+
+
+blog_logements_solo_pour_carte %>% 
+  inner_join(pct_not_lived_in_foreign_owned) %>% 
+   mapview(zcol="pct_not_lived_in_foreign_owned", layer.name = "Percentage of not-lived-in dwellings <br> with mailing address outside Canada <br>")
+  
+```
 
 ```{r}
 blog_logements_solo_pour_tableau %>%
@@ -94,7 +110,8 @@ blog_logements_solo_pour_tableau %>%
 ```
 
 
-Overall this means that only 0.4 % of all homes (exluding plexes and rental appartments) that are foreign owned in Montreal 
+
+Overall this means that only 0.4 % of all homes (exluding plexes and rental appartments)  are have a foreign mailing address in Montreal 
 
 
 ```{r}
@@ -108,13 +125,16 @@ blog_logements_solo_pour_tableau %>%
                )
 ```
 
+# Appendix  
 
-A more detailed table including the sector of the appartments and the status of the owner (physical or moral) is shown below for the enthusiast.  
+I have included a more detailed table including the sector of the appartments and the status of the owner (physical or moral) shown below for the enthusiast.  
 
 ```{r}
 
 blog_logements_solo_pour_tableau  %>%
-    knitr::kable(caption = "Counts of all single-dwellings in Montreal by 'same mailing address as building address' status, municipal sector, mailing address region, owner status",
+  group_by(meme_adresse, mailing_address_region, statut1) %>%
+  summarise(n = sum(n)) %>%
+    knitr::kable(caption = "Counts of all single-dwellings in Montreal by 'same mailing address as building address' status,  mailing address region, owner status",
                digits=c(0,0,0,0,0,0),
                format.args = list(big.mark = " ")
                )
