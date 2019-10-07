@@ -29,17 +29,16 @@ knitr::opts_chunk$set(echo = FALSE,
                       cache.lazy = FALSE) # fixes long vecto rnot supported quand on cache des gros éléments https://stackoverflow.com/questions/39417003/long-vectors-not-supported-yet-error-in-rmd-but-not-in-r-script
 ```
 
-Diane Francoeur, la présidente de la Fédération des médecins spécialistes du Québec a récemment agité l'[épouvantail de l'exode des médecins spécialistes](https://www.journaldequebec.com/2019/10/02/la-caq-veut-baisser-davantage-le-salaire-des-medecins-specialistes) comme argument contre le projet de la CAQ de réduire la rémunération des médecins spécialistes du Québec.     
+Dre Diane Francoeur, la présidente de la Fédération des médecins spécialistes du Québec a récemment agité l'[épouvantail de l'exode des médecins spécialistes](https://www.journaldequebec.com/2019/10/02/la-caq-veut-baisser-davantage-le-salaire-des-medecins-specialistes) comme argument contre le projet de la CAQ de réduire la rémunération des médecins spécialistes du Québec.     
 
-Ça m'a mis de mauvaise humeur.  J'ai un grand respect pour les médecins, mais leurs représentants ont la fâcheuse manie de dire n'importe quoi.  Si un écart salarial de  9 % était suffisant pour générer de grands flux migratoires, les régions du Québec seraient déjà désertes.  Les gens ne se déracinent pas de leurs racines familiales et sociales pour quelques dollars, surtout quand ils ne crèvent pas de faim comme les médecins.
+Ça m'a mis de mauvaise humeur.  Je vous un grand respect pour les médecins, mais leurs représentants ont la fâcheuse manie de dire n'importe quoi.  Si un écart salarial de  9 % était suffisant pour générer de grands flux migratoires, les régions du Québec seraient déjà désertes.  Les gens ne se déracinent pas de leurs racines familiales et sociales pour quelques dollars, surtout quand ils ne crèvent pas de faim comme les médecins.  
 
-Demeurons tout de même curieux:  si les médecins sont sensibles aux écarts salariaux, on devrait voir les médecins spécialistes des autres provinces affluer au Québec ces dernières années pour profiter des salaires relativement élevés de la belle province.  Au moins, le bilan migratoire du Québec devrait s'améliorer.  
+Demeurons tout de même ouverts à l'argument:  si les médecins sont si sensibles aux écarts salariaux, on devrait voir les médecins spécialistes des autres provinces affluer au Québec ces dernières années pour profiter des salaires relativement élevés de la belle province.  Les expatriés devraient aussi revenir chez eux.  Le bilan migratoire du Québec devrait s'améliorer.  
 
 Ce court article investigue donc la relation entre l'écart salarial des médecins spécialistes du Québec et leur comportement migratoire interprovincial.
 
 
-
-Disclaimer:  J'ai écris cet article en 3 heures après avoir couché mes enfants.  Je ne connais pas le domaine pantoute et des erreurs d'interprétations sont hautement probables.  
+*Disclaimer:  J'ai écris cet article en 3 heures après avoir couché mes enfants.  Je ne connais pas le domaine pantoute et des erreurs d'interprétations sont hautement probables.*  
 
 # Données  
 
@@ -63,9 +62,9 @@ library(janitor)
 On peut voir que la rémunération des médecins québécois a effectué un grand rattrapage  depuis 2009 autant pour les médecins généralistes que les spécialistes, et ce selon les deux types de paiements.  Les médecins spécialistes sont maintenant mieux payés au Québec que les Ontariens selon les 2 mesures, alors que les généralistes ne sont mieux payés que selon la méthode équivalent temps plein, jugée supérieure.  
 
 
-```{r}
+```{r, fig.height= 10}
         
-# Base de données nationale sur les médecins (BDNM), 2017-2018 : tableaux de données (ZIP)
+# Base de données nationale sur les médecins (BDNM), 2017-2018 : tableaux de données (ZIP)    
 #https://www.cihi.ca/sites/default/files/document/bdnm-tableaux-de-donnees-2018-fr.zip
 
 #download.file("https://www.cihi.ca/sites/default/files/document/bdnm-tableaux-de-donnees-2018-fr.zip",
@@ -122,7 +121,7 @@ bdnm %>%
   facet_grid( indicateur ~ specialite) + 
   theme(axis.text.y = element_text(size=12)) + # texte de l'axe des x
   theme(strip.text.x = element_text(size = 12 )) +  # texte des facets titles
-  theme(strip.text.y = element_text(size = 8 )) +  # texte des facets titles
+  theme(strip.text.y = element_text(size = 10 )) +  # texte des facets titles
    # geom_hline(yintercept=1, linetype="dashed", color = "gray90") +
   theme(legend.position="bottom") + 
   geom_line() + 
