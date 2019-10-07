@@ -1,0 +1,279 @@
+---
+title: Non, les médecins spécialistes ne quitteront pas les Québec si la CAQ réduit leurs salaires
+author: Simon
+date: '2019-10-06'
+slug: remuneration-medecins
+categories:
+  - R
+tags: []
+keywords:
+  - tech
+thumbnailImage: "/post/2019-10-06-remuneration-medecins_files/bilan_migratoire.png" 
+thumbnailImagePosition: left    
+---
+
+
+```{r setup, include =F, echo =F}
+#
+# TODO : valider ceci : Chunk options must be written in one line; no line breaks are allowed inside chunk options;
+# https://yihui.name/knitr/options/
+knitr::opts_chunk$set(echo = FALSE, 
+                      collapse = FALSE,
+                      warning = FALSE,
+                      error = FALSE,
+                      message = FALSE,
+                      fig.align= "center",
+                      fig.width = 10,
+                      highlight = TRUE,
+                      cache = FALSE,
+                      cache.lazy = FALSE) # fixes long vecto rnot supported quand on cache des gros éléments https://stackoverflow.com/questions/39417003/long-vectors-not-supported-yet-error-in-rmd-but-not-in-r-script
+```
+
+Diane Francoeur, la présidente de la Fédération des médecins spécialistes du Québec a récemment agité l'[épouvantail de l'exode des médecins spécialistes](https://www.journaldequebec.com/2019/10/02/la-caq-veut-baisser-davantage-le-salaire-des-medecins-specialistes) comme argument contre le projet de la CAQ de réduire la rémunération des médecins spécialistes du Québec.     
+
+Ça m'a mis de mauvaise humeur.  J'ai un grand respect pour les médecins, mais leurs représentants ont la fâcheuse manie de dire n'importe quoi.  Si un écart salarial de  9 % était suffisant pour générer de grands flux migratoires, les régions du Québec seraient déjà désertes.  Les gens ne se déracinent pas de leurs racines familiales et sociales pour quelques dollars, surtout quand ils ne crèvent pas de faim comme les médecins.
+
+Demeurons tout de même curieux:  si les médecins sont sensibles aux écarts salariaux, on devrait voir les médecins spécialistes des autres provinces affluer au Québec ces dernières années pour profiter des salaires relativement élevés de la belle province.  Au moins, le bilan migratoire du Québec devrait s'améliorer.  
+
+Ce court article investigue donc la relation entre l'écart salarial des médecins spécialistes du Québec et leur comportement migratoire interprovincial.
+
+
+
+Disclaimer:  J'ai écris cet article en 3 heures après avoir couché mes enfants.  Je ne connais pas le domaine pantoute et des erreurs d'interprétations sont hautement probables.  
+
+# Données  
+
+J'ai utilisé deux bases de données de l'Institut canadien sur la santé:  
+
+* La [Base de données nationale sur les médecins](https://www.cihi.ca/sites/default/files/document/bdnm-tableaux-de-donnees-2018-fr.zip) (BDNM), 2017-2018 : tableaux de données (ZIP) pour les salaires depuis 2009.  
+* La [Base de données médicales Scott’s](https://secure.cihi.ca/estore/productSeries.htm?locale=fr&pc=PCC34) (BDMS), 2017-2018 : tableaux de données (ZIP) pour les flux migratoires depuis 1969.  
+
+Il existe plusieurs façons de comptabiliser la rémunération des médecins.  Les plus communes sont le "Paiement clinique brut moyen" et le "Paiement moyen par médecin équivalent temps plein".  La seconde est jugée meilleure, mais n'est disponible que depuis 2014.   Pour une explication des deux types de paiements, voir l'[article d'Alain Dubuc de septembre 2019](https://www.institutduquebec.ca/docs/default-source/default-document-library/idq---m%C3%A9decins.pdf)
+
+```{r, include= F}
+
+library(tidyverse)
+library(readxl)
+library(janitor)
+
+```
+
+# Résultats  
+
+On peut voir que la rémunération des médecins québécois a effectué un grand rattrapage  depuis 2009 autant pour les médecins généralistes que les spécialistes, et ce selon les deux types de paiements.  Les médecins spécialistes sont maintenant mieux payés au Québec que les Ontariens selon les 2 mesures, alors que les généralistes ne sont mieux payés que selon la méthode équivalent temps plein, jugée supérieure.  
+
+
+```{r}
+        
+# Base de données nationale sur les médecins (BDNM), 2017-2018 : tableaux de données (ZIP)
+#https://www.cihi.ca/sites/default/files/document/bdnm-tableaux-de-donnees-2018-fr.zip
+
+#download.file("https://www.cihi.ca/sites/default/files/document/bdnm-tableaux-de-donnees-2018-fr.zip",
+               #destfile = here::here("content/post/data/bdnm-tableaux-de-donnees-2018-fr.zip")
+#)
+
+
+mysheet <- here::here("content/post/data", "BDNM-paiements-données-historiques-2018.xlsx")
+#excel_sheets(mysheet)
+
+
+bdnm  <- readxl::read_excel(mysheet,
+                             sheet= "1. Indicateurs, paiements",
+                             skip = 3,
+                             #n_max = 100000,
+                             guess_max = 100000,
+                             na = c('—', "s.o.", "ND", "*", "**")) %>%
+  janitor::clean_names() %>%
+  mutate(annee = as.integer(stringr::str_sub(exercice,1,4))#,
+         #paiement = round(as.numeric(paiement))
+         )
+
+bdnm <- bdnm %>%
+  mutate(province = 
+           factor(
+             case_when(
+             province_ou_territoire == "Qc" ~ "Québec",
+             province_ou_territoire == "Ont." ~ "Ontario",
+             province_ou_territoire == "Man." ~ "Manitoba",
+             province_ou_territoire == "Sask." ~ "Saskatchewan",
+             province_ou_territoire == "Alb." ~ "Alberta",
+             province_ou_territoire == "Yn" ~ "Yukon",
+             province_ou_territoire == "Nun." ~ "Nunavut",
+             province_ou_territoire == "Total" ~ "Canada",
+             TRUE ~ province_ou_territoire)
+           ) %>%
+           fct_relevel("T.-N.-L.", "Î.-P.-É.", "N.-É.", "N.-B.", "Québec", "Ontario", "Manitoba", "Saskatchewan", "Alberta", "C.-B.", "Yukon", "T.N.-O.", "Nunavut", "Canada"    ),
+         specialite = 
+           factor(specialite) %>%
+           fct_relevel("Total des médecins", "Médecine familiale", "Total des spécialistes")
+  )
+
+bdnm %>% 
+  filter(province %in% c("Québec", "Ontario", "Canada"),
+         specialite %in% c("Total des spécialistes", 	"Total des médecins", "Médecine familiale")
+         ) %>% 
+  
+  filter(indicateur %in% c("Paiement moyen par médecin équivalent temps plein", "Paiement clinique brut moyen")) %>%
+  ggplot(aes(x=annee, y= paiement, color= province)) +
+  cowplot::theme_cowplot() + 
+  ggthemes::scale_color_colorblind() +
+  scale_x_continuous(breaks = scales::pretty_breaks())+ 
+  scale_y_continuous(breaks = scales::pretty_breaks())+ 
+  facet_grid( indicateur ~ specialite) + 
+  theme(axis.text.y = element_text(size=12)) + # texte de l'axe des x
+  theme(strip.text.x = element_text(size = 12 )) +  # texte des facets titles
+  theme(strip.text.y = element_text(size = 8 )) +  # texte des facets titles
+   # geom_hline(yintercept=1, linetype="dashed", color = "gray90") +
+  theme(legend.position="bottom") + 
+  geom_line() + 
+  geom_point() + 
+    labs(
+     title= "La rémunération des médecins Québécois a augmenté plus rapidement que l'Ontario en 2017-2018 \n selon les deux mesures de paiement",
+     x = "Année",
+     y= "Paiement ($)",
+     caption="Source:  Base de données nationale sur les médecins (BDNM), 2017-2018 : tableaux de données (ZIP)")
+```
+
+
+Est-ce que ce grand rattrapage a engendré un retour des médecins au bercail?  Que nenni!  On peut voir que le bilan migratoire des spécialistes s'em empiré depuis 2009, la pire année état justement la dernière année.    
+
+Conclusion?  Les médecins spécialistes ne sont pas très sensibles à l'écart salarial, ou bien les autres conditions de travail du système médical québécois se sont tellement détériorées en 10 ans que cette hausse de salaire n'a pas pu freiner l'exode.  
+
+
+
+```{r}
+# Base de données médicales Scott’s (BDMS), 2017-2018 : tableaux de données (ZIP)
+#download.file("https://secure.cihi.ca/free_products/bdms-tableaux-de-donnees-2018-fr.zip",
+#               destfile = here::here("content/post/data/bdms-tableaux-de-donnees-2018-fr.zip")
+#)
+# unzip outside R because R doesnt unsderstand french encoding of filename.
+
+mysheet <- here::here("content/post/data", "BDMS-tableaux-de-données-historiques-2018.xlsx")
+
+#excel_sheets(mysheet)
+
+bdms  <- readxl::read_excel(here::here("content/post/data", "BDMS-tableaux-de-données-historiques-2018.xlsx"),
+                             sheet= "Main-d’oeuvre des médecins",
+                             skip = 2,
+                             n_max = 1000000,
+                             guess_max = 1000000,
+                             na = c('—', "s.o."))%>%
+  janitor::clean_names()
+
+
+bdms <- bdms %>%
+  mutate(province = 
+           factor(
+             case_when(
+             province_ou_territoire == "Qc" ~ "Québec",
+             province_ou_territoire == "Ont." ~ "Ontario",
+             province_ou_territoire == "Man." ~ "Manitoba",
+             province_ou_territoire == "Sask." ~ "Saskatchewan",
+             province_ou_territoire == "Alb." ~ "Alberta",
+             province_ou_territoire == "Yn" ~ "Yukon",
+             province_ou_territoire == "Nun." ~ "Nunavut",
+             province_ou_territoire == "Total" ~ "Canada",
+             TRUE ~ province_ou_territoire)
+           ) %>%
+           fct_relevel("T.-N.-L.", "Î.-P.-É.", "N.-É.", "N.-B.", "Québec", "Ontario", "Manitoba", "Saskatchewan", "Alberta", "C.-B.", "Yukon", "T.N.-O.", "Nunavut", "Canada"    ),
+         specialite = 
+           factor(specialite) %>%
+           fct_relevel("Tous les médecins", "Médecine familiale", "Tous les spécialistes")
+  ) %>% 
+  filter(  (annee >= 1969 & province != "Nunavut") | # pas de données de migration en 1969
+           (annee >= 2000 & province == "Nunavut") # migration 1999 du nunavut est NA
+             )  %>%
+  filter(province_ou_territoire == region_sanitaire  | is.na(region_sanitaire)) # on droppe les sous-régions des provinces.  elle n'existent pas au début (elles sont alors NA)
+  
+
+
+
+
+bdms %>%
+  select(annee,
+         specialite,
+         region_sanitaire,
+         province,
+         province_ou_territoire,
+         nombre_de_medecins,
+         nombre_de_medecins_rentres_de_l_etranger,
+         nombre_de_medecins_partis_a_l_etranger,
+         migration_nette_entre_les_provinces_et_territoires
+  ) %>%
+  filter(specialite %in%  c("Tous les médecins", "Médecine familiale", "Tous les spécialistes"),
+         province %in% c("Québec", "Ontario")
+         ) %>%
+  filter(annee >= 2009) %>% 
+  ggplot(aes(x= annee, y = migration_nette_entre_les_provinces_et_territoires, color = province))  + 
+  cowplot::theme_cowplot() + 
+  ggthemes::scale_color_colorblind() +
+  scale_x_continuous(breaks = scales::pretty_breaks())+ 
+  scale_y_continuous(breaks = scales::pretty_breaks())+ 
+  facet_wrap( ~ specialite) + 
+  theme(axis.text.y = element_text(size=12)) + # texte de l'axe des x
+  theme(strip.text.x = element_text(size = 12 )) +  # texte des facets titles
+  theme(strip.text.y = element_text(size = 12 )) +  # texte des facets titles
+  geom_hline(yintercept=0, linetype="dashed", color = "gray90") +
+  theme(legend.position="bottom") +
+  geom_line() +
+    labs(
+     title= "Le bilan migratoire du Québec s'est détérioré malgré l'amélioration relative des salaires",
+     x = "Année",
+     y= "Migration nette",
+     caption="Source: Base de données médicales Scott’s (BDMS), 2017-2018 : tableaux de données (ZIP)")
+
+  
+  
+  
+  
+
+  
+```
+
+
+# Annexe
+
+Tant qu'à l'avoir, voici le bilan migratoire des 50 dernières années
+
+```{r}
+
+bdms %>%
+  select(annee,
+         specialite,
+         region_sanitaire,
+         province,
+         province_ou_territoire,
+         nombre_de_medecins,
+         nombre_de_medecins_rentres_de_l_etranger,
+         nombre_de_medecins_partis_a_l_etranger,
+         migration_nette_entre_les_provinces_et_territoires
+  ) %>%
+  filter(specialite %in%  c("Tous les médecins", "Médecine familiale", "Tous les spécialistes"),
+         province %in% c("Québec", "Ontario")
+         ) %>%
+  ggplot(aes(x= annee, y = migration_nette_entre_les_provinces_et_territoires, color = province))  + 
+  cowplot::theme_cowplot() + 
+  ggthemes::scale_color_colorblind() +
+  scale_x_continuous(breaks = scales::pretty_breaks())+ 
+  scale_y_continuous(breaks = scales::pretty_breaks())+ 
+  facet_wrap( ~ specialite) + 
+  theme(axis.text.y = element_text(size=12)) + # texte de l'axe des x
+  theme(strip.text.x = element_text(size = 12 )) +  # texte des facets titles
+  theme(strip.text.y = element_text(size = 12 )) +  # texte des facets titles
+  geom_hline(yintercept=0, linetype="dashed", color = "gray90") +
+  theme(legend.position="bottom") +
+  geom_line() +
+    labs(
+     title= "Le bilan migratoire du Québec s'est détérioré malgré l'amélioration relative des salaires",
+     x = "Année",
+     y= "Migration nette",
+     caption="Source: Base de données médicales Scott’s (BDMS), 2017-2018 : tableaux de données (ZIP)")
+
+  
+  
+  
+  
+
+  
+```
+
