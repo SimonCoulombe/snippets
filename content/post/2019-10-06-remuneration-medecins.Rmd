@@ -275,4 +275,104 @@ bdms %>%
 
   
 ```
+# Annexe 2 - Quelle université génène les médecins les plus casaniers?   
+
+
+```{r}
+z <- bdms %>% 
+  filter(specialite %in%  c("Tous les médecins", "Médecine familiale", "Tous les spécialistes")) %>%
+  select(annee, province, specialite,starts_with("universite_d_obtention_du_doctorat_en_medecine")) %>%
+  gather(key=key, value= value, starts_with("universite_d_obtention_du_doctorat_en_medecine")) %>%
+  mutate( key = str_remove(key, "universite_d_obtention_du_doctorat_en_medecine_" )) %>%
+  filter(province != "Canada") %>%
+  filter(key != "inconnue") %>%
+  mutate(universite = 
+           factor(
+             case_when(
+             key == "universite_memorial" ~ "Memorial",
+             key == "universite_dalhousie" ~ "Dalhousie",
+             key == "universite_de_montreal" ~ "Montréal",
+             key == "universite_de_sherbrooke" ~ "Sherbrooke",
+             key == "universite_laval" ~ "Laval",
+             key == "universite_mc_gill" ~ "McGill",
+             key == "northern_ontario_school_of_medicine" ~ "Northern Ontario School of Medicine",
+             key == "universite_d_ottawa" ~ "Ottawa",
+             key == "universite_de_toronto" ~ "Toronto",
+             key == "universite_mc_master" ~ "McMaster",
+             key == "universite_queen_s" ~ "Queen's",
+             key == "universite_western_ontario" ~ "Western Ontario",
+             key == "universite_du_manitoba" ~ "Manitoba",
+             key == "universite_de_la_saskatchewan" ~ "Saskatchewan",
+             key == "universite_de_calgary" ~ "Calgary",
+             key == "universite_de_l_alberta" ~ "Alberta",
+             key == "universite_de_la_colombie_britannique" ~ "Colombie-Britannique",
+             TRUE ~ key)
+           ) %>%
+           fct_relevel(
+             "Memorial",
+             "Dalhousie",
+             "Montréal",
+             "Sherbrooke",
+             "Laval",
+             "McGill",
+             "Northern Ontario School of Medicine",
+             "Ottawa",
+             "Toronto",
+             "McMaster",
+             "Queen's",
+             "Western Ontario",
+             "Manitoba",
+             "Saskatchewan",
+             "Calgary",
+             "Alberta",
+             "Colombie-Britannique",
+             
+           )
+         ) %>%
+  select(-key)
+
+z %>% filter(annee == max(annee), specialite == "Tous les médecins") %>%
+  group_by(annee, specialite, universite) %>%
+  mutate (pct = 100*value / sum(value),
+          total_canada = sum(value))  %>%
+  arrange(desc(pct)) %>%
+  slice(1:1) %>%
+  ungroup() %>%
+  arrange(universite)  %>%
+  select(universite, province, medecins = total_canada, pct_dans_la_province = pct) %>%
+    knitr::kable(caption = "Nombre de médecins selon l'université d'obtention du doctorat et pourcentage pratiquant dans la province d'obtention",
+               digits=c(0,0,0,1),
+               format.args = list(big.mark = " ")
+               )
+```
+
+```{r, fig.width = 10}
+
+
+z %>% filter(annee == max(annee), specialite == "Tous les médecins") %>%
+  group_by(annee, specialite, universite) %>%
+  mutate (pct = value / sum(value),
+          total_canada = sum(value))  %>%
+  arrange(desc(pct)) %>%
+  slice(1:1) %>%
+  ungroup() %>%
+  arrange(universite) %>%
+  ggplot(aes(x=pct, y =fct_reorder(universite, pct)))+
+  geom_point()+ 
+  cowplot::theme_cowplot() + 
+  ggthemes::scale_color_colorblind() +
+  scale_x_continuous(labels = scales::percent_format(accuracy = 1), 
+                     breaks = scales::pretty_breaks()
+                     )+ 
+  theme(axis.text.y = element_text(size=12)) + # texte de l'axe des x
+  theme(legend.position="bottom") + 
+    labs(
+     title= "Les gradués québécois demeurent plus dans leur province \n que ceux des autres provinces",
+     subtitle = "(McGill perd plus de la moitié des médecins)",
+     x = "Pourcentage des médecins pratiquant dans la province d'obtention du doctorat en 2018",
+     y= "Université",
+     caption="Source: Base de données médicales Scott’s (BDMS), 2017-2018 : tableaux de données (ZIP)")
+
+  
+```
 
