@@ -376,3 +376,52 @@ z %>% filter(annee == max(annee), specialite == "Tous les médecins") %>%
   
 ```
 
+Mais où vont les gradués de McGill?
+
+```{r}
+
+z %>% filter(annee == max(annee), specialite == "Tous les médecins", universite == "McGill") %>%
+  group_by(annee, specialite, universite) %>%
+  mutate (pct = 100*value / sum(value),
+          total_canada = sum(value))  %>%
+  arrange(desc(pct)) %>%
+  ungroup() %>%
+  arrange(universite)  %>%
+  select(universite, province, medecins = total_canada, pct_dans_la_province = pct) %>%
+    knitr::kable(caption = "Mais où sont les gradués de McGill?",
+               digits=c(0,0,0,1),
+               format.args = list(big.mark = " ")
+               )
+```
+
+
+Ok, mais est-ce que c'est juste un "honnête échange" où on donne des gradués de McGill vs des gradués de Toronto ou autre ROC?
+
+```{r}
+
+province_univ <- z %>% filter(annee == max(annee), specialite == "Tous les médecins") %>%
+  group_by(annee, specialite, universite) %>%
+  mutate (pct = 100*value / sum(value),
+          total_canada = sum(value))  %>%
+  arrange(desc(pct)) %>%
+  slice(1:1) %>%
+  select(universite, province_origine = province)
+
+z %>% 
+  filter(annee == max(annee), specialite == "Tous les médecins") %>%
+  left_join(province_univ) %>%
+  rename(province_actuelle = province)  %>%
+  mutate(migrant = province_actuelle != province_origine) %>%
+  filter(migrant == TRUE) %>%
+  filter(province_actuelle == "Québec" | province_origine == "Québec" ) %>%
+  group_by(province_origine, province_actuelle) %>% 
+  summarise(medcins = sum(value)) %>%
+  arrange( desc(province_origine == "Québec") ) %>%
+     knitr::kable(caption = "Nombre de médecins ayant gradué au Québec pratiquant dans une autre province (et vice-versa) ",
+               digits=c(0,0,0,1),
+               format.args = list(big.mark = " ")
+               )
+  
+```
+
+
