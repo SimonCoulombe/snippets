@@ -1,0 +1,385 @@
+---
+title: Do photo radars reduce crash frequency? (or are they just cash cows?)
+author: simon
+date: '2019-10-19'
+slug: photo-radar
+categories:
+  - R
+  - opendata
+tags: []
+keywords:
+  - tech
+thumbnailImage: "/post/2019-10-19-do-photo-radars-reduce-nearby-crashes_files/radar.png" 
+thumbnailImagePosition: left    
+
+---
+
+
+```{r setup, include =F, echo =F}
+#
+# TODO : valider ceci : Chunk options must be written in one line; no line breaks are allowed inside chunk options;
+# https://yihui.name/knitr/options/
+knitr::opts_chunk$set(echo = FALSE, 
+                      collapse = FALSE,
+                      warning = FALSE,
+                      error = FALSE,
+                      message = FALSE,
+                      fig.align= "center",
+                      fig.width = 10,
+                      highlight = TRUE,
+                      cache = FALSE,
+                      cache.lazy = FALSE) # fixes long vecto rnot supported quand on cache des gros éléments https://stackoverflow.com/questions/39417003/long-vectors-not-supported-yet-error-in-rmd-but-not-in-r-script
+```
+
+
+```{r, include = F}
+library(leaflet)
+library(leaflet.extras)
+library(sf)
+library(mapview)
+library(tidyverse)
+library(lubridate)
+library(purrr)
+
+
+```
+
+```{r, eval= F, include= F}
+download.file("http://donnees.ville.montreal.qc.ca/dataset/cd722e22-376b-4b89-9bc2-7c7ab317ef6b/resource/5a81f6c5-e3e7-4c0e-9ccf-a4ba2cab77ba/download/accidents_2012_2018.zip",
+              destfile =  here::here("content/post/data/accidents_2012_2018.zip")
+)
+
+download.file("https://ws.mapserver.transports.gouv.qc.ca/swtq?service=wfs&version=2.0.0&request=getfeature&typename=ms:radars_photos&outputformat=shp&srsname=EPSG:4326",
+              destfile = here::here("content/post/data/resultat_TQ.zip")
+)
+
+
+utils::unzip(here::here("content/post/data/accidents_2012_2018.zip"), exdir = here::here("content/post/data"))
+
+utils::unzip(here::here("content/post/data/resultat_TQ.zip"),  exdir = here::here("content/post/data"))
+```
+
+```{r, include = F}
+
+accidents <- read_sf(here::here("content/post/data/accidents_2012_2018/accidents_2012_2018.shp")) %>%
+  sf::st_transform( crs = 4326) %>% # convert to a projection that works with leaflet 
+  filter(!is.na(LOC_LONG)) %>%  # drop crashes with no latitude / longitude
+  mutate(year = lubridate::year(DT_ACCDN),  # create  month, quarter and year of crashevariables
+         month = lubridate::floor_date(DT_ACCDN, unit = "month"),
+         quarter = lubridate::floor_date(DT_ACCDN, unit = "quarter")
+  )
+
+
+radars <- read_sf(here::here("content/post/data/radars_photos.shp")) %>% 
+  mutate(date_debut = as_date(lubridate::ymd_hm(dateDebutS)), #  as_date is required to convert POSIXct to date format (plays nicer with ggplot)
+         month_debut = lubridate::floor_date(date_debut, unit = "month"),
+         quarter_debut = lubridate::floor_date(date_debut, unit = "quarter"),
+  ) 
+
+
+radars <- radars %>%
+  filter(region == "Montréal"  ,  # radars in montreal
+         typeAppare %in% c("Radar photo fixe", 
+                           "Appareil de surveillance au feu rouge",
+                           "Radar photo fixe et surveillance au feu rouge"))   # drop mobile radars because we don't know exactly where  mobile radars are they are . We are left with 5 / 12 radars in Montreal
+
+
+
+# a sequence of all quarters and all radars * quarters is required for graphing time series
+all_quarters <- tibble(quarter =  seq( lubridate::floor_date( min(  c(accidents$DT_ACCDN), radars$date_debut ), unit = "quarter"),
+                                       lubridate::floor_date( max(  c(accidents$DT_ACCDN), radars$date_debut ), unit = "quarter"),
+                                       by ="quarters")
+)
+
+all_radars_quarters <- crossing( radars %>% st_set_geometry(NULL) %>% select(descriptio, quarter_debut),
+                                 all_quarters)
+
+```
+
+I just got a speeding ticket by the mail.  I'm pissed off, mostly at myself.  
+
+That being said, I now have two questions regarding the relevance and efficiency of photo radars:  
+
+* Relevance:  Are photo radars optimally located in areas with lots of crashes?
+* Efficiency: Do photo radars reduce crash frequency?  
+
+
+Let's figure this out by look at some #opendata from Montreal.  
+
+
+```{r, echo=F, eval=F, include=F}
+
+## linestring d'endroit des effets prévus.. pas utilisé finalement.
+coords1  <- gepaf::decodePolyline(enc_polyline = "ixttG|me`MhAaDn@gE?_Hu@yD" )
+
+ligne1 <- st_as_sf(coords1, coords = c("lon", "lat"))  %>%# get points
+  summarize(., do_union = FALSE) %>% # convert to a single line
+  st_cast("LINESTRING") %>%
+  st_set_crs(4326) %>%
+  mutate(descriptio = "Chemin McDougall en direction est, entre Le Boulevard et l'avenue Cedar")
+
+
+coords2  <- gepaf::decodePolyline(enc_polyline = "c~ftGp_p`Mu\\_LkObF{@GgWy@aVr@" )
+
+ligne2 <- st_as_sf(coords2, coords = c("lon", "lat"))  %>%# get points
+  summarize(., do_union = FALSE) %>% # convert to a single line
+  st_cast("LINESTRING") %>%
+  st_set_crs(4326) %>%
+  mutate(descriptio = "Route 138 en direction est, entre le pont Mercier et l'autoroute 20")
+
+coords3  <- gepaf::decodePolyline(enc_polyline = "up{tGnj{_MxAlBjAfA" )
+
+ligne3 <- st_as_sf(coords3, coords = c("lon", "lat"))  %>%# get points
+  summarize(., do_union = FALSE) %>% # convert to a single line
+  st_cast("LINESTRING") %>%
+  st_set_crs(4326) %>%
+  mutate(descriptio = "Rue Sainte-Catherine Est, à l'intersection de la rue D'Iberville")
+
+
+
+coords4  <- gepaf::decodePolyline(enc_polyline = "azttGlvp`MoCjF" )
+
+ligne4 <- st_as_sf(coords4, coords = c("lon", "lat"))  %>%# get points
+  summarize(., do_union = FALSE) %>% # convert to a single line
+  st_cast("LINESTRING") %>%
+  st_set_crs(4326) %>%
+  mutate(descriptio = "Boulevard Décarie en direction nord, à l'intersection de la rue Paré")
+
+coords5  <- gepaf::decodePolyline(enc_polyline = "wo`uGp}s`MxC{OlE}S" )
+
+ligne5 <- st_as_sf(coords5, coords = c("lon", "lat"))  %>%# get points
+  summarize(., do_union = FALSE) %>% # convert to a single line
+  st_cast("LINESTRING") %>%
+  st_set_crs(4326) %>%
+  mutate(descriptio = "Rue Berri, à l'intersection du boulevard Henri-Bourassa Est")
+
+
+radar_effect_area <- sf::st_as_sf(data.table::rbindlist( list(ligne1, ligne2, ligne3, ligne4, ligne5))) 
+```
+
+*Disclaimer:  I am not a domain expert, I didnt even bother to do a litterature review.  I'm just a pissed off dude killing an evening while the kids are asleep.*
+
+# The data   
+
+We combine two sources:  
+
+* The crash data for the years 2012-2018 comes from the [the city of Montreal's open data portal](http://donnees.ville.montreal.qc.ca/dataset/collisions-routieres).  
+* The radar location and installation dates come from  [Données Québec](https://www.donneesquebec.ca/recherche/fr/dataset/radar-photo).
+
+# The code  
+
+As usual, the code is on  [my github](https://github.com/SimonCoulombe/snippets).
+
+The most useful code snippet I will come back here for is the combination of split() and map() to perform rowwise computation on sf objects.  I use it to find the crashes that happened within 100 meters of a photo radar:  
+
+```{r, echo = T, eval = F, include = T}
+get_accidents_proches <- function(radar){
+  distances <- as.numeric(st_distance(radar, accidents))
+  accidents_proches  <- distances<100
+  if(sum(accidents_proches) > 0){
+    data <- accidents
+    data$distance_du_radar <- distances
+    data[accidents_proches,]
+  } else{NULL}
+}
+
+
+mutate(accidents_proches = split(., 1:nrow(.))  %>% 
+         map(get_accidents_proches)
+)
+
+```
+
+I also like this function from data.table that allows me to bind the rows of `sf`data.frames:   
+```{r, echo = T, eval = F, include = T}
+sf::st_as_sf(data.table::rbindlist(pouet$accidents_proches))
+```
+
+
+The following code is used to wrap the text in the facet titles : 
+
+```{r, echo = T, eval = F, include = T}
+facet_wrap(~ descriptio, labeller = label_wrap_gen(width = 30))
+```
+
+# The results   
+
+
+## Relevance  
+
+Here is a heatmap of the 171 260 crashes that occurred in Montreal between 2012 and 2018.  The camera markers show the locations of the 5 fixed photo radars.    I believe we can agree that some locations with tons of accidents were ignored.   
+
+```{r}
+# heatmap des accidents ----
+
+
+IconSet <- awesomeIconList(
+  camera   = makeAwesomeIcon(icon= 'camera', markerColor = 'red', iconColor = 'white', library = "fa")
+)
+
+accidents %>%
+  leaflet(options = leafletOptions(minZoom = 11, maxZoom = 16))%>%   
+  addProviderTiles(providers$Stamen.TonerLines) %>%
+  addProviderTiles(providers$Stamen.TonerLabels) %>%
+  addHeatmap(blur = 2, max = 40, radius = 3) %>%
+  addAwesomeMarkers(data =radars %>% filter(region == "Montréal") %>% mutate(type = factor("camera")),
+                    icon = ~IconSet[type], popup = ~paste0(descriptio, "<br>", typeAppare) 
+  )
+```
+
+
+To assess the relevance of a location choice and the crash-reducing efficiency of the radars, we look at the number of number of crashes  within a hundred meters radius  of the location.  This means that we sometime count accidents that occured on different road than the one the radar is on.  I couldnt probably improve this result by drawing  "road segments where I think the radar will have an impact",but this would still be noisy since  the radar is only effective in one direction.
+
+Here is a table showing the number of crashes  near the location of each photo radar between 2012 and 2018, followed by a map displaying the nearby crashes.  
+```{r}
+
+## graph du nombre quarterly d'accidents proches par radar ----
+get_accidents_proches <- function(radar){
+  distances <- as.numeric(st_distance(radar, accidents))
+  accidents_proches  <- distances< 100
+  if(sum(accidents_proches) > 0){
+    data <- accidents
+    data$distance_du_radar <- distances
+    data[accidents_proches,]
+  } else{NULL}
+}
+
+#Combiner une list de sf avec data.table https://github.com/r-spatial/sf/issues/798
+pouet <- radars %>%
+  mutate(accidents_proches = 
+           split(., 1:nrow(.)) %>% 
+           map(get_accidents_proches)
+           )
+
+gaa <- pouet %>% unnest()
+
+
+gaa %>% 
+  st_set_geometry(NULL) %>% 
+  group_by(descriptio, typeAppare, date_debut) %>% 
+  tally() %>% 
+  arrange(-n)%>%
+  knitr::kable(caption = "Number of crashes within 100 meters of each photo radar between 2012 and 2018",
+               digits=c(0,0,0,1),
+               format.args = list(big.mark = " ")
+  )
+
+
+
+```
+  
+  
+
+
+```{r}
+######  map des accidents proches ----
+zz <- sf::st_as_sf(data.table::rbindlist(pouet$accidents_proches))
+
+zz  %>%
+  leaflet()%>%   
+  addProviderTiles(providers$Stamen.TonerLines) %>%
+  addProviderTiles(providers$Stamen.TonerLabels) %>%
+  addMarkers(clusterOptions =
+               markerClusterOptions(spiderfyOnMaxZoom= TRUE),
+             label = ~ paste0(DT_ACCDN, " -  ", RUE_ACCDN, " /  ", ACCDN_PRES, " - "   ,GRAVITE ) )  %>%
+  addAwesomeMarkers(data =radars %>%  mutate(type = factor("camera")),
+                    icon = ~IconSet[type], popup = ~paste0(descriptio, " <br>  ", typeAppare)) 
+```  
+
+The three "red light" radars appear important.  The Décarie radar has 302 "nearby crashes", and the map confirms that most of them happened at the intersection.
+The same is try for the "Ste-Catherine" red-light radar and the "Berri" red-light radar.  
+
+
+The speed-limit radars (McDougall and Route 138) appear quite pointless, with few nearby crashes (9 and 21)  between 2012 and 2018.  Worse yet, the map shows these nearby crashes actually happened on parallel roads and couldnt have been influenced by the radars.
+
+**The two speed limit radars (Chemin McDougall and Route 138) are cash cows, since absolutely no crash occured on the actual roads between 2012 and 2018.**
+
+
+
+## Efficiency  
+
+3 of the 5 radars were installed before the beginning of the crash data.  We  can use use the remaining  two radars to evaluate the efficiency of the radars in reducing the frequency of crashes.  The graph and the table  below show that in both cases the number of crashes didnt go down.  
+
+For the Berri red-light radar, the number of crashes within 100 meters of the intersection was 13 in the year before and after the installation of the radar.
+For the cash-cow Route 138 speed limit radar, the number of nearby crashes increased, but is not relevant since these crashes all happened on parallel roads.  The number of nearby crashes on the actual road remained constant at.. 0.
+
+
+```{r}
+
+all_quarterly_data <- all_radars_quarters %>% left_join(
+  gaa %>% 
+    st_set_geometry(NULL) %>% 
+    group_by(descriptio, quarter) %>% 
+    tally() %>%
+    ungroup()
+) %>%
+  mutate(
+    n = if_else(is.na(n), as.integer(0), n),
+    radar_on = (quarter>= quarter_debut),
+    time_diff = as.numeric(quarter - quarter_debut)
+  ) 
+
+
+
+all_quarterly_data %>%
+  ggplot(aes(x= quarter, y = n, color = radar_on)) + geom_point() + 
+  facet_wrap(~ descriptio, labeller = label_wrap_gen(width = 30)) +
+  cowplot::theme_cowplot() + 
+  ggthemes::scale_color_colorblind() +
+  scale_x_date(breaks = scales::pretty_breaks())+  # pretty_break d
+  scale_y_continuous(breaks = scales::pretty_breaks())+  
+  theme(axis.text.y = element_text(size=12)) + # texte de l'axe des x
+  theme(strip.text.x = element_text(size = 12 )) +  # texte des facets titles
+  theme(strip.text.y = element_text(size = 10 )) +  # texte des facets titles
+  # geom_hline(yintercept=1, linetype="dashed", color = "gray90") +
+  theme(legend.position="bottom") + 
+  
+  labs(
+    title= "The number of crashes doesnt appear to decrease after the installation of the fixed radars",
+    x = "Quarter",
+    y= "Number of crashes",
+    caption="Source:  Portail données ouvertes Montréal - collisions routières")
+
+```
+
+
+
+
+
+```{r}
+
+##  compte accident avant apres ----
+
+one_year_before_after <- all_quarterly_data %>% 
+  filter( time_diff  <= 300, time_diff >= -366 ) %>%
+  group_by(descriptio, radar_on) %>%
+  summarise(n = sum(n),
+            count = n()) %>%
+  group_by(descriptio) %>% 
+  filter( n() == 2) %>% # besoin de observations avant et apres radar
+  ungroup() %>%
+  select(-count)
+
+one_year_before_after %>%
+  mutate(radar_on = if_else(radar_on == FALSE, "before", "after")) %>%
+  rename(radar= descriptio) %>%
+  spread(key=radar_on, value = n) %>%
+  knitr::kable(caption = "The number of crashes within 100 meters is not lower in the year following the implementation than the year before",
+               digits=c(0,0,0,1),
+               format.args = list(big.mark = " ")
+  )
+
+```
+
+# Conclusion  
+
+We don't have much data, but let's prematurely jump to the following conclusion: 
+
+* Relevance:  some of these radars are clearly meant to be used as cash cows because they are located where no crash ever happened 7 years.  Locations with frequent crashes abound: the crash database contains 171 260 crashes.  
+* Efficency:  radars do not appear to reduce the number of nearby crashes.    
+
+The goal of this post was to waste some time and hopefully launch a discussion.  So, what do you think?  Any ideas?  Please reach out on twitter @coulsim   .   cheers!
+
+
+
+
