@@ -1,0 +1,205 @@
+---
+title: Race for  a family
+author: Simon
+date: '2019-10-29'
+slug: race-for-a-family
+categories:
+  - R
+  - demography
+tags:
+  - bar_chart_race
+  - gganimate
+keywords:
+  - tech
+thumbnailImage: "/post/2019-10-29-race-for-a-family_files/fertility_qc.png" 
+thumbnailImagePosition: left    
+---
+
+
+```{r setup, include =F, echo =F}
+#
+# TODO : valider ceci : Chunk options must be written in one line; no line breaks are allowed inside chunk options;
+# https://yihui.name/knitr/options/
+knitr::opts_chunk$set(echo = FALSE, 
+                      collapse = FALSE,
+                      warning = FALSE,
+                      error = FALSE,
+                      message = FALSE,
+                      fig.align= "center",
+                      fig.width = 10,
+                      highlight = TRUE,
+                      cache = FALSE,
+                      cache.lazy = FALSE) # fixes long vecto rnot supported quand on cache des gros éléments https://stackoverflow.com/questions/39417003/long-vectors-not-supported-yet-error-in-rmd-but-not-in-r-script
+```
+
+```{r}
+library(tidyverse)
+library(readxl)
+library(janitor)
+library(gganimate)
+#devtools::install_github("thomasp85/transformr")
+library(transformr)
+```
+
+```{r, include = F}
+excel_file <-here::here("content/post/data/TauxFecondite_1921-2018.xlsx")
+
+excel_sheets(excel_file)
+
+QC <- readxl::read_excel(excel_file, sheet = "QC", skip= 78) %>%
+  janitor::clean_names() %>%
+  rename(age = annee_de_naissance) %>%
+  filter( age != "Année civile") %>%
+  mutate(age = as.integer(age)) %>%
+  filter(age <= 50)
+
+
+
+```
+
+
+```{r, include = F}
+clean_qc <- QC %>% 
+  select(age, x1911:x2002) %>%
+  gather(key = annee_de_naissance,
+         value = taux_fecondite,
+         x1911:x2002) %>%
+  mutate(annee_de_naissance = as.integer(str_replace(annee_de_naissance,"x", "")))
+
+```
+
+Hey,
+Just having some fun with gganimate and some fertility data from Statistics Canada.  
+
+
+
+# The data   
+
+* Fertility data from Statistics Canada, year 1921-2016  
+
+# The code  
+
+As usual, the code is on  [my github](https://github.com/SimonCoulombe/snippets).  It is heavily inspired by [this blog post by Michael Toth](https://www.r-bloggers.com/how-to-create-a-bar-chart-race-in-r-mapping-united-states-city-population-1790-2010/)
+
+I will come back to these snippets for everything gganimate related.  I also learned about the approx() function, which is used to interpolate the number of children for missing age values (such as 16.2, 16.4, 16.6, 16.8).
+
+```{r, echo = T, eval= F}
+interpolate <- all_data %>%
+  group_by(annee_de_naissance) %>%
+  mutate(cumulatif_fecondite = approx(age, cumulatif_fecondite, age)$y) %>%
+  ungroup()
+```
+
+# Results
+
+The first graph shows the fertility rate of each cohort of women born between 1915 and 1980 in Quebec.  Peak fertility age first decreases between the 1915 and 1940 cohorts (mothers of baby boomers)  then increases as fertility rates drop sharply.
+
+```{r}
+clean_qc  %>% 
+  filter(annee_de_naissance>= 1915, annee_de_naissance  <= 1980) %>%
+  ggplot(aes(x=age, y = taux_fecondite)) +
+  geom_line() +
+  cowplot::theme_cowplot() + 
+  ggthemes::scale_color_colorblind() +
+  scale_x_continuous(breaks = scales::pretty_breaks())+ 
+  scale_y_continuous(breaks = scales::pretty_breaks())+ 
+  theme(axis.text.y = element_text(size=12)) + # texte de l'axe des x
+  theme(strip.text.x = element_text(size = 12 )) +  # texte des facets titles
+  theme(strip.text.y = element_text(size = 12 )) +  # texte des facets titles
+  
+  labs(title = "Fertility rate of women in Quebec",
+       subtitle = 'Birth year of women: {frame_time}', 
+       x = 'Age', 
+       y = 'Fertility rate (per 1000 women)',
+       caption= "Source: Statistics Canada") +
+  transition_time(annee_de_naissance) +
+  ease_aes('linear')
+
+
+```
+
+Now let's try my first "bar chart race" to see who gets the largest family.   Women born in the 1940's have a pretty good start to their families, but they are then overtaken when they turn 20 by women born in the 1930s.  As they turn 30 year old these women are then "passed" by women born in the 1920s.   Women born in 1922 have the largest total fertility rate : 3.585 children on average.    Slow but steady wins the race!  
+
+```{r, include = F}
+cum_data <-clean_qc  %>% 
+  filter(annee_de_naissance>= 1915, annee_de_naissance  <= 1980) %>% 
+  arrange(annee_de_naissance, age) %>%
+  group_by(annee_de_naissance) %>%
+  mutate(cumulatif_fecondite = cumsum(taux_fecondite)) %>%
+  ungroup() %>%
+  group_by(age) %>%
+  arrange(desc(cumulatif_fecondite)) %>%
+  mutate(rank = row_number()) %>%
+  ungroup() %>%
+  arrange(age, rank) %>%
+  filter(age >= 16) 
+  
+annees_dans_top10 <- cum_data %>% 
+  filter(rank <= 10) %>%
+  select(annee_de_naissance) %>%
+  distinct()
+
+all_ages = data.frame(age = seq(16, 50, 0.2))
+
+all_combos = crossing(all_ages, annees_dans_top10)
+
+all_data <- all_combos %>%
+  left_join(cum_data)
+
+interpolate <- all_data %>%
+  group_by(annee_de_naissance) %>%
+  mutate(cumulatif_fecondite = approx(age, cumulatif_fecondite, age)$y) %>%
+  ungroup()
+
+graph_data <- interpolate %>%
+  group_by(age) %>%
+  arrange(-cumulatif_fecondite) %>%
+  mutate(rank = row_number() )  %>%
+  ungroup() %>%
+  filter(rank<= 10) %>%
+    mutate(
+       decade = as_factor(floor(annee_de_naissance/10 )*10),
+       annee_de_naissance = as.factor(annee_de_naissance)
+       )  
+
+p <- graph_data %>% 
+  mutate(cumulatif_fecondite = cumulatif_fecondite / 1000)  %>%
+  ggplot(aes(x= -rank, y= cumulatif_fecondite, group = annee_de_naissance ))+
+  geom_tile(aes(y = cumulatif_fecondite / 2, 
+                height = cumulatif_fecondite,
+                fill = decade), width = 0.9)+
+  geom_text(aes(label = annee_de_naissance), 
+            hjust = "right", 
+            colour = "black", 
+            fontface = "bold", 
+            nudge_y = -0.1,
+            size = 12) +
+  geom_text(aes(label = scales::comma(cumulatif_fecondite, accuracy = 0.001)), 
+            hjust = "left", 
+            nudge_y = 0.1, 
+            colour = "grey30",
+            size = 12) +
+  coord_flip(clip="off") +
+  scale_x_discrete("") +
+  scale_y_continuous("",labels=scales::comma, breaks = scales::pretty_breaks() )+
+  hrbrthemes::theme_ipsum(plot_title_size = 32, subtitle_size = 24, caption_size = 24, base_size = 24) +
+  ggthemes::scale_color_colorblind() +
+  theme(panel.grid.major.y=element_blank(),
+        panel.grid.minor.x=element_blank(),
+        plot.margin = margin(1,1,1,2,"cm"),
+        axis.text.y=element_blank()) +
+  transition_time(age) +
+  ease_aes('cubic-in-out')+
+  labs(title="Fertility rate of women in Quebec",
+       subtitle="Average number of children at age {round(frame_time,0)}",
+       caption="Source: Statistics Canada, fertility rates for years 1921-2016") + 
+  theme(legend.position="bottom") 
+
+```
+
+```{r}
+animate(p, nframes = 750, fps = 25, end_pause = 50, width = 1200, height = 900)
+#animate(p, nframes = 750, fps = 25, end_pause = 50)
+```
+
+

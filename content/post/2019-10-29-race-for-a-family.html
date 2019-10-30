@@ -1,0 +1,43 @@
+---
+title: Race for  a family
+author: Simon
+date: '2019-10-29'
+slug: race-for-a-family
+categories:
+  - R
+  - demography
+tags:
+  - bar_chart_race
+  - gganimate
+keywords:
+  - tech
+thumbnailImage: "/post/2019-10-29-race-for-a-family_files/fertility_qc.png" 
+thumbnailImagePosition: left    
+---
+
+
+
+<p>Hey,
+Just having some fun with gganimate and some fertility data from Statistics Canada.</p>
+<div id="the-data" class="section level1">
+<h1>The data</h1>
+<ul>
+<li>Fertility data from Statistics Canada, year 1921-2016</li>
+</ul>
+</div>
+<div id="the-code" class="section level1">
+<h1>The code</h1>
+<p>As usual, the code is on <a href="https://github.com/SimonCoulombe/snippets">my github</a>. It is heavily inspired by <a href="https://www.r-bloggers.com/how-to-create-a-bar-chart-race-in-r-mapping-united-states-city-population-1790-2010/">this blog post by Michael Toth</a></p>
+<p>I will come back to these snippets for everything gganimate related. I also learned about the approx() function, which is used to interpolate the number of children for missing age values (such as 16.2, 16.4, 16.6, 16.8).</p>
+<pre class="r"><code>interpolate &lt;- all_data %&gt;%
+  group_by(annee_de_naissance) %&gt;%
+  mutate(cumulatif_fecondite = approx(age, cumulatif_fecondite, age)$y) %&gt;%
+  ungroup()</code></pre>
+</div>
+<div id="results" class="section level1">
+<h1>Results</h1>
+<p>The first graph shows the fertility rate of each cohort of women born between 1915 and 1980 in Quebec. Peak fertility age first decreases between the 1915 and 1940 cohorts (mothers of baby boomers) then increases as fertility rates drop sharply.</p>
+<p><img src="/post/2019-10-29-race-for-a-family_files/figure-html/unnamed-chunk-5-1.gif" style="display: block; margin: auto;" /></p>
+<p>Now let’s try my first “bar chart race” to see who gets the largest family. Women born in the 1940’s have a pretty good start to their families, but they are then overtaken when they turn 20 by women born in the 1930s. As they turn 30 year old these women are then “passed” by women born in the 1920s. Women born in 1922 have the largest total fertility rate : 3.585 children on average. Slow but steady wins the race!</p>
+<p><img src="/post/2019-10-29-race-for-a-family_files/figure-html/unnamed-chunk-7-1.gif" style="display: block; margin: auto;" /></p>
+</div>
