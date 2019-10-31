@@ -69,17 +69,17 @@ clean_qc <- QC %>%
 ```
 
 Hey,
-Just having some fun with gganimate and some fertility data from Statistics Canada.  
 
-
+I've finally found an excuse to use the gganimate package in R to generate bar chart races!  I'm going back to one of my previous jobs, demography, and we are going to look at how the fertility of the cohorts of Quebec women born between 1915 and 1980 has evolved.  
 
 # The data   
 
-* Fertility data from Statistics Canada, year 1921-2016  
+* [Fertility data from Statistics Canada, year 1921-2016](https://github.com/SimonCoulombe/snippets/blob/master/content/post/data/TauxFecondite_1921-2018.xlsx).    
+It includes data for all provinces.  
 
 # The code  
 
-As usual, the code is on  [my github](https://github.com/SimonCoulombe/snippets).  It is heavily inspired by [this blog post by Michael Toth](https://www.r-bloggers.com/how-to-create-a-bar-chart-race-in-r-mapping-united-states-city-population-1790-2010/)
+As usual, the code is on  [my github](https://github.com/SimonCoulombe/snippets/tree/master/content/post/2019-10-29-race-for-a-family.Rmd).  It is heavily inspired by [this blog post by Michael Toth](https://www.r-bloggers.com/how-to-create-a-bar-chart-race-in-r-mapping-united-states-city-population-1790-2010/)
 
 I will come back to these snippets for everything gganimate related.  I also learned about the approx() function, which is used to interpolate the number of children for missing age values (such as 16.2, 16.4, 16.6, 16.8).
 
@@ -95,7 +95,7 @@ interpolate <- all_data %>%
 The first graph shows the fertility rate of each cohort of women born between 1915 and 1980 in Quebec.  Peak fertility age first decreases between the 1915 and 1940 cohorts (mothers of baby boomers)  then increases as fertility rates drop sharply.
 
 ```{r}
-clean_qc  %>% 
+plot1 <- clean_qc  %>% 
   filter(annee_de_naissance>= 1915, annee_de_naissance  <= 1980) %>%
   ggplot(aes(x=age, y = taux_fecondite)) +
   geom_line() +
@@ -118,6 +118,23 @@ clean_qc  %>%
 
 ```
 
+
+```{r}
+# animated_gif1 <- animate(plot1, nframes = 375, fps = 25, end_pause = 50, width = 1200, height = 900)
+# anim_save("animated_gif1.gif", animated_gif1)
+# animated_gif1
+plot1
+```
+
+```{r, echo=T, include= F}
+
+animated_mp41 <- animate(plot1, renderer = ffmpeg_renderer(),
+             nframes = 375, fps = 25, end_pause = 0, width = 1104, height = 736)
+anim_save("animated_mp41.mp4", animated_mp41)
+
+```
+
+
 Now let's try my first "bar chart race" to see who gets the largest family.   Women born in the 1940's have a pretty good start to their families, but they are then overtaken when they turn 20 by women born in the 1930s.  As they turn 30 year old these women are then "passed" by women born in the 1920s.   Women born in 1922 have the largest total fertility rate : 3.585 children on average.    Slow but steady wins the race!  
 
 ```{r, include = F}
@@ -139,7 +156,8 @@ annees_dans_top10 <- cum_data %>%
   select(annee_de_naissance) %>%
   distinct()
 
-all_ages = data.frame(age = seq(16, 50, 0.2))
+#all_ages = data.frame(age = seq(16, 50, 0.2))
+all_ages = data.frame(age = seq(16, 50, 0.25))
 
 all_combos = crossing(all_ages, annees_dans_top10)
 
@@ -162,7 +180,7 @@ graph_data <- interpolate %>%
        annee_de_naissance = as.factor(annee_de_naissance)
        )  
 
-p <- graph_data %>% 
+plot2 <- graph_data %>% 
   mutate(cumulatif_fecondite = cumulatif_fecondite / 1000)  %>%
   ggplot(aes(x= -rank, y= cumulatif_fecondite, group = annee_de_naissance ))+
   geom_tile(aes(y = cumulatif_fecondite / 2, 
@@ -186,7 +204,7 @@ p <- graph_data %>%
   ggthemes::scale_color_colorblind() +
   theme(panel.grid.major.y=element_blank(),
         panel.grid.minor.x=element_blank(),
-        plot.margin = margin(1,1,1,2,"cm"),
+        plot.margin = margin(1, 2,1 ,2,"cm"),
         axis.text.y=element_blank()) +
   transition_time(age) +
   ease_aes('cubic-in-out')+
@@ -198,8 +216,18 @@ p <- graph_data %>%
 ```
 
 ```{r}
-animate(p, nframes = 750, fps = 25, end_pause = 50, width = 1200, height = 900)
-#animate(p, nframes = 750, fps = 25, end_pause = 50)
+animated_gif2 <- animate(plot2, nframes = 750, fps = 25, end_pause = 50, width = 1200, height = 900)
+animated_gif2
+```
+
+We can also render an mp4 video (less than 1MB) for sharing, because the gif above weighs about 20 MB.
+
+```{r, echo=T, include= F}
+
+animated_mp42 <- animate(plot2, renderer = ffmpeg_renderer(),
+             nframes = 750, fps = 25, end_pause = 0, width = 1104, height = 736)
+anim_save("animated_mp42.mp4", animated_mp42)
+
 ```
 
 
