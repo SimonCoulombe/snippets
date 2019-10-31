@@ -99,10 +99,12 @@ plot1 <- clean_qc  %>%
   filter(annee_de_naissance>= 1915, annee_de_naissance  <= 1980) %>%
   ggplot(aes(x=age, y = taux_fecondite)) +
   geom_line() +
-  cowplot::theme_cowplot() + 
+  cowplot::theme_minimal_grid() + 
   ggthemes::scale_color_colorblind() +
-  scale_x_continuous(breaks = scales::pretty_breaks())+ 
-  scale_y_continuous(breaks = scales::pretty_breaks())+ 
+  scale_x_continuous(expand = c(0,0), 
+                     breaks = scales::pretty_breaks())+ 
+  scale_y_continuous(expand = c(0,0),
+                     breaks = scales::pretty_breaks())+ 
   theme(axis.text.y = element_text(size=12)) + # texte de l'axe des x
   theme(strip.text.x = element_text(size = 12 )) +  # texte des facets titles
   theme(strip.text.y = element_text(size = 12 )) +  # texte des facets titles
