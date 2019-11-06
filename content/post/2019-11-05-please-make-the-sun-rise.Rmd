@@ -61,15 +61,40 @@ prout3 <- st_join(prout2, tzs)       %>%
   filter(!is.na(tzid)) %>%
   mutate(tzid = as.character(tzid))
 prout4 <- prout3 %>%
-  mutate(zzz = map2 (sunrise, tzid, ~ with_tz(.x, .y)) )
+  mutate(zzz = map2 (solarNoon, tzid, ~ with_tz(.x, .y)  ))
 
-prout %>% mutate( time = hour(sunrise)) %>% glimpse
+proutz <- prout3 %>% mutate(clockNoon = map(tzid, ~ ymd_hms("2019-11-05 12:00:00", tz = .x) %>% with_tz(., "UTC") )) #trouver le midi sur l'horloge à greenwich
+
+#dplyr::combine vient de https://stackoverflow.com/questions/33848563/with-tz-with-a-vector-of-timezones
+proutz <- prout3 %>% 
+  mutate(clockNoon = map(tzid, ~ ymd_hms("2019-11-05 12:00:00", tz = .x) %>% 
+                           with_tz(., "UTC") ) %>% 
+           combine(.)) #trouver le midi sur l'horloge à greenwich
+
+proutzz <- proutz %>% 
+  mutate(diff = floor( as.numeric(clockNoon- solarNoon) / 60))
 
 
-provs <- zz  %>% filter(as.numeric(PRUID) <= 59)
+
+
+proutzz$lon = st_coordinates(proutzz)[,1]
+proutzz$lat = st_coordinates(proutzz)[,2]
+proutzz$Y1 <- cut(proutzz$diff, breaks = c(-Inf,-60, -30, -15, 0, 15, 30, 60, Inf))
+provs <- zz  #%>% filter(as.numeric(PRUID) <= 59)
 clines <- geom_polygon(aes(lon, lat),
                        fill = NA, col = "lightgray", data = provs)
 
+
+
+# test avec différence de midi
+
+ggplot(provs)+
+  geom_tile(data = proutzz %>% st_set_geometry(NULL), aes(x= lon, y= lat, fill = Y1), na.rm = TRUE)+
+  scale_fill_brewer(palette= "RdBu")+ 
+  geom_sf(alpha =0.3) 
+
+# marche plus  ----
+z <- map_df(proutzz$clockNoon, ~as_datetime(.x))
 p <- ggplot() + clines
 p
 
@@ -82,5 +107,6 @@ ggplot(data= prout,
            y =lat,
            ))
 
+# marche plus  ----
 ```
 
