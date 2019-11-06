@@ -34,7 +34,7 @@ enableEmoji = "true"
 
 [author]
   name = "Simon Coulombe"
-  bio = "gosseux de données"
+  bio = "gosseux de données | pelleteux de cloud"
   job = "data scientist in the insurance industry"
   location = "Québec, Canada"
   # Your Gravatar email. Overwrite `author.picture` everywhere in the blog
