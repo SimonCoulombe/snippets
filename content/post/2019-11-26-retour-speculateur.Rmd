@@ -1,0 +1,204 @@
+---
+title: Retour sur le spéculateur du 3e lien
+author: simon
+date: '2019-11-26'
+slug: speculateur
+categories: []
+tags: []
+keywords:
+  - tech
+  
+thumbnailImage: "/post/2019-11-26-retour-sur-le-spéculateur-du-3e-lien_files/carte_pellerin.png" 
+thumbnailImagePosition: left      
+---
+
+
+```{r setup, include =F, echo =F}
+#
+# TODO : valider ceci : Chunk options must be written in one line; no line breaks are allowed inside chunk options;
+# https://yihui.name/knitr/options/
+knitr::opts_chunk$set(echo = FALSE, 
+                      collapse = FALSE,
+                      warning = FALSE,
+                      error = FALSE,
+                      message = FALSE,
+                      fig.align= "center",
+                      fig.width = 10,
+                      highlight = TRUE,
+                      cache = FALSE,
+                      cache.lazy = FALSE) # fixes long vecto rnot supported quand on cache des gros éléments https://stackoverflow.com/questions/39417003/long-vectors-not-supported-yet-error-in-rmd-but-not-in-r-script
+```
+
+
+
+Bon, on a finalement relevé les visières.  Mon spéculateur anonyme du blog post [qui spécule sur le 3e lien?](https://www.simoncoulombe.com/2019/09/profit-3e-lien/) n'est nul autre que Martin Pellerin, le président de la chambre de Commerce de Lévis.  
+
+Je vais laisser à d'autres le soin de spéculer sur l'information privilégiée dont il pouvait disposer lorsqu'il a acheté les terrains le 10 mai, soit quelques semainse avant que le tracé ne soit officialisé.  
+
+Ce qui m'insulte, c'est surtout qu'il est un ardent promoteur du projet.  Depuis quelques mois, il répète sans cesse le même leitmotiv sur toutes les tribunes qui veulent de lui : le 3ème lien est bon pour vous!  fuck that shit, c'est surtout bon pour lui.  
+
+Je crée ce petit blog post pour étaler l'information que j'ai détérré et qui a pu mener à cet [article de TVA](https://www.tvanouvelles.ca/2019/11/24/lachat-dun-terrain-sur-le-site-potentiel-du-3e-lien-souleve-des-questions)
+
+
+Voici quelques-unes des interventions publiques récentes de M. Pellerin pour vous convaincre d'investir de l'argent public dans le projet depuis l'achat des terrains.  Je vous laisse juge de l'éthique du processus.
+
+2019/10/16 signait le livre d'or et on soulignait son implication dans le dossier du 3e lien [https://www.journaldelevis.com/1067/Politique_.html?id=75787](Journal de Lévis)
+
+2019/09/12 pendant élections fédérales: [https://ici.radio-canada.ca/info/videos/media-8147350/rencontre-avec-martin-pellerin-president-sortant-chambre-commerce-levis](Radio-Canada télé)
+
+2019/09/12à [Radio-Canada Radio](https://www.facebook.com/EncoreMieuxPM/photos/martin-pellerin-pr%C3%A9sident-sortant-de-la-chambre-de-commerce-de-l%C3%A9vis-expose-son-/2137269533040224/)
+
+2019/08/26: [Communiqué de presse de la chambre de commerce de Lévis](https://www.cclevis.ca/2019/08/sondage-leger-le-journal-lcn-sur-letat-des-routes-et-le-troisieme-lien-la-ccl-en-desaccord/) !!!!
+
+
+# Code intéressant  
+
+Côté code, je vais surtout revenir pour la création de cartes statiques en ggplot avec les tuiles google/stamen importées avec le package ggmap.
+
+# Le rôle d'évaluation  
+
+Le rôle d'évaluation nous montre que la compagnie Gestion KJM2 Inc. a acheté 3 matricules (représentant 6 lots) le 10 mai 2019.  
+
+Ce sont les matricule 5886-39-2426, 5886-46-5591 et 5886-74-1011.  Vous trouverez des screenshots du [site des évaluations municipales de Lévis](https://portail.accescite.net/ProfileGovern/UEL/WEB_UEL_City.aspx?action=search) ci-dessous 
+
+
+![](/post/2019-11-26-retour-sur-le-spéculateur-du-3e-lien_files/matricule5886382426-1.png)
+
+![](/post/2019-11-26-retour-sur-le-spéculateur-du-3e-lien_files/matricule5886465591-1.png)
+![](/post/2019-11-26-retour-sur-le-spéculateur-du-3e-lien_files/matricule5886741011-1.png)
+
+# Le registre des entreprises   
+
+Une rapide recherche sur le site du [registre des entreprises](https://www.registreentreprises.gouv.qc.ca/RQAnonymeGR/GR/GR03/GR03A2_19A_PIU_RechEnt_PC/PageRechSimple.aspx?T1.CodeService=S00436&Clng=F&WT.co_f=22d6bddce821178cec71574825577964) nous indique que Gestion KJM2 Inc. appartient à Martin Pellerin.
+
+
+![](/post/2019-11-26-retour-sur-le-spéculateur-du-3e-lien_files/registre_gestion_kjm2_inc-1.png)
+![](/post/2019-11-26-retour-sur-le-spéculateur-du-3e-lien_files/registre_gestion_kjm2_inc-2.png)
+![](/post/2019-11-26-retour-sur-le-spéculateur-du-3e-lien_files/registre_gestion_kjm2_inc-3.png)
+![](/post/2019-11-26-retour-sur-le-spéculateur-du-3e-lien_files/registre_gestion_kjm2_inc-4.png)
+
+# Polyĝones du cadastre  
+
+Une visite au site [InfoLot](https://appli.mern.gouv.qc.ca/Infolot/Info/Licence) permet d'obtenir les polyĝones des 6 lots que l'on trouve liées  aux 3 matricules trouvées plus tôt.    Les lots sont :    
+* 3 018 058 
+* 3 018 073 
+* 3 018 075 
+* 3 018 080 
+* 3 018 082 
+* 3 021 317
+
+Une petite astuce: une fois que vous avez accepté les termes de la licence d'utilisation, des cookies ajoutés à votre navigateur et vous pouvez ensuite télécharger les polyĝones en format JSON.  Par exemple, pour le lot "3 018 058", vous pouvez visiter l'adresse https://appli.mern.gouv.qc.ca/arcgis_webadaptor_prodc/rest/services/PRODC-E/INFOLOT_ANONYME/MapServer/14/query?f=json&where=NO_LOT=%273%20018%20058%27&returnGeometry=true  , puis faire "save as" sous un nom de votre choix, par exemple  "infolot3018058.json".  
+
+
+Voici les lots sur la carte, on voit qu'ils sont exactement là où la sortie du tunnel sera située selon le [tracé officiel dévoilé le 27 juin 2019](https://www.journaldequebec.com/2019/06/27/le-3e-lien-entre-quebec-et-levis-sera-un-tunnel)
+
+```{r, include= F}
+library(tidyverse)
+library(jsonlite)
+library(RCurl)
+library(mapview)
+library(sf)
+library(leaflet)
+
+library(ggmap)
+library(osmdata)
+
+ggmap::register_google(key = Sys.getenv("googlemap_api_key"),
+                       account_type="premium")
+
+## aah ça prend le fucking cookie / token  pour visiter ca directement
+# https://appli.mern.gouv.qc.ca/arcgis_webadaptor_prodc/rest/services/PRODC-E/INFOLOT_ANONYME/MapServer/14/query?f=json&where=NO_LOT=%273%20018%20058%27&returnGeometry=true
+#RCurl::getURL("https://appli.mern.gouv.qc.ca/arcgis_webadaptor_prodc/rest/services/PRODC-E/INFOLOT_ANONYME/MapServer/14/query?f=json&where=NO_LOT=%273%20018%20058%27&returnGeometry=true")
+
+
+
+lot1 <- read_sf(here::here("content/post/data/infolot3018058.json"))
+lot2 <- read_sf(here::here("content/post/data/infolot3018073.json"))
+lot3 <- read_sf(here::here("content/post/data/infolot3018075.json"))
+lot4 <- read_sf(here::here("content/post/data/infolot3018080.json"))
+lot5 <- read_sf(here::here("content/post/data/infolot3018082.json"))
+lot6 <- read_sf(here::here("content/post/data/infolot3021317.json"))
+
+
+
+lots <- sf::st_as_sf(data.table::rbindlist( list(lot1, lot2, lot3, lot4, lot5, lot6))) %>%
+  st_transform(crs = 4326)
+```
+
+
+```{r, include= F}
+
+# mapview to png plante error TypeError: Attempting to change the setter of an unconfigurable property.
+# 
+# mymap <- mapview(lots)
+# 
+# cntr_crds <- c(mean(st_coordinates(lots)[, 1]),
+#                mean(st_coordinates(lots)[, 2]))
+# # How can I change the initial zoom level for mapview
+# # https://github.com/r-spatial/mapview/issues/37
+# #mymap@map <- mymap@map %>% leaflet::setView(cntr_crds[1], cntr_crds[2], zoom = 15)
+# 
+# 
+# mapshot(mymap, file = paste0(getwd(), "/map.png"))
+# 
+# mapshot( mymap, file = here::here("map.png"))
+# 
+# m <- mapview(breweries)
+# mapshot(m, file = "/home/simon/map.png")
+# mapshot(m, url =  "/home/simon/map.html")
+```
+
+```{r}
+
+
+
+#bbox_initial <- as.numeric(osmdata::getbb("lauzon, québec"))
+bbox_initial <- as.numeric(st_bbox(lots))
+bbox_ajustement <- c( (bbox_initial[1]- bbox_initial[3])*3,
+                      (bbox_initial[2]- bbox_initial[4])*3,
+                      (bbox_initial[3]- bbox_initial[1])*3,
+                      (bbox_initial[4]- bbox_initial[2])*3
+)
+
+bbox_ajustee = bbox_initial+ bbox_ajustement
+# c'est tannant la source google ne respecte pas vraiment ma bounding box.. mais stamen oui
+
+# Google Maps can be used just as easily. However, since Google Maps use a center/zoom specification, their input is a bit different:
+mymap <- get_map(#location = as.numeric(st_bbox(yves)),
+  location = bbox_ajustee,
+  zoom=14,
+  maptype = 'hybrid',
+  source = 'google')
+
+
+
+# maison  <- tibble( lat = c(46.884837), lon = c( -70.983547)) %>% 
+#                      st_as_sf(coords=c("lon", "lat")) %>%
+#   st_set_crs(4326)
+
+
+
+ggmap(mymap) +
+  geom_sf(data = lots, fill = "red", inherit.aes= FALSE)  +
+  #geom_sf(data=maison, inherit.aes=FALSE, size = 6) + 
+    labs(title ="Martin Pellerin a acquis 6 lots le 10 mai 2019",
+         subtitle= "Tracé officiel dévoilé le 27 juin 2019 (on jase)",
+         caption = "Source: Rôle d'évaluation de Lévis") +
+  coord_sf(xlim = c(bbox_ajustee[1], bbox_ajustee[3]), ylim = c(bbox_ajustee[2],bbox_ajustee[4]))#+# google va chercher trop grand, je recouppe ici 
+
+#ggsave("kjm2.png", width = 10, units = "in")
+
+# version 2 : stamen respecte mes bounding boxes
+# 
+# mymap2 <- get_map(#location = as.numeric(st_bbox(yves)),
+#   location = bbox_initial + bbox_ajustement,
+#   zoom=14, 
+#   maptype = 'toner-hybrid')
+# 
+# ggmap(mymap2) +
+#   geom_sf(data = lots, ,fill = "red", inherit.aes= FALSE)  +
+#     labs(title ="Martin Pellerin a acquis 6 lots le 10 mai 2019",
+#          subtitle = "Source: Rôle d'évaluation de Lévis")
+
+```
+
