@@ -1,0 +1,299 @@
+---
+title: Vacant lots in Montreal
+author: simon
+date: '2019-11-24'
+slug: vacant-lots-in-montreal
+categories:
+  - R
+  - opendata
+tags: []
+keywords:
+  - tech
+---
+
+
+
+```{r setup, include =F, echo =F}
+#
+# TODO : valider ceci : Chunk options must be written in one line; no line breaks are allowed inside chunk options;
+# https://yihui.name/knitr/options/
+knitr::opts_chunk$set(echo = FALSE, 
+                      collapse = FALSE,
+                      warning = FALSE,
+                      error = FALSE,
+                      message = FALSE,
+                      fig.align= "center",
+                      fig.width = 10,
+                      highlight = TRUE,
+                      cache = FALSE,
+                      cache.lazy = FALSE) # fixes long vecto rnot supported quand on cache des gros éléments https://stackoverflow.com/questions/39417003/long-vectors-not-supported-yet-error-in-rmd-but-not-in-r-script
+```
+
+```{r}
+library(tidyverse)
+library(sf)
+library(leaflet)
+library(furrr)
+library(osmdata)
+plan(multiprocess, workers = availableCores()-1)
+
+```
+
+
+Montréal unités d'évaluations : 
+```{r}
+if(!file.exists(here::here("content/post/data/unite_evaluation_montreal/", "uniteevaluationfonciere.shp"))){
+  
+  download.file("http://donnees.ville.montreal.qc.ca/dataset/4ad6baea-4d2c-460f-a8bf-5d000db498f7/resource/43c2cccf-a439-429b-a3c8-5d4ebce53e1b/download/uniteevaluationfonciere.zip",
+                destfile = here::here("content/post/data/unite_evaluation_montreal/","uniteevaluationfonciere.zip")
+  )
+  utils::unzip(here::here("content/post/data/unite_evaluation_montreal/uniteevaluationfonciere.zip"),
+               exdir = here::here("content/post/data/unite_evaluation_montreal"))
+}
+
+unite_evaluation_montreal <- read_sf(here::here("content/post/data/unite_evaluation_montreal/", "uniteevaluationfonciere.shp"))%>% 
+  st_transform(crs = 4326)
+
+bbox_montreal <- st_bbox(unite_evaluation_montreal)
+```
+
+Building Footprints Canada by Microsoft: https://github.com/Microsoft/CanadianBuildingFootprints
+
+```{r}
+
+if(!file.exists(here::here("content/post/data/microsoft_building_footprints/", "Quebec.geojson"))){
+  download.file("https://usbuildingdata.blob.core.windows.net/canadian-buildings-v2/Quebec.zip",
+                destfile = here::here("content/post/data/microsoft_building_footprints/","Quebec.zip")
+  )
+  
+  utils::unzip(here::here("content/post/data/microsoft_building_footprints/","Quebec.zip"),
+               exdir = here::here("content/post/data/microsoft_building_footprints/")
+  )
+  
+  footprints <- read_sf(here::here("content/post/data/microsoft_building_footprints/", "Quebec.geojson"))
+}
+footprints <- read_sf(here::here("content/post/data/microsoft_building_footprints/", "Quebec.geojson"))
+```
+
+Open Street Maps buildings 
+```{r}
+
+if(!file.exists(here::here("content/post/data/osm_building_footprints/", "montreal_building_footprints.rds"))){
+
+
+osm_buildings <- opq(bbox = bbox_montreal) %>%
+  add_osm_feature(key = 'building') %>%
+  osmdata_sf()
+write_rds(osm_buildings, 
+          here::here("content/post/data/osm_building_footprints/", "montreal_building_footprints.rds")
+          )
+}
+
+
+avec_adresse <- map(osm_buildings[ c(4,5,6,8)],~ .x %>%   # 4 to 8 = points, lines, polygons, multilines multipolygons
+                      # mais 7 = multilines = null
+                      select(osm_id, name, addr.city,
+                             addr.housenumber,
+                             addr.postcode  , addr.street, source))
+
+# rbind pour binder les rows d'un sf dataframe       
+all_builds <- rbind(avec_adresse[[1]], avec_adresse[[2]], avec_adresse[[3]], avec_adresse[[4]])
+
+
+names(st_geometry(all_builds )) = NULL
+
+
+```
+
+
+```{r}
+  tictoc::tic()
+  
+  footprints_valid <-  footprints[!is.na(st_is_valid(footprints, reason= TRUE)),]  %>%   
+    lwgeom::st_make_valid() %>%
+    st_cast("MULTIPOLYGON")
+  
+  tictoc::toc()
+  write_rds(footprints_valid,here::here("content/post/data/microsoft_building_footprints/", "Quebec_valid.rds")) 
+  
+  tictoc::tic()
+  footprints_montreal <- st_crop(footprints_valid, bbox_montreal )  # st_crop nécessire st_make_valid sinon erreur suivante:
+  # Error in CPL_geos_op2(op, st_geometry(x), st_geometry(y)) : 
+  # Evaluation error: TopologyException: Input geom 0 is invalid: Self-intersection at or near point 
+  tictoc::toc()
+
+
+lot <- unite_evaluation_montreal %>% slice(689) 
+# 
+# tictoc::tic()
+# found_microsoft <-  st_intersects(footprints, lot )  %>% 
+#   map(. , any) %>% 
+#   unlist()
+# tictoc::toc() # 30 secondes
+# 
+tictoc::tic()
+found_microsoft <-  st_intersects(footprints_montreal, lot )  %>%
+  map(. , any) %>%
+  unlist()
+tictoc::toc() # 3.7 secondes
+
+
+
+
+
+
+sum(found_microsoft)
+
+
+leaflet(lot) %>% 
+  addProviderTiles(provider = "Esri.WorldImagery")  %>% 
+  addPolygons %>%
+  addPolygons(data=footprints_montreal[found_microsoft,]  , color = "red")
+
+
+    
+
+
+```
+
+pour tous les lots, trouver les buildings qui sont dedans et sortir la somme de buildings..
+# Is is possible to save and reuse a spatial index? #546
+## https://github.com/r-spatial/sf/issues/546
+```{r}
+
+tictoc::tic()
+zz <- unite_evaluation_montreal %>% head(5) %>%
+  mutate(buildings = future_map(geometry, ~ st_intersects(footprints_montreal, .x) %>%
+  map(. , any) %>%
+  unlist()
+  )
+  )
+tictoc::toc() ## 29 secondes pour 14.. # 5 seconds pour 1 , 12 secondes pour 5
+```
+
+
+```{r}
+
+df1 <- unite_evaluation_montreal
+df2 <- footprints_montreal
+df3 <- all_builds
+
+grid <- st_make_grid(df1, n = c(100,100), what = "polygons")
+grid_1 <- st_intersects(df1, grid) # which grids are each df1 geometry in?
+grid_2 <- st_intersects(grid, df2) # for each grid which df2 geometires are contained within it?
+grid_3 <- st_intersects(grid, df3) # for each grid which df2 geometires are contained within it?
+```
+
+```{r}
+buildings <- rep(NA, nrow(unite_evaluation_montreal))
+# Loop
+for(i in 1:50){
+  
+  # Select the object of intrest in df1 and then find nearby objects in df2
+  df1.select <- df1[i,]
+  grid_ids <- grid_1[[i]]
+  ids_grid <- unique(unlist(grid_2[grid_ids]))
+  df2.select <- df2[ids_grid,]
+  
+  #Now check for actual intersection between the two objects
+  df2.select <- df2.select[df1.select,]
+
+  # Rest of code works on df1.select and df2.select
+  
+}
+```
+
+
+```{r}
+
+
+get_buildings_microsoft <- function(i){
+   df1.select <- df1[i,]
+  grid_ids <- grid_1[[i]]
+  ids_grid <- unique(unlist(grid_2[grid_ids]))
+  df2.select <- df2[ids_grid,]
+  
+  #Now check for actual intersection between the two objects
+  df2.select <- df2.select[df1.select,]
+
+  # Rest of code works on df1.select and df2.select
+}
+
+get_buildings_osm <- function(i){
+   df1.select <- df1[i,]
+  grid_ids <- grid_1[[i]]
+  ids_grid <- unique(unlist(grid_3[grid_ids]))
+  df3.select <- df3[ids_grid,]
+  
+  #Now check for actual intersection between the two objects
+  df3.select <- df3.select[df1.select,]
+
+  # Rest of code works on df1.select and df2.select   
+}
+
+
+tictoc::tic()
+unite_with_linked_buildings <- tibble(id = seq(1:nrow(unite_evaluation_montreal))) %>%
+  mutate(buildings = map(id, get_buildings_microsoft),
+         n_buildings = map_int(buildings, nrow) 
+         )
+
+tictoc::toc()
+  
+  tictoc::tic()
+  prout <- tibble(id = seq(1:nrow(unite_evaluation_montreal))) %>%
+    mutate(buildings = map(id, get_buildings_osm),
+           n_buildings = map_int(buildings, nrow) 
+           )
+  
+  tictoc::toc()
+  
+  
+  
+  write_rds(prout,
+            here::here("content/post/data/unite_evaluation_montreal/", "prout")
+            ) 
+
+write_rds(unite_with_linked_buildings,
+          here::here("content/post/data/unite_evaluation_montreal/", "unite_with_microsoft_buildings.rds")
+          ) 
+```
+
+```{r}
+unite_evaluation_montreal$id <- unite_with_linked_buildings$id
+unite_evaluation_montreal$grid_1 <- grid_1
+
+unite_evaluation_montreal$buildings <- unite_with_linked_buildings$buildings
+unite_evaluation_montreal$n_buildings <- unite_with_linked_buildings$n_buildings
+
+unite_evaluation_montreal$n_buildings_osm <- prout$n_buildings
+unite_evaluation_montreal$buildings_osm <- prout$buildings
+```
+
+
+```{r}
+no_buildings <- unite_evaluation_montreal %>% filter( n_buildings == 0)
+```
+
+```{r}
+
+lot <- no_buildings %>% slice(1)
+  grid_ids <- grid_1[[lot$id[1]]]
+  ids_grid <- unique(unlist(grid_2[grid_ids]))
+  df2.select <- df2[ids_grid,]
+  
+  
+leaflet(lot) %>% 
+  addProviderTiles(provider = "Esri.WorldImagery")  %>% 
+  addPolygons %>%
+  addPolygons(data=df2.select  , color = "red")
+
+
+
+```
+ouain, honnêtement c'est plutôt mauvais.
+```{r}
+unite_evaluation_montreal %>% filter( n_buildings_osm == 0,  n_buildings == 0) %>% head(100) %>% mapview() 
+```
+
+re
