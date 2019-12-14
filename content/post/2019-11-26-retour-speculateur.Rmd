@@ -195,7 +195,7 @@ ggmap(mymap) +
          caption = "Source: Rôle d'évaluation de Lévis") +
   coord_sf(xlim = c(bbox_ajustee[1], bbox_ajustee[3]), ylim = c(bbox_ajustee[2],bbox_ajustee[4]))#+# google va chercher trop grand, je recouppe ici 
 
-#ggsave("kjm2.png", width = 10, units = "in")
+
 
 # version 2 : stamen respecte mes bounding boxes
 # 
@@ -209,5 +209,9 @@ ggmap(mymap) +
 #     labs(title ="Martin Pellerin a acquis 6 lots le 10 mai 2019",
 #          subtitle = "Source: Rôle d'évaluation de Lévis")
 
+```
+
+```{r, include = F}
+ggsave("kjm2.png", width = 10, units = "in")
 ```
 

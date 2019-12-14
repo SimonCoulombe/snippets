@@ -46,26 +46,51 @@ excel_file <-here::here("content/post/data/TauxFecondite_1921-2018.xlsx")
 
 excel_sheets(excel_file)
 
-QC <- readxl::read_excel(excel_file, sheet = "QC", skip= 78) %>%
-  janitor::clean_names() %>%
-  rename(age = annee_de_naissance) %>%
-  filter( age != "Année civile") %>%
-  mutate(age = as.integer(age)) %>%
-  filter(age <= 50)
+import_province <- function(province, first_year){
+  readxl::read_excel(excel_file, sheet = province, skip= 78) %>%
+    janitor::clean_names() %>%
+    rename(age = annee_de_naissance) %>%
+    filter( age != "Année civile") %>%
+    mutate(age = as.integer(age)) %>%
+    filter(age <= 50) %>% 
+    select(age, x1911:x2008) %>%
+    gather(key = annee_de_naissance,
+           value = taux_fecondite,
+           x1911:x2008) %>%
+    mutate(annee_de_naissance = as.integer(str_replace(annee_de_naissance,"x", ""))) %>%
+    filter(annee_de_naissance >= first_year) %>%
+    filter(annee_de_naissance + age <= 2016) %>% # 0 if == 2017 or == 2018
+    mutate(province = province)
+}
 
+IPE <- import_province("IPE", 1911 )
+NE <- import_province("NE", 1911 )
+NB <- import_province("NB", 1911 )
+QC <- import_province("QC", 1915 )
+ONT <- import_province("ONT", 1911 )
+MAN <- import_province("MAN", 1911 )
+SASK <- import_province("SASK", 1911 )
+ALB <- import_province("ALB", 1912 )
+CB <- import_province("CB", 1911 )
 
-
-```
-
-
-```{r, include = F}
-clean_qc <- QC %>% 
-  select(age, x1911:x2002) %>%
-  gather(key = annee_de_naissance,
-         value = taux_fecondite,
-         x1911:x2002) %>%
-  mutate(annee_de_naissance = as.integer(str_replace(annee_de_naissance,"x", "")))
-
+data <- bind_rows(IPE, NE, NB, QC, ONT, MAN, SASK, ALB, CB) %>%
+  mutate(province = 
+           factor(
+             case_when(
+               province == "IPE" ~ "Î.-P.-É.",
+               province == "NE" ~ "N.-É.",
+               province == "NB" ~ "N.-B.",
+               province == "QC" ~ "Qc",
+               province == "ONT" ~ "Ont.",
+               province == "MAN" ~ "Man.",
+               province == "SASK" ~ "Sask.",
+               province == "ALB" ~ "Alb.",
+               province == "CB" ~ "C.-B.",
+               TRUE ~ province)
+           ) %>%
+           fct_relevel("Î.-P.-É.", "N.-É.", "N.-B.", "Qc", "Ont.", "Man.", "Sask.", "Alb.", "C.-B."    )
+  ) %>%
+  mutate(province_annee_de_naissance = paste0(province, " ", annee_de_naissance)) 
 ```
 
 Hey,
@@ -95,8 +120,9 @@ interpolate <- all_data %>%
 The first graph shows the fertility rate of each cohort of women born between 1915 and 1980 in Quebec.  Peak fertility age first decreases between the 1915 and 1940 cohorts (mothers of baby boomers)  then increases as fertility rates drop sharply.
 
 ```{r}
-plot1 <- clean_qc  %>% 
-  filter(annee_de_naissance>= 1915, annee_de_naissance  <= 1980) %>%
+plot1 <- data  %>% 
+  filter(annee_de_naissance  <= 1984) %>%
+  filter(province == "Qc") %>%
   ggplot(aes(x=age, y = taux_fecondite)) +
   geom_line() +
   cowplot::theme_minimal_grid() + 
@@ -128,20 +154,54 @@ plot1 <- clean_qc  %>%
 plot1
 ```
 
+
+
+
 ```{r, echo=T, include= F}
 
 animated_mp41 <- animate(plot1, renderer = ffmpeg_renderer(),
-             nframes = 375, fps = 25, end_pause = 0, width = 1104, height = 736)
+                         nframes = 375, fps = 25, end_pause = 0, width = 1104, height = 736)
 anim_save("animated_mp41.mp4", animated_mp41)
 
 ```
+
+```{r, include= F}
+plot1canada <- data  %>% 
+  filter(annee_de_naissance >= 1915, annee_de_naissance  <= 1984) %>%  # si on a pas la meme année de départ alors ça chie
+  filter(province %in% c("N.-B.", "Qc", "Ont.", "Alb.")) %>%
+  ggplot(aes(x=age, y = taux_fecondite)) +
+  geom_line() +
+  facet_wrap(~province, ncol =  4) +
+  cowplot::theme_minimal_grid() + 
+  ggthemes::scale_color_colorblind() +
+  scale_x_continuous(expand = c(0,0), 
+                     breaks = scales::pretty_breaks())+ 
+  scale_y_continuous(expand = c(0,0),
+                     breaks = scales::pretty_breaks())+ 
+  theme(axis.text.y = element_text(size=12)) + # texte de l'axe des x
+  theme(strip.text.x = element_text(size = 12 )) +  # texte des facets titles
+  theme(strip.text.y = element_text(size = 12 )) +  # texte des facets titles
+  
+  labs(title = "Fertility rate of women in Canada",
+       subtitle = 'Birth year of women: {frame_time}', 
+       x = 'Age', 
+       y = 'Fertility rate (per 1000 women)',
+       caption= "Source: Statistics Canada") +
+  transition_time(annee_de_naissance) +
+  ease_aes('linear')
+animated_gif1_canada <- animate(plot1, nframes = 375, fps = 25, end_pause = 50, width = 1200, height = 900)
+anim_save("animated_gif1_canada.gif", animated_gif1_canada)
+```
+
+
 
 
 Now let's try my first "bar chart race" to see who gets the largest family.   Women born in the 1940's have a pretty good start to their families, but they are then overtaken when they turn 20 by women born in the 1930s.  As they turn 30 year old these women are then "passed" by women born in the 1920s.   Women born in 1922 have the largest total fertility rate : 3.585 children on average.    Slow but steady wins the race!  
 
 ```{r, include = F}
-cum_data <-clean_qc  %>% 
-  filter(annee_de_naissance>= 1915, annee_de_naissance  <= 1980) %>% 
+cum_data <-data  %>% 
+  filter(province == "Qc") %>%
+  filter(annee_de_naissance  <= 1980) %>% 
   arrange(annee_de_naissance, age) %>%
   group_by(annee_de_naissance) %>%
   mutate(cumulatif_fecondite = cumsum(taux_fecondite)) %>%
@@ -152,7 +212,7 @@ cum_data <-clean_qc  %>%
   ungroup() %>%
   arrange(age, rank) %>%
   filter(age >= 16) 
-  
+
 annees_dans_top10 <- cum_data %>% 
   filter(rank <= 10) %>%
   select(annee_de_naissance) %>%
@@ -177,10 +237,10 @@ graph_data <- interpolate %>%
   mutate(rank = row_number() )  %>%
   ungroup() %>%
   filter(rank<= 10) %>%
-    mutate(
-       decade = as_factor(floor(annee_de_naissance/10 )*10),
-       annee_de_naissance = as.factor(annee_de_naissance)
-       )  
+  mutate(
+    decade = as_factor(floor(annee_de_naissance/10 )*10),
+    annee_de_naissance = as.factor(annee_de_naissance)
+  )  
 
 plot2 <- graph_data %>% 
   mutate(cumulatif_fecondite = cumulatif_fecondite / 1000)  %>%
@@ -211,7 +271,7 @@ plot2 <- graph_data %>%
   transition_time(age) +
   ease_aes('cubic-in-out')+
   labs(title="Fertility rate of women in Quebec",
-       subtitle="Average number of children at age {round(frame_time,0)}",
+       subtitle="Average number of children at age {round(frame_time,2)}",
        caption="Source: Statistics Canada, fertility rates for years 1921-2016") + 
   theme(legend.position="bottom") 
 
@@ -227,9 +287,101 @@ We can also render an mp4 video (less than 1MB) for sharing, because the gif abo
 ```{r, echo=T, include= F}
 
 animated_mp42 <- animate(plot2, renderer = ffmpeg_renderer(),
-             nframes = 750, fps = 25, end_pause = 0, width = 1104, height = 736)
+                         nframes = 750, fps = 25, end_pause = 0, width = 1104, height = 736)
 anim_save("animated_mp42.mp4", animated_mp42)
 
 ```
 
+
+Race all provinces!!
+```{r, include = F}
+cum_data <-data  %>% 
+  filter(annee_de_naissance  <= 1980) %>% 
+  arrange(province_annee_de_naissance, province, annee_de_naissance, age) %>%
+  group_by(province_annee_de_naissance,  province, annee_de_naissance) %>%
+  mutate(cumulatif_fecondite = cumsum(taux_fecondite)) %>%
+  ungroup() %>%
+  group_by(age) %>%
+  arrange(desc(cumulatif_fecondite)) %>%
+  mutate(rank = row_number()) %>%
+  ungroup() %>%
+  arrange(age, rank) %>%
+  filter(age >= 15) 
+
+annees_dans_top10 <- cum_data %>% 
+  filter(rank <= 10) %>%
+  select(province_annee_de_naissance,  province, annee_de_naissance) %>%
+  distinct()
+
+
+all_ages = data.frame(age = seq(15, 50, 0.25))  # we will add 1 year .. because kids you have during age 15 will all be born when you are age 16.0
+
+all_combos = crossing(all_ages, annees_dans_top10)
+
+all_data <- all_combos %>%
+  left_join(cum_data)
+
+interpolate <- all_data %>%
+  group_by(province_annee_de_naissance,  province, annee_de_naissance) %>%
+  mutate(cumulatif_fecondite = approx(age, cumulatif_fecondite, age)$y) %>%
+  ungroup() %>%
+  mutate(age = age + 1)  ## rates for age 16 is the number of children made during age 16.. so you have all of them by age 17.0
+
+graph_data <- interpolate %>%
+  group_by(age) %>%
+  arrange(-cumulatif_fecondite) %>%
+  mutate(rank = row_number() )  %>%
+  ungroup() %>%
+  filter(rank<= 10) %>%
+  mutate(
+    decade = as_factor(floor(annee_de_naissance/10 )*10),
+    annee_de_naissance = as.factor(annee_de_naissance),
+    province_annee_de_naissance  = as.factor(province_annee_de_naissance)
+  )  
+
+plot2canada <- graph_data %>% 
+  mutate(cumulatif_fecondite = cumulatif_fecondite / 1000)  %>%
+  ggplot(aes(x= -rank, y= cumulatif_fecondite, group = province_annee_de_naissance ))+
+  geom_tile(aes(y = cumulatif_fecondite / 2, 
+                height = cumulatif_fecondite,
+                fill = decade), width = 0.9)+
+  geom_text(aes(label = province_annee_de_naissance), 
+            hjust = "right", 
+            colour = "black", 
+            fontface = "bold", 
+            nudge_y = -0.1,
+            size = 12) +
+  geom_text(aes(label = scales::comma(cumulatif_fecondite, accuracy = 0.001)), 
+            hjust = "left", 
+            nudge_y = 0.1, 
+            colour = "grey30",
+            size = 12) +
+  coord_flip(clip="off") +
+  scale_x_discrete("") +
+  scale_y_continuous("",labels=scales::comma, breaks = scales::pretty_breaks() )+
+  hrbrthemes::theme_ipsum(plot_title_size = 32, subtitle_size = 24, caption_size = 24, base_size = 24) +
+  ggthemes::scale_color_colorblind() +
+  theme(panel.grid.major.y=element_blank(),
+        panel.grid.minor.x=element_blank(),
+        plot.margin = margin(1, 2,1 ,2,"cm"),
+        axis.text.y=element_blank()) +
+  transition_time(age) +
+  ease_aes('cubic-in-out')+
+  labs(title="Fertility rate of Canadian women",
+       subtitle="Average number of children by age {round(frame_time,2)}",
+       caption="Source: Statistics Canada, fertility rates for years 1921-2016") + 
+  theme(legend.position="bottom")
+
+
+animated_mp42_canada <- animate(plot2canada, renderer = ffmpeg_renderer(),
+                         nframes = 750, fps = 25, end_pause = 0, width = 1104, height = 736)
+anim_save("animated_mp42_canada.mp4", animated_mp42_canada)
+
+```
+
+
+```{r}
+
+
+```
 

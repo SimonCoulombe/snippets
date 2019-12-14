@@ -5,3 +5,4 @@
 .RData
 .Ruserdata
 public
+content/post/data/*
