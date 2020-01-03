@@ -71,12 +71,12 @@ library(leaflet)
 library(RColorBrewer)
 set.seed(1234)
 # Load shapefile secteurs municipaux enquête origine destination québec----
-sm <- st_read("data/shp_eod_qc_2017/SM2017_Que_region.shp",  
+sm <- st_read("data/raw/shp_eod_qc_2017/SM2017_Que_region.shp",  
               options = "ENCODING=windows-1252") %>%
    st_set_crs(., "+init=epsg:3347") %>%  #définir la projection, qui est 3347 lambert canada
    st_transform(., "+proj=longlat +datum=WGS84")  # convertir en lat-long
 
-levis_anonymous <- read_rds("data/levis_anonymous.rds")
+levis_anonymous <- read_rds("data/raw/levis_anonymous.rds")
 
 
 tunnel_extremite_levis <- tibble(lat = 46.815 , 
@@ -100,9 +100,9 @@ if(FALSE){
    map_utilisation_predominante <- map_utilisation_predominante %>% rmapshaper::ms_simplify(keep=0.2)
    
    
-   write_rds(map_utilisation_predominante, "map_utilisation_predominante.rds")
+   write_rds(map_utilisation_predominante, "data/final/map_utilisation_predominante.rds")
 } else {
-   map_utilisation_predominante <- read_rds("map_utilisation_predominante.rds")
+   map_utilisation_predominante <- read_rds("data/final/map_utilisation_predominante.rds")
 }
 
 ```

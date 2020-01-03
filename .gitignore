@@ -6,3 +6,4 @@
 .Ruserdata
 public
 content/post/data/*
+!content/post/data/raw
