@@ -342,7 +342,7 @@ prj <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
 # c'est normal car les shapefile ont juste la date.  Faisons le quand même.
 #st_layers("route4636025-Untitled_route.gpx")     
 
-gpx_file <- "route4636025-Untitled_route.gpx"
+gpx_file <- "data/raw/killian.gpx"
 my_layer <- "route_points" 
 elevation_raster_zoom <- 10
 
@@ -404,7 +404,7 @@ bbox2 <- list(
   p2 =  list(long = bbox$xmax, lat = bbox$ymax)
 )
 
-overlay_file <- "images.png"
+overlay_file <- "data/interim/everest_overlay.png"
 get_arcgis_map_image(bbox2, map_type = "World_Imagery", file = overlay_file,
                      width = dim(elev)[2], height = dim(elev)[1], 
                      sr_bbox = 4326)
@@ -412,8 +412,8 @@ get_arcgis_map_image(bbox2, map_type = "World_Imagery", file = overlay_file,
 #overlay_img <- png::readPNG(overlay_file)
 
 # attemp2 : rotate image 90 degrees
-image_write(image_rotate(image_read(overlay_file), 90) ,"rotated.png")
-overlay_img <- png::readPNG("rotated.png")
+image_write(image_rotate(image_read(overlay_file), 90) ,"data/interim/rotated.png")
+overlay_img <- png::readPNG("data/interim/rotated.png")
 
 
 ```
@@ -472,7 +472,7 @@ add_axes(elev,
          zscale=myzscale,
          axis.col = grey(0.5))
 
-render_snapshot("trailmap")
+render_snapshot("data/final/trailmap")
 
 ```
 ![](/post/2019-06-16-what-does-it-look-like-at-the-top-of-the-world_files/trailmap.png)

@@ -121,12 +121,12 @@ ggmap::register_google(key = Sys.getenv("googlemap_api_key"),
 
 
 
-lot1 <- read_sf(here::here("content/post/data/infolot3018058.json"))
-lot2 <- read_sf(here::here("content/post/data/infolot3018073.json"))
-lot3 <- read_sf(here::here("content/post/data/infolot3018075.json"))
-lot4 <- read_sf(here::here("content/post/data/infolot3018080.json"))
-lot5 <- read_sf(here::here("content/post/data/infolot3018082.json"))
-lot6 <- read_sf(here::here("content/post/data/infolot3021317.json"))
+lot1 <- read_sf(here::here("content/post/data/raw/infolot3018058.json"))
+lot2 <- read_sf(here::here("content/post/data/raw/infolot3018073.json"))
+lot3 <- read_sf(here::here("content/post/data/raw/infolot3018075.json"))
+lot4 <- read_sf(here::here("content/post/data/raw/infolot3018080.json"))
+lot5 <- read_sf(here::here("content/post/data/raw/infolot3018082.json"))
+lot6 <- read_sf(here::here("content/post/data/raw/infolot3021317.json"))
 
 
 
@@ -212,6 +212,6 @@ ggmap(mymap) +
 ```
 
 ```{r, include = F}
-ggsave("kjm2.png", width = 10, units = "in")
+ggsave("data/final/kjm2.png", width = 10, units = "in")
 ```
 
