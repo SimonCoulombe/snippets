@@ -201,7 +201,7 @@ write_csv(my_weather_data, "my_weather_data.csv")
 
 ```{r import_weather_data}
 
-my_weather_data <- read_csv( "my_weather_data.csv")  
+my_weather_data <- read_csv( "data/raw/my_weather_data.csv")  
 
 avg_weather  <- my_weather_data %>% 
   group_by(yday) %>% 
@@ -256,7 +256,7 @@ Thermodynamics state that my heating use should increase as a linear function of
 #                  hour = lubridate::hour(datetime)) %>% select(-contrat)
 # write_csv(hydro, "hydro.csv")
 
-hydro <- read_csv("hydro.csv")
+hydro <- read_csv("data/raw/hydro.csv")
 
 # graph kWh consumption 
 
