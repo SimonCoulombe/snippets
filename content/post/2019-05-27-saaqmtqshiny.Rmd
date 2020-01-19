@@ -42,7 +42,7 @@ library(leaflet)
 library(knitr)
 library(kableExtra)
 library(mapview)
-prepared3 <- read_csv("data/prepared3.csv")
+prepared3 <- read_csv("data/raw/prepared3.csv")
 ```
 
 Sans plus attendre, voici le pire endroit pour les piétons dans 10 villes du Québec
@@ -132,7 +132,7 @@ Voici un screenshot de l'application telle quelle:
 
 ![](/post/2019-05-27-saaqmtqshiny_files/gatineau.png)
 
-Le code pour préparer les données est disponible sur mon [github](https://github.com/SimonCoulombe/saaqmtq).  [Les données géocodées sont disponibles en ligne](https://github.com/SimonCoulombe/snippets/blob/master/content/post/data/prepared3.csv), au cas où vous voudriez y jeter un coup d'oeil.  
+Le code pour préparer les données est disponible sur mon [github](https://github.com/SimonCoulombe/saaqmtq).  [Les données géocodées sont disponibles en ligne](https://github.com/SimonCoulombe/snippets/blob/master/content/post/data/raw/prepared3.csv), au cas où vous voudriez y jeter un coup d'oeil.  
 
 Purquoi je vais revenir à ce code:  J'avais déjà fait quelque chose de similaire en 2017.  L'intérêt de ce post est que je rajoute les données de 2017, que j'ai ajouté un shiny pour créer le top 10 de n'importe quelle ville et que j'utilise l'outil de geocodage de openCage pour créer des "bounding boxes" afin de m'assurer que l'accident est géocodé dans la bonne ville, particulièrement quand il existe 2 villes avec le même nom comme St-Donat des Laurentides vs St-Donat dans le bas St-Laurent. 
 

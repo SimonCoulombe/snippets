@@ -67,12 +67,12 @@ On peut voir que la rémunération des médecins québécois a effectué un gran
 # Base de données nationale sur les médecins (BDNM), 2017-2018 : tableaux de données (ZIP)    
 #https://www.cihi.ca/sites/default/files/document/bdnm-tableaux-de-donnees-2018-fr.zip
 
-#download.file("https://www.cihi.ca/sites/default/files/document/bdnm-tableaux-de-donnees-2018-fr.zip",
-               #destfile = here::here("content/post/data/bdnm-tableaux-de-donnees-2018-fr.zip")
-#)
+download.file("https://www.cihi.ca/sites/default/files/document/bdnm-tableaux-de-donnees-2018-fr.zip",
+              destfile = here::here("content/post/data/downloads/bdnm-tableaux-de-donnees-2018-fr.zip")
+)
 
 
-mysheet <- here::here("content/post/data", "BDNM-paiements-données-historiques-2018.xlsx")
+mysheet <- here::here("content/post/data/downloads", "BDNM-paiements-données-historiques-2018.xlsx")
 #excel_sheets(mysheet)
 
 
@@ -142,12 +142,12 @@ Conclusion?  Les médecins spécialistes ne sont pas très sensibles à l'écart
 
 ```{r}
 # Base de données médicales Scott’s (BDMS), 2017-2018 : tableaux de données (ZIP)
-#download.file("https://secure.cihi.ca/free_products/bdms-tableaux-de-donnees-2018-fr.zip",
-#               destfile = here::here("content/post/data/bdms-tableaux-de-donnees-2018-fr.zip")
-#)
+download.file("https://secure.cihi.ca/free_products/bdms-tableaux-de-donnees-2018-fr.zip",
+               destfile = here::here("content/post/data//downloads/bdms-tableaux-de-donnees-2018-fr.zip")
+)
 # unzip outside R because R doesnt unsderstand french encoding of filename.
 
-mysheet <- here::here("content/post/data", "BDMS-tableaux-de-données-historiques-2018.xlsx")
+mysheet <- here::here("content/post/data/downloads/", "BDMS-tableaux-de-données-historiques-2018.xlsx")
 
 #excel_sheets(mysheet)
 

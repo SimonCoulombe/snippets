@@ -42,7 +42,7 @@ library(transformr)
 ```
 
 ```{r, include = F}
-excel_file <-here::here("content/post/data/TauxFecondite_1921-2018.xlsx")
+excel_file <-here::here("content/post/data/raw/TauxFecondite_1921-2018.xlsx")
 
 excel_sheets(excel_file)
 

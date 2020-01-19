@@ -56,8 +56,8 @@ It turns out that Montreal is mostly owned by the public   Only Cominar appears 
 library(tidyverse)
 library(mapview)
 
-mapdata_mtl_everyone <- read_rds("data/mapdata_mtl_everyone.rds")
-mapdata_mtl_non_gouv <- read_rds("data/mapdata_mtl_non_gouv.rds")
+mapdata_mtl_everyone <- read_rds("data/raw/mapdata_mtl_everyone.rds")
+mapdata_mtl_non_gouv <- read_rds("data/raw/mapdata_mtl_non_gouv.rds")
 ```
 
 

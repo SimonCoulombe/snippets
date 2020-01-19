@@ -38,7 +38,7 @@ knitr::opts_chunk$set(echo = FALSE,
 
 ```{r, include = F}
 library(tidyverse)
-results <- read_rds("data/results.rds")
+results <- read_rds("data/raw/20190604_plusminus_results.rds")
 ```
 
 

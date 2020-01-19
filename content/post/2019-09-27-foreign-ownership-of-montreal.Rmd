@@ -44,10 +44,10 @@ library(tidyverse)
 library(mapview)
 library(sf)
 library(leaflet)
-blog_logements_solo_pour_tableau <- read_csv("data/blog_logements_solo_pour_tableau.csv") %>%
+blog_logements_solo_pour_tableau <- read_csv("data/raw/blog_logements_solo_pour_tableau.csv") %>%
   mutate(
    mailing_address_region= fct_relevel(factor(mailing_address_region), "Montreal", "Rest of Quebec", "Rest of Canada", "Outside Canada", "Missing postal address"))
-blog_logements_solo_pour_carte <- read_rds("data/blog_logements_solo_pour_carte.rds")
+blog_logements_solo_pour_carte <- read_rds("data/raw/blog_logements_solo_pour_carte.rds")
 ```
 
 I found  `r paste0(blog_logements_solo_pour_tableau %>% tally(n) %>% pull(n) )` residential tax assessements related to a single dwelling, `r paste0(blog_logements_solo_pour_tableau %>% filter(meme_adresse == FALSE) %>% tally(n) %>% pull(n))` of which are registered to a different mailing address.  This means that `r paste0(round(100*blog_logements_solo_pour_tableau %>% filter(meme_adresse == FALSE) %>% tally(n) %>% pull(n) / 
