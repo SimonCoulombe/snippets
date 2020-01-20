@@ -46,22 +46,22 @@ library(purrr)
 
 ```{r, eval= F, include= F}
 download.file("http://donnees.ville.montreal.qc.ca/dataset/cd722e22-376b-4b89-9bc2-7c7ab317ef6b/resource/5a81f6c5-e3e7-4c0e-9ccf-a4ba2cab77ba/download/accidents_2012_2018.zip",
-              destfile =  here::here("content/post/data/accidents_2012_2018.zip")
+              destfile =  here::here("content/post/data/downloads/accidents_2012_2018.zip")
 )
 
 download.file("https://ws.mapserver.transports.gouv.qc.ca/swtq?service=wfs&version=2.0.0&request=getfeature&typename=ms:radars_photos&outputformat=shp&srsname=EPSG:4326",
-              destfile = here::here("content/post/data/resultat_TQ.zip")
+              destfile = here::here("content/post/data/downloads/resultat_TQ.zip")
 )
 
 
-utils::unzip(here::here("content/post/data/accidents_2012_2018.zip"), exdir = here::here("content/post/data"))
+utils::unzip(here::here("content/post/data/downloads/accidents_2012_2018.zip"), exdir = here::here("content/post/data/interim"))
 
-utils::unzip(here::here("content/post/data/resultat_TQ.zip"),  exdir = here::here("content/post/data"))
+utils::unzip(here::here("content/post/data/downloads/resultat_TQ.zip"),  exdir = here::here("content/post/data/interim"))
 ```
 
 ```{r, include = F}
 
-accidents <- read_sf(here::here("content/post/data/accidents_2012_2018/accidents_2012_2018.shp")) %>%
+accidents <- read_sf(here::here("content/post/data/interim/accidents_2012_2018/accidents_2012_2018.shp")) %>%
   sf::st_transform( crs = 4326) %>% # convert to a projection that works with leaflet 
   filter(!is.na(LOC_LONG)) %>%  # drop crashes with no latitude / longitude
   mutate(year = lubridate::year(DT_ACCDN),  # create  month, quarter and year of crashevariables
@@ -70,7 +70,7 @@ accidents <- read_sf(here::here("content/post/data/accidents_2012_2018/accidents
   )
 
 
-radars <- read_sf(here::here("content/post/data/radars_photos.shp")) %>% 
+radars <- read_sf(here::here("content/post/data/interim/radars_photos.shp")) %>% 
   mutate(date_debut = as_date(lubridate::ymd_hm(dateDebutS)), #  as_date is required to convert POSIXct to date format (plays nicer with ggplot)
          month_debut = lubridate::floor_date(date_debut, unit = "month"),
          quarter_debut = lubridate::floor_date(date_debut, unit = "quarter"),
@@ -98,7 +98,7 @@ all_radars_quarters <- crossing( radars %>% st_set_geometry(NULL) %>% select(des
 
 I just got a speeding ticket by the mail.  I'm pissed off, mostly at myself.  
 
-That being said, I now have two questions regarding the relevance and efficiency of photo radars:  
+Yet, I now have two questions regarding the relevance and efficiency of photo radars:  
 
 * Relevance:  Are photo radars optimally located in areas with lots of crashes?
 * Efficiency: Do photo radars reduce crash frequency?  
@@ -184,11 +184,21 @@ get_accidents_proches <- function(radar){
 }
 
 
+
+radars %>% 
 mutate(accidents_proches = split(., 1:nrow(.))  %>% 
          map(get_accidents_proches)
-)
+) 
 
 ```
+
+note that you can sometime map geometry directly:
+```{r, echo= T, eval=F}
+radars %>% mutate(
+  bb = map(geometry, st_bbox)
+)
+```
+
 
 I also like this function from data.table that allows me to bind the rows of `sf`data.frames:   
 ```{r, echo = T, eval = F, include = T}
@@ -240,7 +250,11 @@ get_accidents_proches <- function(radar){
   if(sum(accidents_proches) > 0){
     data <- accidents
     data$distance_du_radar <- distances
-    data[accidents_proches,]
+    data[accidents_proches,] %>%
+       mutate(X = st_coordinates(geometry)[,1],
+              Y = st_coordinates(geometry)[,2]
+              ) %>%
+       st_set_geometry(NULL)
   } else{NULL}
 }
 
@@ -249,9 +263,11 @@ pouet <- radars %>%
   mutate(accidents_proches = 
            split(., 1:nrow(.)) %>% 
            map(get_accidents_proches)
-           )
+           ) 
 
-gaa <- pouet %>% unnest()
+
+gaa <- pouet %>%  st_set_geometry(NULL) %>%   unnest() %>%
+  st_as_sf(.,  coords= c("X", "Y"), crs =4326, agr = "constant")
 
 
 gaa %>% 
@@ -273,9 +289,10 @@ gaa %>%
 
 ```{r}
 ######  map des accidents proches ----
-zz <- sf::st_as_sf(data.table::rbindlist(pouet$accidents_proches))
+#zz <- sf::st_as_sf(data.table::rbindlist(pouet$accidents_proches))
 
-zz  %>%
+# zz %>%
+gaa  %>%
   leaflet()%>%   
   addProviderTiles(providers$Stamen.TonerLines) %>%
   addProviderTiles(providers$Stamen.TonerLabels) %>%
