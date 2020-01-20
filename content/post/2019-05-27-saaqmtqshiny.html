@@ -25,7 +25,7 @@ thumbnailImagePosition: left
 <script src="/rmarkdown-libs/Proj4Leaflet/proj4leaflet.js"></script>
 <link href="/rmarkdown-libs/rstudio_leaflet/rstudio_leaflet.css" rel="stylesheet" />
 <script src="/rmarkdown-libs/leaflet-binding/leaflet.js"></script>
-<script src="/rmarkdown-libs/leaflet-providers/leaflet-providers.js"></script>
+<script src="/rmarkdown-libs/leaflet-providers/leaflet-providers_1.9.0.js"></script>
 <script src="/rmarkdown-libs/leaflet-providers-plugin/leaflet-providers-plugin.js"></script>
 <link href="/rmarkdown-libs/leaflet-markercluster/MarkerCluster.css" rel="stylesheet" />
 <link href="/rmarkdown-libs/leaflet-markercluster/MarkerCluster.Default.css" rel="stylesheet" />
@@ -370,6 +370,6 @@ Mauricie
 <p>Finalement, j’ai créé une <a href="http://shiny.simoncoulombe.com/shiny/saaqmtq/">application pour vous permettre de générer le top 10 de votre ville</a>. Le username est “guest” et le mot de passe est “room”.</p>
 <p>Voici un screenshot de l’application telle quelle:</p>
 <p><img src="/post/2019-05-27-saaqmtqshiny_files/gatineau.png" /></p>
-<p>Le code pour préparer les données est disponible sur mon <a href="https://github.com/SimonCoulombe/saaqmtq">github</a>. <a href="https://github.com/SimonCoulombe/snippets/blob/master/content/post/data/prepared3.csv">Les données géocodées sont disponibles en ligne</a>, au cas où vous voudriez y jeter un coup d’oeil.</p>
+<p>Le code pour préparer les données est disponible sur mon <a href="https://github.com/SimonCoulombe/saaqmtq">github</a>. <a href="https://github.com/SimonCoulombe/snippets/blob/master/content/post/data/raw/prepared3.csv">Les données géocodées sont disponibles en ligne</a>, au cas où vous voudriez y jeter un coup d’oeil.</p>
 <p>Purquoi je vais revenir à ce code: J’avais déjà fait quelque chose de similaire en 2017. L’intérêt de ce post est que je rajoute les données de 2017, que j’ai ajouté un shiny pour créer le top 10 de n’importe quelle ville et que j’utilise l’outil de geocodage de openCage pour créer des “bounding boxes” afin de m’assurer que l’accident est géocodé dans la bonne ville, particulièrement quand il existe 2 villes avec le même nom comme St-Donat des Laurentides vs St-Donat dans le bas St-Laurent.</p>
 <p>une note pour moi : il faut maintenant installer les librairies avec le user shiny (su - shiny) au lieu de root.</p>

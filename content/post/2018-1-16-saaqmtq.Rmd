@@ -132,24 +132,31 @@ download.file("https://raw.githubusercontent.com/SimonCoulombe/saaqmtq/master/da
 if (read_from_csv){
   
 accidents16 <- read_csv("data/downloads/rapports-accident-2016.csv") %>%
-  mutate(NO_ROUTE = as.numeric(NO_ROUTE), SFX_NO_CIVIQ_ACCDN= as.character(SFX_NO_CIVIQ_ACCDN))%>%
+  mutate(NO_ROUTE = as.numeric(NO_ROUTE), 
+         SFX_NO_CIVIQ_ACCDN= as.character(SFX_NO_CIVIQ_ACCDN),
+         CD_MUNCP = as.numeric(CD_MUNCP))%>%
    rename(heure_accdn = HR_ACCDN)
 
 accidents15 <- read_csv("data/downloads/rapports-accident-2015.csv")%>%
-  mutate(NO_ROUTE = as.numeric(NO_ROUTE), SFX_NO_CIVIQ_ACCDN= as.character(SFX_NO_CIVIQ_ACCDN))%>%
+  mutate(NO_ROUTE = as.numeric(NO_ROUTE), SFX_NO_CIVIQ_ACCDN= as.character(SFX_NO_CIVIQ_ACCDN),
+         CD_MUNCP = as.numeric(CD_MUNCP))%>%
    rename(heure_accdn = HR_ACCDN)
 
 accidents14 <- read_csv("data/downloads/rapports-accident-2014.csv")%>%
-  mutate(NO_ROUTE = as.numeric(NO_ROUTE), SFX_NO_CIVIQ_ACCDN= as.character(SFX_NO_CIVIQ_ACCDN))%>%
+  mutate(NO_ROUTE = as.numeric(NO_ROUTE), SFX_NO_CIVIQ_ACCDN= as.character(SFX_NO_CIVIQ_ACCDN),
+         CD_MUNCP = as.numeric(CD_MUNCP))%>%
    rename(heure_accdn = HR_ACCDN)
 accidents13 <- read_csv("data/downloads/rapports-accident-2013.csv")%>%
-  mutate(NO_ROUTE = as.numeric(NO_ROUTE), SFX_NO_CIVIQ_ACCDN= as.character(SFX_NO_CIVIQ_ACCDN))%>%
+  mutate(NO_ROUTE = as.numeric(NO_ROUTE), SFX_NO_CIVIQ_ACCDN= as.character(SFX_NO_CIVIQ_ACCDN),
+         CD_MUNCP = as.numeric(CD_MUNCP))%>%
    rename(heure_accdn = HR_ACCDN)
 accidents12 <- read_csv("data/downloads/rapports-accident-2012.csv")%>%
-  mutate(NO_ROUTE = as.numeric(NO_ROUTE), SFX_NO_CIVIQ_ACCDN= as.character(SFX_NO_CIVIQ_ACCDN)) %>%
+  mutate(NO_ROUTE = as.numeric(NO_ROUTE), SFX_NO_CIVIQ_ACCDN= as.character(SFX_NO_CIVIQ_ACCDN),
+         CD_MUNCP = as.numeric(CD_MUNCP)) %>%
    rename(heure_accdn = HR_ACCDN)
  accidents11 <- read_csv("data/downloads/rapports-accident-2011.csv")%>%
-   mutate(NO_ROUTE = as.numeric(NO_ROUTE), SFX_NO_CIVIQ_ACCDN= as.character(SFX_NO_CIVIQ_ACCDN))
+   mutate(AN = an, NO_ROUTE = as.numeric(NO_ROUTE), SFX_NO_CIVIQ_ACCDN= as.character(SFX_NO_CIVIQ_ACCDN),
+         CD_MUNCP = as.numeric(CD_MUNCP))
 
  code_to_mun <- read_tsv("data/downloads/code_to_mun.tsv")
 
@@ -203,8 +210,8 @@ accidents12 <- read_csv("data/downloads/rapports-accident-2012.csv")%>%
                       "Trottoir"= "09",
                       "Autre" = "10"))
   
- save(accidents, accidents16, file= "temp_files/accidents.rdata")
-} else load("temp_files/accidents.rdata")
+ save(accidents, accidents16, file= "data/interim/accidents.rdata")
+} else load("data/interim/accidents.rdata")
 
 
 if (city != "province"){
@@ -364,7 +371,7 @@ accidents <- accidents %>%
 ```
 
 
-
+ents %>%
 Here is a snapshot of the data as it was received
 ```{r snapshot, echo= F}
 datatable(data =  accidents16 %>% slice(1:10),

@@ -37,6 +37,8 @@ library(ggmap) # static map
 library(leaflet)
 ggmap::register_google(key = Sys.getenv("googlemap_api_key"),
                        account_type="premium")
+library(mapdeck)
+key <- Sys.getenv("mapbox_token_esperance_de_vie_canada_usa")
 
 ```
 
@@ -76,14 +78,23 @@ canada_health_boundary <- read_sf(here::here("content/post/data/downloads/HR_000
 
 
 canada_mortality_with_boundary <- canada_health_boundary %>% 
-  inner_join(canada_mortality)
-
-mapview(canada_mortality_with_boundary , zcol ="value")
-
+  inner_join(canada_mortality) %>% 
+  rmapshaper::ms_simplify()
 
 
 ```
 
+```{r, include = F}
+mapview(canada_mortality_with_boundary , zcol ="value")
+```
+
+test avec mapviewOptions(platform = "mapdeck")
+
+```{r, include = F}
+
+#mapviewOptions(platform = "mapdeck")
+#mapview(canada_mortality_with_boundary , zcol ="value")
+```
 
 
 ```{r USA, include= F}
@@ -124,12 +135,19 @@ usa_mortality_with_boundary <- usa_census_tract_boundary %>%
               mutate(state2kx = GEOID))
 
 
+usa_mortality_with_boundary <- 
+  usa_mortality_with_boundary %>% rmapshaper::ms_simplify()
+
 ```
+
+
 
 Map of both countries excluding areas with life expectancy at birth below 80.
 Maine and Wisonsin are excluded because data is not available.  
 
-```{r}
+
+
+```{r BOTH, include= T}
 
 
 both <- list(
@@ -153,22 +171,23 @@ both_mortality_with_boundary <-sf::st_as_sf(
   data.table::rbindlist(both))
 
 
+#https://twitter.com/TimSalabim3/status/1206673522053066753
+#mapviewOptions(platform = "leaflet")
 mymapview <- both_mortality_with_boundary %>%
   filter(e_0 > 80) %>%
   mapview::mapview(zcol = "e_0",
                    layer.name = "Life expectancy at birth <br> 
                    when above 80 <br>
                    Canada 2015-2017 <br>
-                   USA 2010-2015")
-
-
+                   USA 2010-2015")  
 mymapview@map %>%
   addPolygons(data= usa_states %>% filter(STUSPS %in% c("ME","WI")),
               color = "gray60", fillColor = "gray60")
-
 ```
 
-```{ rstaticmap, include =F}
+
+
+```{r staticmap, include =F}
 # 
 # # ?
 # bbox <- both_mortality_with_boundary %>%

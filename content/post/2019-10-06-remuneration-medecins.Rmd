@@ -151,7 +151,7 @@ mysheet <- here::here("content/post/data/downloads/", "BDMS-tableaux-de-données
 
 #excel_sheets(mysheet)
 
-bdms  <- readxl::read_excel(here::here("content/post/data", "BDMS-tableaux-de-données-historiques-2018.xlsx"),
+bdms  <- readxl::read_excel(here::here("content/post/data/downloads", "BDMS-tableaux-de-données-historiques-2018.xlsx"),
                              sheet= "Main-d’oeuvre des médecins",
                              skip = 2,
                              n_max = 1000000,
