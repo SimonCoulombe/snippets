@@ -1,0 +1,276 @@
+---
+title: How far are cyclists willing to go to use a cycling path?
+author: simon
+date: '2020-01-28'
+slug: map-matching-bike
+categories:
+  - R
+  - bike
+  - map-maptching
+tags: []
+keywords:
+  - tech
+---
+
+
+
+```{r setup, include =F, echo =F}
+#
+# TODO : valider ceci : Chunk options must be written in one line; no line breaks are allowed inside chunk options;
+# https://yihui.name/knitr/options/
+knitr::opts_chunk$set(echo = FALSE, 
+                      collapse = FALSE,
+                      warning = FALSE,
+                      error = FALSE,
+                      message = FALSE,
+                      fig.align= "center",
+                      fig.width = 10,
+                      highlight = TRUE,
+                      cache = FALSE,
+                      cache.lazy = FALSE) # fixes long vecto rnot supported quand on cache des gros éléments https://stackoverflow.com/questions/39417003/long-vectors-not-supported-yet-error-in-rmd-but-not-in-r-script
+```
+
+
+```{r, include = F}
+library(leaflet)
+library(sf)
+library(mapview)
+library(tidyverse)
+library(purrr)
+```
+
+Get bike gps data
+```{r, eval =F}
+download.file("http://donnees.ville.montreal.qc.ca/dataset/77f30d2b-c786-45f0-9f33-ebdef46f3b4c/resource/2f05c452-6b63-4fba-8220-ac7104492074/download/trip5000.zip",
+              destfile = here::here("content/post/data/downloads/trip5000.zip")
+)
+
+utils::unzip(here::here("content/post/data/downloads/trip5000.zip"),
+             exdir = here::here("content/post/data/downloads/")
+)
+
+
+# download.file("http://download.geofabrik.de/north-america/canada/quebec-latest.osm.pbf",
+#               destfile = here::here("content/post/data/downloads/quebec-latest.osm.pbf")
+)
+
+```
+import gps data
+
+
+```{r}
+#z <- stplanr::line2pointsn(tripp5000$geometry[[1]])
+
+trip5000 <- sf::read_sf(here::here("content/post/data/downloads/trip5000.json"))
+mls <- sf::st_cast(trip5000$geometry[[1]], "MULTIPOINT")
+z <- data.frame(id = "prout", x = mls[,1], y = mls[,2])
+#pgirmess::writeGPX(z, filename = "original.gpx", type = "t")
+```
+
+
+```{r}
+z <- trip5000 %>% #head(5) %>%
+  mutate( 
+    points = map(geometry, ~ {
+      mls <- sf::st_cast(., "MULTIPOINT") 
+      data.frame(id = "prout", x = mls[,1], y = mls[,2])
+    }))
+
+purrr::walk2(z$id, z$points, ~ {
+  pgirmess::writeGPX(.y, filename = here::here("content/post/data/interim/bike_gps/", paste0("id_", .x, ".gpx" )), type = "t")
+})
+```
+
+
+
+```{r}
+system("cd ~/git/map-matching && java -jar ~/git/map-matching/matching-web/target/graphhopper-map-matching-web-1.0-SNAPSHOT.jar match ~/git/snippets2/content/post/data/interim/bike_gps/*.gpx")
+#system("cd ~/git/map-matching && java -jar /home/simon/git/map-matching/matching-web/target/graphhopper-map-matching-web-1.0-SNAPSHOT.jar match /home/simon/git/snippets2/content/post/original.gpx")
+```
+
+
+some trips are not matched.. list trips that have been matched
+```{r}
+matched_liste <- tibble(filename = 
+                          list.files(path = here::here("content/post/data/interim/bike_gps/"), 
+                                     pattern = "*.gpx.res.gpx")
+) %>%
+  mutate(id = str_extract(filename, "\\d+"))
+
+
+```
+
+
+```{r}
+# matched <- z %>% select(id) %>%
+#   mutate(matched = map(id, ~{
+#     st_read(here::here("content/post/data/interim/bike_gps/", paste0(.x, ".gpx.res.gpx" ))
+#             , layer = "track_points")%>%
+#       mutate(group = .x) %>%
+#       group_by(group)%>%
+#       summarize(., do_union = FALSE) %>%
+#       st_cast("LINESTRING") 
+#     
+#   }))
+library(furrr)
+plan(multiprocess, workers = availableCores()-1)
+
+
+matched <- matched_liste %>% select(id) %>%
+  mutate(matched = future_map(id, ~{
+    st_read(here::here("content/post/data/interim/bike_gps/",paste0("id_", .x, ".gpx.res.gpx"))
+            , layer = "track_points")%>%
+      mutate(group = .x) %>%
+      group_by(group)%>%
+      summarize(., do_union = FALSE) %>%
+      st_cast("LINESTRING")
+    
+  }, progress = TRUE))
+
+
+
+matched <- sf::st_as_sf(data.table::rbindlist(matched$matched)) 
+
+both <- sf::st_as_sf(data.table::rbindlist(
+  list(
+    matched %>% 
+      mutate(group = paste0(group, "_matched")), 
+    z %>% select(group = id)
+    )
+  )
+  ) 
+
+mapview(both %>% arrange(group) %>% slice(11:20))
+```
+
+git clone https://github.com/graphhopper/graphhopper.git
+cd graphhopper
+docker build -t graphhopper:master .
+docker run -d --name graphhopper -v ~/git/osm_data/data:/data -p 8989:8989 graphhopper:master
+
+
+https://discuss.graphhopper.com/t/getting-graphhopper-to-work/3386/5
+
+Aug '18
+
+Once you have java installed, you should just be able to run commands similar to the following in the command prompt to get it to work locally.
+
+cd ‘C:~directory with graphhopper files’
+start chrome http://localhost:8989/ 1
+java -jar *.jar jetty.resourcebase=webapp config=config-example.properties osmreader.osm=berlin-latest.osm.pbf
+
+‘*’ = filename e.g. graphhopper-web-0.5.0-with-dep.jar
+
+Finally got it working on Windows (thanks maxo16):
+C:\GraphHopper>java -jar graphhopper-web-0.10.0-with-dep.jar jetty.resourcebase=webapp config=config-example.properties datareader.file=berlin-latest.osm.pbf
+BTW, would be really nice if someone could please post this into the quick start doc:
+https://github.com/graphhopper/graphhopper/blob/master/docs/web/quickstart.md 14
+The link http://localhost:8989/ 5 brought up map of Berlin for me, everything seems to be fine.
+
+
+java -jar *.jar jetty.resourcebase=webapp config=config-example.properties osmreader.osm=quebec-latest.osm.pbf
+
+### gmmm non
+on va essayer  le quickstart guide  à https://github.com/graphhopper/graphhopper/blob/0.13/docs/web/quickstart.md
+
+mkdir graphhopper
+cd graphhopper
+wget https://raw.githubusercontent.com/graphhopper/graphhopper/0.13/config-example.yml
+cat config-example.yml | sed s/"graph.flag_encoders: car"/"graph.flag_encoders: bike"/ > config-bike.yml
+wget https://graphhopper.com/public/releases/graphhopper-web-0.13.0.jar
+wget http://download.geofabrik.de/europe/germany/berlin-latest.osm.pbf
+java -Dgraphhopper.datareader.file=berlin-latest.osm.pbf -jar *.jar server config-bike.yml
+
+
+ça marche pas pour les bikes.
+
+# on va essayer le quick start guide for developpers 
+https://github.com/graphhopper/graphhopper/blob/0.13/docs/core/quickstart-from-source.md
+
+
+git clone git://github.com/graphhopper/graphhopper.git
+cd graphhopper;
+cd web/src/main/resources/ && ZFILE=/tmp/gh.jar && wget -O $ZFILE "https://repository.sonatype.org/service/local/artifact/maven/redirect?r=central-proxy&g=com.graphhopper&a=graphhopper-web&v=LATEST" && unzip $ZFILE assets/js/main.js && rm $ZFILE && cd ../../../..
+wget https://raw.githubusercontent.com/graphhopper/graphhopper/0.13/config-example.yml
+cat config-example.yml | sed s/"car"/"bike"/ > config-bike.yml
+./graphhopper.sh -a web -i europe_germany_berlin.pbf # -c config-bike.yml -p bike 
+
+holy shit ça marche on recommence avec quebec pour tester la piste cyclable des outaouais..
+
+git clone git://github.com/graphhopper/graphhopper.git
+cd graphhopper;
+cd web/src/main/resources/ && ZFILE=/tmp/gh.jar && wget -O $ZFILE "https://repository.sonatype.org/service/local/artifact/maven/redirect?r=central-proxy&g=com.graphhopper&a=graphhopper-web&v=LATEST" && unzip $ZFILE assets/js/main.js && rm $ZFILE && cd ../../../..
+wget https://raw.githubusercontent.com/graphhopper/graphhopper/0.13/config-example.yml
+#cat config-example.yml | sed s/"car"/"bike"/ > config-bike.yml
+wget http://download.geofabrik.de/north-america/canada/quebec-latest.osm.pbf
+./graphhopper.sh -a web -i quebec-latest.osm.pbf  -c config-example.yml ## le secret c'est de pas mettre -p bike...   # à la place je modifie manuellement config-example pour avoir car, bike
+
+## voici mon config example gossé avec amour  : https://gist.github.com/SimonCoulombe/c4e4bb3af45ba6b4ccdd48aab561b2dc
+
+# ok on essaie l'API
+https://github.com/graphhopper/graphhopper/blob/0.13/docs/web/api-doc.md
+http://localhost:8989/route?point=45.381271%2C-75.809054&point=45.380759%2C-75.82253
+http://localhost:8989/route?point=45.381271%2C-75.809054&point=45.380759%2C-75.82253&vehicle=bike&&details=road_class
+```{r}
+library(jsonlite)
+api_results <- fromJSON("http://localhost:8989/route?point=45.381271%2C-75.809054&point=45.380759%2C-75.82253&vehicle=bike&details=road_class&points_encoded=false")
+api_results$paths$instructions %>% .[[1]] %>% select(distance) %>% head(-1) # distances sur chacun des 3 segments
+api_results$paths$details$road_class[[1]][,3] # type de route correspondant aux distances
+api_results$paths$points$coordinates[[1]] %>% 
+  as_tibble() %>% 
+  rename(lon = V1, lat= V2) %>%
+  st_as_sf(coords = c("lon", "lat"), crs = 4326) %>%
+  mutate(group = "groupe") %>%
+  group_by(group) %>%
+  summarize(., do_union = FALSE) %>%
+st_cast("LINESTRING") %>% 
+  mapview() # extraire les points du chemin le plus court
+```
+
+
+# ok on va faire l'API avec un gpx map matché
+hey ça marche
+```{r}
+original <- st_read("original.gpx"
+                    , layer = "track_points") %>% mutate(group = "original") %>%
+  group_by(group)%>%
+  summarize(., do_union = FALSE) %>%
+  st_cast("LINESTRING")
+
+matched <- st_read("original.gpx.res.gpx"
+                   , layer = "track_points")%>% mutate(group = "matched") %>%
+  group_by(group)%>%
+  summarize(., do_union = FALSE) %>%
+  st_cast("LINESTRING") 
+
+
+sf::st_as_sf(data.table::rbindlist(list(original, matched))) %>%
+  mapview()
+
+```
+
+
+```{r}
+sf::st_write(tripp5000 %>% head(1),
+             dsn="trip5000.gpx",
+             layer="track_points", driver="GPX",
+             dataset_options="GPX_USE_EXTENSIONS=YES"
+)
+```
+
+```{r}
+l <- routes_fast_sf[2:4, ]
+lpoints <- line2points(l)
+lpoints_sfc <- line2points(sf::st_geometry(l))
+identical(lpoints, lpoints_sfc)
+lpoints2 <- line2pointsn(l)
+plot(sf::st_geometry(lpoints), pch = lpoints$id, cex = lpoints$id, col = "black")
+plot(lpoints2$geometry, add = TRUE)
+# in sp data forms (may be depreciated)
+l <- routes_fast[2:4, ]
+lpoints <- line2points(l)
+lpoints2 <- line2pointsn(l)
+plot(lpoints, pch = lpoints$id, cex = lpoints$id)
+points(lpoints2)
+```
+
