@@ -436,6 +436,9 @@ zzz <- routed_matched_distances <-
         .x$paths$instructions %>% .[[1]] %>% select(interval) #%>% head(-1)
       } # attention . la distance peut couvrir plusieurs points, ou meme pas 1 point. . il faut regarder les intervalles pour le savoir
     ),
+    interval_from = map(intervales, ~  map(.x$interval, ~.x[1]) %>% unlist()),
+    interval_to = map(intervales, ~  map(.x$interval, ~.x[2]) %>% unlist()),
+    
     road_classes = future_map(
       api_results, ~{
         #tibble(road_class = .x$paths$details$road_class[[1]][,3])
@@ -443,11 +446,90 @@ zzz <- routed_matched_distances <-
           from =       .x$paths$details$road_class[[1]][,1], # from point 
           to =         .x$paths$details$road_class[[1]][,2], # to point 
           road_class = .x$paths$details$road_class[[1]][,3] # type de route
-          )
+        )
       }
     )
   )
+
+##  zzz$intervales[[1]]$interval %>% map( ~.x[1]) %>% unlist()
+#   [1]   0   1   1   2   2   3   4   4   5   5   6   7   7   8  10  19  27  28  29  29  30  30  31  31  32  32  33  33  34  34  35  35  36  36  37  37  38  38  39  39  40  41  41  42  42  43  43  44  45  45  46  46  47  47  48
+#  [56]  48  49  49  50  50  51  52  52  53  53  54  54  55  55  56  56  57  57  58  58  59  59  60  60  61  61  62  62  63  63  64  64  65  65  66  66  67  67  70  71  72  72  73  73  74  75  77  78  80  80  81  81  82  82  83
+# [111]  83  84  85  86  87  87  88  88  89  90  90  91  91  92  92  93  93  94  95  95  96  97  97  98  99  99 100
+
 ```
+
+hey j'ai calculé les distances par road class!! : 
+```{r}
+
+distances <- zzz$distances[[1]] %>% add_column(point_from = zzz$interval_from[[1]]) %>% add_column(point_to = zzz$interval_to[[1]])
+road_classes <- zzz$road_classes[[1]] %>% 
+  mutate(data = map2(as.numeric(from), as.numeric(to), ~ {
+    data_frame( 
+      point_from = 
+        seq(
+          from= .x,
+          to = .y-1 ,
+          by = 1
+        ))
+  })) %>% unnest(data)
+
+distances %>% left_join(road_classes) %>%
+  group_by(road_class) %>%
+  summarise(distance = sum(distance)) # reste à gérer le dernier point
+
+```
+
+let's do it for everyone:  
+```{r}
+zzzz <- zzz %>%
+  mutate( distances2 = pmap(list(distances, interval_from, interval_to),
+                            function(distances, interval_from, interval_to){
+                              
+                              distances  %>% add_column(point_from = interval_from) %>% add_column(point_to = interval_to)
+                              
+                            }),
+          
+          
+          road_classes2 = map(road_classes, ~{
+            
+            .x %>% 
+              mutate(data = map2(as.numeric(from), as.numeric(to), ~ {
+                data_frame( 
+                  point_from = 
+                    seq(
+                      from= .x,
+                      to = .y-1 ,
+                      by = 1
+                    ))
+              })) %>% unnest(data)
+            
+          })
+  ) %>%
+  mutate(
+    my_summary = map2(distances2, road_classes2, ~{
+      .x %>% left_join(.y) %>%
+        group_by(road_class) %>%
+        summarise(distance = sum(distance)) %>%
+        filter(!is.na(road_class)) ## le dernier point est NA car c'estl 'arrivée et quej 'ai pas gardé la classe du dernier point.. il a tjrs distance de 0 anyway
+        
+        
+        
+    } )
+  )
+
+```
+
+
+.. ok let's summarise that shit.
+```{r}
+zzzz %>%  st_set_geometry(NULL) %>% pull(my_summary) %>% bind_rows() %>%
+  group_by(road_class) %>%
+  summarise(distance = sum(distance)) %>%
+  ungroup() %>%
+  mutate(pct = distance / sum(distance)) %>%
+  arrange(-distance)
+```
+
 
 
 
