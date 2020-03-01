@@ -30,6 +30,22 @@ knitr::opts_chunk$set(echo = FALSE,
                       cache.lazy = FALSE) # fixes long vecto rnot supported quand on cache des gros éléments https://stackoverflow.com/questions/39417003/long-vectors-not-supported-yet-error-in-rmd-but-not-in-r-script
 ```
 
+Hey everyone,
+
+I have been looking for a use for [this open data that contains GPS data for ~ 5000 bike trips in Montreal](http://donnees.ville.montreal.qc.ca/dataset/trajets-individuels-velo-enregistre-mon-resovelo) for a while ago and here is the question I came up with:    *"How far are cyclists ready to go to use a safe road rather than an unsafe one?"*.  
+
+I came up with the following methodology:  
+
+* Find out how many kilometers are spent on each road class for the *shortest path possible * between the origin and destination  (eg: 10 kilometers on residential roads).  
+* Find out how many kilometersare *actually spent on each road class* (eg: 7 kilometers on residential roads, 6 kilometers on cycling pathways).
+* The ratio between the increase in cycling pathway  and the decrease in less-safe roads defines how much cycling pathways are preferred over less-safe roads.  
+
+In my example, the ratio is 2.0, as the 6 kilometers on cycling pathways are used to reduce the distance on roads by 2x.
+
+This turned out to be quite an undertaking, here is what I learned doing this.  
+
+
+
 
 ```{r, include = F}
 library(leaflet)
@@ -359,7 +375,7 @@ test: 275 ça marche, 300 ça marche pas ..
 on va garder entre 250 et 252 points au hasard.. incluantl e premier et le dernier
 ```{r}
 tic()
-rrr <- matched %>% slice(1:100) %>%
+rrr <- matched %>% 
   mutate(
     api_call = future_map(geometry, ~ {
       paste0(
@@ -380,15 +396,16 @@ rrr <- matched %>% slice(1:100) %>%
   ) 
 
 
-sss <- rrr %>%
+matched_routed <- rrr %>%
   mutate(
     api_results = future_map(api_call, ~ 
                                {
                                  fromJSON(url(.x))
                                  
                                }, progress = TRUE)
-  )    
-toc()
+  ) 
+write_rds(matched_routed, here::here("content/post/data/interim/", "matched_routed.rds"))
+# toc() # 186.123 sec elapsed
 ```
 # ok on va jouer avec les api results
 
