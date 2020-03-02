@@ -589,7 +589,8 @@ matched_shortest_route_linestrings <-
   select(group, everything())   ## remettre group avant geometry  11s
 
 matched_shortest_route2 <- matched_shortest_route_linestrings %>% 
-  filter(length_routed_matched >0) %>%
+  #filter(length_routed_matched >0) %>% # didnt return to origin
+  filter(length_routed_matched > 500) %>% # travelled at least 500 meters
   mutate( ratio = length_matched / length_routed_matched,
           distances = future_map(api_results, ~get_distances_from_api_results(.x)),
           road_classes = future_map(api_results, ~ get_road_classes_from_api_results(.x) ),
@@ -618,3 +619,34 @@ matched_shortest_route2 %>% st_set_geometry(NULL) %>% pull(distance_by_road_clas
   arrange(-corrected_distance) %>%
   knitr::kable()
 ```
+
+
+# ah shit TODO: identify remove trips that loop  back
+
+
+# Compare shortest route to map-matched route  and map-matched-routed   
+
+```{r}
+
+#%>% ungroup() %>% select(group) %>% inner_join(matched_shortest_route2 %>% st_set_geometry(NULL) %>% select(group))
+
+testtest <- bind_rows_sf(
+  list(
+    matched  %>% select(group) %>% mutate(type = "matched"),
+    matched_routed  %>%  select(group) %>%  mutate(type = "matched_routed"),
+    matched_shortest_route2 %>% select(group) %>% mutate(type = "shortest_route")
+  )
+)
+```
+
+
+```{r}
+testtest %>% filter(group == "1049") %>% mapview(zcol = "type")
+testtest %>% filter(group == "1000") %>% mapview(zcol = "type")
+testtest %>% filter(group == "1004") %>% mapview(zcol = "type", alpha = 0.3)
+testtest %>% filter(group == "10044") %>% mapview(zcol = "type", alpha = 0.3)
+testtest %>% filter(group == "2010") %>% mapview(zcol = "type", alpha = 0.3)
+testtest %>% filter(group == "2500") %>% mapview(zcol = "type", alpha = 0.3)
+
+```
+
