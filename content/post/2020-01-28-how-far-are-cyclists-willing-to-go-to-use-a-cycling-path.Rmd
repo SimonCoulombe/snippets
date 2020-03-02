@@ -469,7 +469,7 @@ get_routed_linestring <- function(api_results){
 ```
 
 ```{r}
-routed_matched_linestrings <-
+matched_routed_linestrings <-
   future_map(matched_routed$api_results, ~ get_routed_linestring(.x)) %>%
   bind_rows_sf() %>%
   add_column(group = matched_routed$group,
@@ -483,7 +483,7 @@ routed_matched_linestrings <-
 ```{r}
 bind_rows_sf(
   list(
-    routed_matched_linestrings[28,] %>% mutate(group = paste0("matched_routed_", group)) %>% select(group),
+    matched_routed_linestrings[28,] %>% mutate(group = paste0("matched_routed_", group)) %>% select(group),
     matched[28,] %>% mutate(group = paste0("matched_", group)) %>% select(group)
   )
 ) %>% mapview()
@@ -526,131 +526,38 @@ get_each_point_road_class_from_road_classes <- function(road_classes){
 
 
 ```{r}
-prout <- routed_matched_linestrings %>%
-  mutate( distances = future_map(api_results, ~get_distances_from_api_results(.x)),
+tic()
+matched_routed2 <- matched_routed_linestrings %>%
+  mutate( ratio = length_matched / length_routed_matched,
+          distances = future_map(api_results, ~get_distances_from_api_results(.x)),
           road_classes = future_map(api_results, ~ get_road_classes_from_api_results(.x) ),
           road_classes_points = future_map(road_classes, ~ get_each_point_road_class_from_road_classes(.x)),
-          distance_by_road_class = future_map2(distances, road_classes_points, ~{
-            .x %>% left_join(.y) %>%
-              group_by(road_class) %>%
-              summarise(distance = sum(distance)) %>%
-              filter(!is.na(road_class))
-        })
+          distance_by_road_class = future_pmap(
+            list(distances, road_classes_points, ratio),
+            function(distances, road_classes_points, ratio){
+              distances %>% 
+                left_join(road_classes_points) %>%
+                group_by(road_class) %>%
+                summarise(distance = sum(distance)) %>%
+                mutate(corrected_distance = distance * ratio) %>%  ## correct for distance inflation when routing does funny loops
+                filter(!is.na(road_class))
+            })
   )
+toc()
+write_rds(matched_routed2, here::here("content/post/data/interim/", "matched_routed2.rds"))
 ```
 
-
-```{r}
-zzz <- routed_matched_distances <- 
-  routed_matched_linestrings %>%
-  # add_column(api_results = matched_routed$api_results,
-  #            api_call = matched_routed$api_call) %>%
-  mutate(
-    distances = future_map(
-      api_results, ~{
-        .x$paths$instructions %>% .[[1]] %>% select(distance) #%>% head(-1)
-      } # attention . la distance peut couvrir plusieurs points, ou meme pas 1 point. . il faut regarder les intervalles pour le savoir
-    ),
-    intervales = future_map(
-      api_results, ~{
-        .x$paths$instructions %>% .[[1]] %>% select(interval) #%>% head(-1)
-      } # attention . la distance peut couvrir plusieurs points, ou meme pas 1 point. . il faut regarder les intervalles pour le savoir
-    ),
-    interval_from = map(intervales, ~  map(.x$interval, ~.x[1]) %>% unlist()),
-    interval_to = map(intervales, ~  map(.x$interval, ~.x[2]) %>% unlist()),
-    
-    road_classes = future_map(
-      api_results, ~{
-        #tibble(road_class = .x$paths$details$road_class[[1]][,3])
-        tibble(
-          from =       .x$paths$details$road_class[[1]][,1], # from point 
-          to =         .x$paths$details$road_class[[1]][,2], # to point 
-          road_class = .x$paths$details$road_class[[1]][,3] # type de route
-        )
-      }
-    )
-  )
-
-##  zzz$intervales[[1]]$interval %>% map( ~.x[1]) %>% unlist()
-#   [1]   0   1   1   2   2   3   4   4   5   5   6   7   7   8  10  19  27  28  29  29  30  30  31  31  32  32  33  33  34  34  35  35  36  36  37  37  38  38  39  39  40  41  41  42  42  43  43  44  45  45  46  46  47  47  48
-#  [56]  48  49  49  50  50  51  52  52  53  53  54  54  55  55  56  56  57  57  58  58  59  59  60  60  61  61  62  62  63  63  64  64  65  65  66  66  67  67  70  71  72  72  73  73  74  75  77  78  80  80  81  81  82  82  83
-# [111]  83  84  85  86  87  87  88  88  89  90  90  91  91  92  92  93  93  94  95  95  96  97  97  98  99  99 100
-
-```
-
-hey j'ai calculé les distances par road class pour une personne!! : 
-```{r}
-
-distances <- zzz$distances[[1]] %>% add_column(point_from = zzz$interval_from[[1]]) %>% add_column(point_to = zzz$interval_to[[1]])
-
-road_classes <- zzz$road_classes[[1]] %>% 
-  mutate(data = map2(as.numeric(from), as.numeric(to), ~ {
-    data_frame( 
-      point_from = 
-        seq(
-          from= .x,
-          to = .y-1 ,
-          by = 1
-        ))
-  })) %>% unnest(data)
-
-distances %>% left_join(road_classes) %>%
-  group_by(road_class) %>%
-  summarise(distance = sum(distance)) # reste à gérer le dernier point
-
-```
-
-let's do it for everyone:  
-
-```{r}
-tic()
-zzzz <- zzz %>%
-  mutate( distances2 = future_pmap(list(distances, interval_from, interval_to),
-                                   function(distances, interval_from, interval_to){
-                                     
-                                     distances  %>% add_column(point_from = interval_from) %>% add_column(point_to = interval_to)
-                                     
-                                   }),
-          
-          
-          road_classes2 = map(road_classes, ~{
-            
-            .x %>% 
-              mutate(data = map2(as.numeric(from), as.numeric(to), ~ {
-                data_frame( 
-                  point_from = 
-                    seq(
-                      from= .x,
-                      to = .y-1 ,
-                      by = 1
-                    ))
-              })) %>% unnest(data)
-            
-          })
-  ) %>%
-  mutate(
-    my_summary = map2(distances2, road_classes2, ~{
-      .x %>% left_join(.y) %>%
-        group_by(road_class) %>%
-        summarise(distance = sum(distance)) %>%
-        filter(!is.na(road_class)) ## le dernier point est NA car c'estl 'arrivée et quej 'ai pas gardé la classe du dernier point.. il a tjrs distance de 0 anyway
-      
-      
-      
-    } )
-  )
-toc() # 135.531 sec elapsed
-```
 
 
 .. ok let's summarise that shit.
 ```{r}
-zzzz %>%  st_set_geometry(NULL) %>% pull(my_summary) %>% bind_rows() %>%
+matched_routed2 %>%  st_set_geometry(NULL) %>% pull(distance_by_road_class) %>% bind_rows() %>%
   group_by(road_class) %>%
-  summarise(distance = sum(distance)) %>%
+  summarise(distance = sum(distance),
+            corrected_distance = sum(corrected_distance)) %>%
   ungroup() %>%
-  mutate(pct = 100 * distance / sum(distance)) %>%
-  arrange(-distance) %>%
+  mutate(pct = 100 * corrected_distance / sum(corrected_distance)) %>%
+  arrange(-corrected_distance) %>%
   knitr::kable()
 ```
 
@@ -659,127 +566,59 @@ Ok, so we know what cycled distance was *actually* spent on each road type.  Now
 
 # Finding 5000 shortest paths  between origin and destination  
 
+.. fuck.. what about origin = destination (a stroll that comes back home?  ) let's ditch them...
+
 ```{r}
-tic()
-shortest_paths <- matched %>% 
+matched_shortest_route <- matched %>%
+  mutate(length_matched = st_length(geometry) %>% as.numeric(.)) %>%
   mutate(
-    api_call = future_map(geometry, ~ generate_api_call(.x, origin_destination_only =  TRUE)) %>% unlist()
+    api_results = future_map(geometry, 
+                             ~ get_api_results(geometry = .x, 
+                                               origin_destination_only = TRUE), 
+                             progress = TRUE)
   ) 
 
 
-shortest_paths <- shortest_paths %>%
-  mutate(
-    api_results = future_map(api_call, ~ 
-                               {
-                                 fromJSON(url(.x))
-                                 
-                               }, progress = TRUE)
-  ) 
-write_rds(shortest_paths, here::here("content/post/data/interim/", "shortest_paths.rds"))
-toc() # 44s
-```
+matched_shortest_route_linestrings <-
+  future_map(matched_shortest_route$api_results, ~ get_routed_linestring(.x)) %>%
+  bind_rows_sf() %>%
+  add_column(group = matched_shortest_route$group,
+             api_results = matched_shortest_route$api_results,
+             length_matched = matched_shortest_route$length_matched)  %>%
+  mutate(length_routed_matched = st_length(geometry) %>% as.numeric()  )%>% 
+  select(group, everything())   ## remettre group avant geometry  11s
 
-
-```{r}
-tic()
-routed_matched_linestrings <- sf::st_as_sf(data.table::rbindlist(  
-  future_map2(
-    matched_routed$api_results, matched_routed$group, ~ {
-      .x$paths$points$coordinates[[1]] %>% 
-        as_tibble() %>% 
-        rename(lon = V1, lat= V2) %>%
-        st_as_sf(coords = c("lon", "lat"), crs = 4326) %>%
-        mutate(group = .y) %>%
-        group_by(group) %>%
-        summarize(., do_union = FALSE) %>%
-        st_cast("LINESTRING")
-    }) 
-))
-toc()
-
-zzz <- routed_matched_distances <- 
-  routed_matched_linestrings %>%
-  add_column(api_results = matched_routed$api_results,
-             api_call = matched_routed$api_call) %>%
-  mutate(
-    distances = future_map(
-      api_results, ~{
-        .x$paths$instructions %>% .[[1]] %>% select(distance) #%>% head(-1)
-      } # attention . la distance peut couvrir plusieurs points, ou meme pas 1 point. . il faut regarder les intervalles pour le savoir
-    ),
-    intervales = future_map(
-      api_results, ~{
-        .x$paths$instructions %>% .[[1]] %>% select(interval) #%>% head(-1)
-      } # attention . la distance peut couvrir plusieurs points, ou meme pas 1 point. . il faut regarder les intervalles pour le savoir
-    ),
-    interval_from = map(intervales, ~  map(.x$interval, ~.x[1]) %>% unlist()),
-    interval_to = map(intervales, ~  map(.x$interval, ~.x[2]) %>% unlist()),
-    
-    road_classes = future_map(
-      api_results, ~{
-        #tibble(road_class = .x$paths$details$road_class[[1]][,3])
-        tibble(
-          from =       .x$paths$details$road_class[[1]][,1], # from point 
-          to =         .x$paths$details$road_class[[1]][,2], # to point 
-          road_class = .x$paths$details$road_class[[1]][,3] # type de route
-        )
-      }
-    )
+matched_shortest_route2 <- matched_shortest_route_linestrings %>% 
+  filter(length_routed_matched >0) %>%
+  mutate( ratio = length_matched / length_routed_matched,
+          distances = future_map(api_results, ~get_distances_from_api_results(.x)),
+          road_classes = future_map(api_results, ~ get_road_classes_from_api_results(.x) ),
+          road_classes_points = future_map(road_classes, ~ get_each_point_road_class_from_road_classes(.x)),
+          distance_by_road_class = future_pmap(
+            list(distances, road_classes_points, ratio),
+            function(distances, road_classes_points, ratio){
+              distances %>% 
+                left_join(road_classes_points) %>%
+                group_by(road_class) %>%
+                summarise(distance = sum(distance)) %>%
+                mutate(corrected_distance = distance * ratio) %>%  ## correct for distance inflation when routing does funny loops
+                filter(!is.na(road_class))
+              
+            }
+          )
   )
 
-```
 
-```{r}
-tic()
-zzzz <- zzz %>%
-  mutate( distances2 = future_pmap(list(distances, interval_from, interval_to),
-                                   function(distances, interval_from, interval_to){
-                                     
-                                     distances  %>% add_column(point_from = interval_from) %>% add_column(point_to = interval_to)
-                                     
-                                   }),
-          
-          
-          road_classes2 = map(road_classes, ~{
-            
-            .x %>% 
-              mutate(data = map2(as.numeric(from), as.numeric(to), ~ {
-                data_frame( 
-                  point_from = 
-                    seq(
-                      from= .x,
-                      to = .y-1 ,
-                      by = 1
-                    ))
-              })) %>% unnest(data)
-            
-          })
-  ) %>%
-  mutate(
-    my_summary = map2(distances2, road_classes2, ~{
-      .x %>% left_join(.y) %>%
-        group_by(road_class) %>%
-        summarise(distance = sum(distance)) %>%
-        filter(!is.na(road_class)) ## le dernier point est NA car c'estl 'arrivée et quej 'ai pas gardé la classe du dernier point.. il a tjrs distance de 0 anyway
-      
-      
-      
-    } )
-  )
-toc() # 135.531 sec elapsed
-```
-
-
-.. ok let's summarise that shit.
-```{r}
-zzzz %>%  st_set_geometry(NULL) %>% pull(my_summary) %>% bind_rows() %>%
+matched_shortest_route2 %>% st_set_geometry(NULL) %>% pull(distance_by_road_class) %>% bind_rows() %>%
   group_by(road_class) %>%
-  summarise(distance = sum(distance)) %>%
+  summarise(distance = sum(distance),
+            corrected_distance = sum(corrected_distance)) %>%
   ungroup() %>%
-  mutate(pct = 100 * distance / sum(distance)) %>%
-  arrange(-distance) %>%
+  mutate(pct = 100 * corrected_distance / sum(corrected_distance)) %>%
+  arrange(-corrected_distance) %>%
   knitr::kable()
 ```
+
 
 
 # OLD : gosser avec 1 seul api result  
