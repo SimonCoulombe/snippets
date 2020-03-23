@@ -549,17 +549,6 @@ write_rds(matched_routed2, here::here("content/post/data/interim/", "matched_rou
 
 
 
-.. ok let's summarise that shit.
-```{r}
-matched_routed2 %>%  st_set_geometry(NULL) %>% pull(distance_by_road_class) %>% bind_rows() %>%
-  group_by(road_class) %>%
-  summarise(distance = sum(distance),
-            corrected_distance = sum(corrected_distance)) %>%
-  ungroup() %>%
-  mutate(pct = 100 * corrected_distance / sum(corrected_distance)) %>%
-  arrange(-corrected_distance) %>%
-  knitr::kable()
-```
 
 
 Ok, so we know what cycled distance was *actually* spent on each road type.  Now we must find out how much *would have been had they chosen the shortest path*.  
@@ -608,8 +597,10 @@ matched_shortest_route2 <- matched_shortest_route_linestrings %>%
             }
           )
   )
+```
 
 
+```{r}
 matched_shortest_route2 %>% st_set_geometry(NULL) %>% pull(distance_by_road_class) %>% bind_rows() %>%
   group_by(road_class) %>%
   summarise(distance = sum(distance),
@@ -619,6 +610,48 @@ matched_shortest_route2 %>% st_set_geometry(NULL) %>% pull(distance_by_road_clas
   arrange(-corrected_distance) %>%
   knitr::kable()
 ```
+
+
+```{r}
+
+matched_shortest_route2 %>% st_set_geometry(NULL) %>% pull(distance_by_road_class) %>% bind_rows() %>%
+
+  summarise(distance = sum(distance),
+            corrected_distance = sum(corrected_distance)) %>%
+  
+  mutate(pct = 100 * corrected_distance / sum(corrected_distance)) %>%
+  arrange(-corrected_distance) %>%
+  knitr::kable()
+
+```
+
+.. ok let's summarise that shit.
+```{r}
+matched_routed2 %>%  st_set_geometry(NULL) %>% 
+  inner_join(matched_shortest_route2 %>% st_set_geometry(NULL) %>% select(group)) %>%
+  pull(distance_by_road_class) %>% bind_rows() %>%
+  group_by(road_class) %>%
+  summarise(distance = sum(distance),
+            corrected_distance = sum(corrected_distance)) %>%
+  ungroup() %>%
+  mutate(pct = 100 * corrected_distance / sum(corrected_distance)) %>%
+  arrange(-corrected_distance) %>%
+  knitr::kable()
+```
+```{r}
+matched_routed2 %>%  st_set_geometry(NULL) %>% 
+  inner_join(matched_shortest_route2 %>% st_set_geometry(NULL) %>% select(group)) %>%
+  pull(distance_by_road_class) %>% bind_rows() %>%
+    summarise(distance = sum(distance),
+            corrected_distance = sum(corrected_distance)) %>%
+
+  mutate(pct = 100 * corrected_distance / sum(corrected_distance)) %>%
+  arrange(-corrected_distance) %>%
+  knitr::kable()
+
+```
+
+
 
 
 # ah shit TODO: identify remove trips that loop  back
