@@ -1,0 +1,390 @@
+---
+title: Tweedie vs Poisson * Gamma
+author: Simon
+date: '2020-03-23'
+slug: tweedie-vs-poisson-gamma
+categories:
+  - R
+  - insurnace
+tags: []
+keywords:
+  - tech
+---
+
+
+
+<p>Quick post to create a loss cost (tweedie) model vs multiplying a frequency (Poisson) and a severity (Gamma) model.</p>
+<pre class="r"><code># https://www.cybaea.net/Journal/2012/03/13/R-code-for-Chapter-2-of-Non_Life-Insurance-Pricing-with-GLM/
+library(insuranceData) # pour les données dataCar
+library(tidyverse)  # pour la manipulation de données
+library(statmod) #pour glm(family = tweedie)
+library(modelr) # pour add_predictions()
+library(broom) # pour afficher les coefficients
+data(dataCar)
+
+# claimcst0claim amount (0 if no claim)
+mydb &lt;- dataCar %&gt;% select(numclaims, claimcst0, exposure, veh_value, veh_body,
+                           veh_age, gender, area, agecat)</code></pre>
+<div id="tweedie-model" class="section level1">
+<h1>Tweedie model</h1>
+<pre class="r"><code>tweedie_fit &lt;- 
+  glm(claimcst0 ~ veh_value + veh_body + veh_age + gender + area + agecat,
+      family=tweedie(var.power=1.1, link.power=0),
+      offset = log(exposure),
+      data = mydb)
+
+
+#broom::tidy(tweedie_fit)
+summary(tweedie_fit)</code></pre>
+<pre><code>## 
+## Call:
+## glm(formula = claimcst0 ~ veh_value + veh_body + veh_age + gender + 
+##     area + agecat, family = tweedie(var.power = 1.1, link.power = 0), 
+##     data = mydb, offset = log(exposure))
+## 
+## Deviance Residuals: 
+##    Min      1Q  Median      3Q     Max  
+## -32.33  -15.86  -12.44   -8.28  566.29  
+## 
+## Coefficients:
+##                Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)    6.351321   1.899627   3.343 0.000828 ***
+## veh_value      0.047689   0.078883   0.605 0.545474    
+## veh_bodyCONVT -1.034788   3.102098  -0.334 0.738700    
+## veh_bodyCOUPE  0.262921   1.917071   0.137 0.890915    
+## veh_bodyHBACK -0.329207   1.858370  -0.177 0.859393    
+## veh_bodyHDTOP -0.295133   1.890653  -0.156 0.875954    
+## veh_bodyMCARA -0.932325   2.731502  -0.341 0.732861    
+## veh_bodyMIBUS -0.211653   1.952959  -0.108 0.913698    
+## veh_bodyPANVN -0.326313   1.936558  -0.169 0.866189    
+## veh_bodyRDSTR -1.503805   5.732780  -0.262 0.793078    
+## veh_bodySEDAN -0.435272   1.856520  -0.234 0.814632    
+## veh_bodySTNWG -0.453653   1.856357  -0.244 0.806939    
+## veh_bodyTRUCK -0.298599   1.886993  -0.158 0.874268    
+## veh_bodyUTE   -0.582274   1.869366  -0.311 0.755435    
+## veh_age        0.009085   0.085086   0.107 0.914963    
+## genderM        0.172552   0.142059   1.215 0.224503    
+## areaB          0.058527   0.211129   0.277 0.781620    
+## areaC          0.110985   0.188593   0.588 0.556206    
+## areaD         -0.080750   0.259252  -0.311 0.755443    
+## areaE          0.161697   0.268814   0.602 0.547494    
+## areaF          0.468997   0.284889   1.646 0.099718 .  
+## agecat        -0.153676   0.049131  -3.128 0.001762 ** 
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## (Dispersion parameter for Tweedie family taken to be 26218.45)
+## 
+##     Null deviance: 37756373  on 67855  degrees of freedom
+## Residual deviance: 37229053  on 67834  degrees of freedom
+## AIC: NA
+## 
+## Number of Fisher Scoring iterations: 9</code></pre>
+</div>
+<div id="poisson-model" class="section level1">
+<h1>Poisson model</h1>
+<pre class="r"><code>poisson_fit &lt;-
+  glm(numclaims ~ veh_value + veh_body + veh_age + gender + area + agecat,
+      family = poisson(link = &quot;log&quot;),
+      offset = log(exposure),
+      data = mydb)
+
+
+#broom::tidy(poisson_fit)
+summary(poisson_fit)</code></pre>
+<pre><code>## 
+## Call:
+## glm(formula = numclaims ~ veh_value + veh_body + veh_age + gender + 
+##     area + agecat, family = poisson(link = &quot;log&quot;), data = mydb, 
+##     offset = log(exposure))
+## 
+## Deviance Residuals: 
+##     Min       1Q   Median       3Q      Max  
+## -0.8871  -0.4527  -0.3463  -0.2217   4.4836  
+## 
+## Coefficients:
+##                Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept)   -0.531652   0.329096  -1.615 0.106205    
+## veh_value      0.024810   0.017096   1.451 0.146710    
+## veh_bodyCONVT -1.677009   0.668566  -2.508 0.012129 *  
+## veh_bodyCOUPE -0.512677   0.337317  -1.520 0.128545    
+## veh_bodyHBACK -0.963076   0.318557  -3.023 0.002501 ** 
+## veh_bodyHDTOP -0.826808   0.327821  -2.522 0.011665 *  
+## veh_bodyMCARA -0.364432   0.409547  -0.890 0.373551    
+## veh_bodyMIBUS -0.987641   0.350226  -2.820 0.004802 ** 
+## veh_bodyPANVN -0.842453   0.339216  -2.484 0.013009 *  
+## veh_bodyRDSTR -0.570593   0.660161  -0.864 0.387410    
+## veh_bodySEDAN -0.912573   0.317942  -2.870 0.004102 ** 
+## veh_bodySTNWG -0.906872   0.318064  -2.851 0.004355 ** 
+## veh_bodyTRUCK -0.941049   0.328422  -2.865 0.004165 ** 
+## veh_bodyUTE   -1.108397   0.322100  -3.441 0.000579 ***
+## veh_age       -0.049492   0.017956  -2.756 0.005845 ** 
+## genderM       -0.026297   0.030070  -0.875 0.381840    
+## areaB          0.050238   0.042790   1.174 0.240374    
+## areaC          0.005597   0.038990   0.144 0.885845    
+## areaD         -0.112353   0.052966  -2.121 0.033903 *  
+## areaE         -0.032488   0.057870  -0.561 0.574525    
+## areaF          0.060958   0.066124   0.922 0.356591    
+## agecat        -0.089260   0.010260  -8.700  &lt; 2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## (Dispersion parameter for poisson family taken to be 1)
+## 
+##     Null deviance: 25507  on 67855  degrees of freedom
+## Residual deviance: 25348  on 67834  degrees of freedom
+## AIC: 34827
+## 
+## Number of Fisher Scoring iterations: 6</code></pre>
+</div>
+<div id="gamma-model" class="section level1">
+<h1>Gamma model</h1>
+<pre class="r"><code>gamma_fit &lt;-
+  glm(claimcst0 ~ veh_value + veh_body + veh_age + gender + area + agecat,
+      data = mydb %&gt;% filter( claimcst0 &gt; 0),
+      family = Gamma(&quot;log&quot;))
+
+#broom::tidy(gamma_fit) 
+summary(gamma_fit)</code></pre>
+<pre><code>## 
+## Call:
+## glm(formula = claimcst0 ~ veh_value + veh_body + veh_age + gender + 
+##     area + agecat, family = Gamma(&quot;log&quot;), data = mydb %&gt;% filter(claimcst0 &gt; 
+##     0))
+## 
+## Deviance Residuals: 
+##     Min       1Q   Median       3Q      Max  
+## -1.9413  -1.3633  -0.7999   0.0780   6.9305  
+## 
+## Coefficients:
+##               Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)    7.00025    0.59479  11.769  &lt; 2e-16 ***
+## veh_value      0.02338    0.03461   0.675 0.499430    
+## veh_bodyCONVT  0.62575    1.14893   0.545 0.586028    
+## veh_bodyCOUPE  0.73464    0.60837   1.208 0.227282    
+## veh_bodyHBACK  0.55450    0.57466   0.965 0.334638    
+## veh_bodyHDTOP  0.42878    0.59076   0.726 0.467993    
+## veh_bodyMCARA -0.68700    0.73402  -0.936 0.349351    
+## veh_bodyMIBUS  0.70593    0.62875   1.123 0.261600    
+## veh_bodyPANVN  0.49576    0.61159   0.811 0.417631    
+## veh_bodyRDSTR -0.54355    1.34149  -0.405 0.685360    
+## veh_bodySEDAN  0.41645    0.57373   0.726 0.467963    
+## veh_bodySTNWG  0.37092    0.57452   0.646 0.518557    
+## veh_bodyTRUCK  0.59686    0.59203   1.008 0.313425    
+## veh_bodyUTE    0.46129    0.58077   0.794 0.427083    
+## veh_age        0.06326    0.03290   1.923 0.054545 .  
+## genderM        0.18754    0.05312   3.530 0.000419 ***
+## areaB         -0.04571    0.07583  -0.603 0.546727    
+## areaC          0.06664    0.06927   0.962 0.336065    
+## areaD         -0.02418    0.09378  -0.258 0.796559    
+## areaE          0.15766    0.10304   1.530 0.126040    
+## areaF          0.39246    0.11857   3.310 0.000941 ***
+## agecat        -0.06058    0.01808  -3.350 0.000814 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## (Dispersion parameter for Gamma family taken to be 2.923847)
+## 
+##     Null deviance: 7379.9  on 4623  degrees of freedom
+## Residual deviance: 7192.9  on 4602  degrees of freedom
+## AIC: 79324
+## 
+## Number of Fisher Scoring iterations: 7</code></pre>
+</div>
+<div id="compare-model-performance-with-double-lift-chart" class="section level1">
+<h1>Compare model performance with double lift chart</h1>
+<pre class="r"><code>z &lt;- mydb %&gt;%
+  modelr::add_predictions(. , 
+                          var = &quot;pred_tweedie&quot;,
+                          model = tweedie_fit,
+                          type = &quot;response&quot;) %&gt;%
+  modelr::add_predictions(. , 
+                          var = &quot;pred_poisson&quot;,
+                          model = poisson_fit,
+                          type = &quot;response&quot;) %&gt;%
+  modelr::add_predictions(. , 
+                          var = &quot;pred_gamma&quot;,
+                          model = gamma_fit,
+                          type = &quot;response&quot;) %&gt;%
+  mutate(pred_freq_severite = pred_poisson * pred_gamma)
+
+
+
+# double lift charts
+
+#&#39; @title disloc()
+#&#39;
+#&#39; @description Cette fonction crée un tableau et une double lift chart
+#&#39; @param data data.frame  source
+#&#39; @param pred1 prediction of first model
+#&#39; @param pred1 prediction of second model
+#&#39; @param expo exposure var
+#&#39; @param obs observed result
+#&#39; @param nb nombre de quantils créés
+#&#39; @param obs_lab Label pour la valeur observée dans le graphique
+#&#39; @param pred1_lab Label pour la première prédiction dans le graphique
+#&#39; @param pred2_lab Label pour la deuxième prédiction dans le graphique
+#&#39; @param x_label Label pour la valeur réalisée dans le graphique
+#&#39; @param y_label Label pour la valeur réalisée dans le graphique
+#&#39; @param y_format Fonction utilisée pour formater l&#39;axe des y dans le graphique (par exemple percent_format() ou dollar_format() du package scales)
+#&#39; @export
+
+
+disloc &lt;- function(data, pred1, pred2, expo, obs, nb = 10,
+                   obs_lab = &quot;&quot;,
+                   pred1_lab = &quot;&quot;, pred2_lab = &quot;&quot;,
+                   x_label = &quot;&quot;,
+                   y_label= &quot;sinistralité&quot;,
+                   y_format = scales::number_format(accuracy = 1,  big.mark = &quot; &quot;, decimal.mark = &quot;,&quot;)
+                   ) {
+  # obligé de mettre les variables dans un enquo pour pouvoir les utiliser dans dplyr
+
+  pred1_var &lt;- enquo(pred1)
+  pred2_var &lt;- enquo(pred2)
+  expo_var &lt;- enquo(expo)
+  obs_var &lt;- enquo(obs)
+  
+  
+  pred1_name &lt;- quo_name(pred1_var)
+  pred2_name &lt;- quo_name(pred2_var)
+  obs_name &lt;- quo_name(obs_var)
+  
+  
+  if (pred1_lab ==&quot;&quot;) {pred1_lab &lt;- pred1_name}
+  if (pred2_lab ==&quot;&quot;) {pred2_lab &lt;- pred2_name}
+  if (obs_lab ==&quot;&quot;) {obs_lab &lt;- obs_name}
+  
+  if (x_label == &quot;&quot;){ x_label &lt;- paste0(&quot;ratio entre les prédictions &quot;, pred1_lab, &quot; / &quot;, pred2_lab)}
+  
+  # création de la comparaison entre les deux pred
+  dd &lt;- data %&gt;%
+    mutate(ratio = !!pred1_var / !!pred2_var) %&gt;%
+    filter(!!expo_var &gt; 0) %&gt;%
+    drop_na()
+  
+  # constitution des buckets de poids égaux
+  dd &lt;- dd %&gt;% add_equal_weight_group(
+    sort_by = ratio,
+    expo = !!expo_var, # était nb_day
+    group_variable_name = &quot;groupe&quot;,
+    nb = nb
+  )
+  
+  # comparaison sur ces buckets
+  dd &lt;- full_join(
+    dd %&gt;% group_by(groupe) %&gt;%
+      summarise(
+        ratio_moyen = mean(ratio),
+        ratio_min = min(ratio),
+        ratio_max = max(ratio)
+      ),
+    dd %&gt;% group_by(groupe) %&gt;%
+      summarise_at(
+        funs(sum(.) / sum(!!expo_var)),
+        .vars = vars(!!obs_var, !!pred1_var, !!pred2_var)
+      ) %&gt;%
+      ungroup,
+    by = &quot;groupe&quot;
+  )
+  
+  # création des labels
+  dd &lt;- dd %&gt;%
+    mutate(labs = paste0(&quot;[&quot;, round(ratio_min, 2), &quot;, &quot;, round(ratio_max, 2), &quot;]&quot;))
+  
+  # graphe
+  plotdata &lt;-
+    dd %&gt;%
+    gather(key, variable, !!obs_var, !!pred1_var, !!pred2_var) %&gt;%
+    ## Pas optimal mais je ne trouve pas mieux...
+    mutate(key = case_when(
+      key == obs_name ~ obs_lab,
+      key == pred1_name ~ pred1_lab,
+      key == pred2_name ~ pred2_lab
+    )) %&gt;%
+    mutate(key = factor(key, levels = c(obs_lab, pred1_lab, pred2_lab), ordered = TRUE))
+  
+  pl &lt;- plotdata %&gt;%
+    ggplot(aes(ratio_moyen, variable, color = key, linetype = key)) +
+    cowplot::theme_cowplot() +
+    cowplot::background_grid()+
+    ggthemes::scale_color_colorblind() +
+    
+    scale_x_continuous(breaks = scales::pretty_breaks())+
+    geom_line() +
+    geom_point() +
+   scale_x_continuous(breaks = dd$ratio_moyen, labels = dd$labs) +
+   scale_y_continuous(breaks = scales::pretty_breaks() )+  
+   labs(
+     x = x_label,
+     y = y_label
+   )+
+   theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1)) #+
+  
+  
+  # écart au réalisé, pondéré
+  ecart &lt;- dd %&gt;%
+    mutate(poids = abs(1 - ratio_moyen)) %&gt;%
+    summarise_at(
+      vars(!!pred1_var, !!pred2_var),
+      funs(weighted.mean((. - !!obs_var)^2, w = poids) %&gt;% sqrt())
+    ) %&gt;% summarise(ratio_distance = !!pred2_var / !!pred1_var) %&gt;%
+    as.numeric()
+  
+  list(
+    graphe = pl,
+    ecart = ecart,
+    tableau = dd
+  )
+}
+
+
+
+#&#39; @title add_equal_weight_group()
+#&#39;
+#&#39; @description Cette fonction crée des groupe (quantiles) avec le nombre nombre total d&#39;exposition.
+#&#39; @param table data.frame  source
+#&#39; @param sort_by Variable utilisée pour trier les observations.
+#&#39; @param expo Exposition (utilisée pour créer des quantiles de la même taille.  Si NULL, l&#39;exposition est égale pour toutes les observations) (Défault = NULL).
+#&#39; @param nb Nombre de quantiles crées (défaut = 10)
+#&#39; @param group_variable_name Nom de la variable de groupes créée
+#&#39; @export
+
+
+add_equal_weight_group &lt;- function(table, sort_by, expo = NULL, group_variable_name = &quot;groupe&quot;, nb = 10) {
+  sort_by_var &lt;- enquo(sort_by)
+  groupe_variable_name_var &lt;- enquo(group_variable_name)
+  
+  if (!(missing(expo))){ # https://stackoverflow.com/questions/48504942/testing-a-function-that-uses-enquo-for-a-null-parameter
+    
+    expo_var &lt;- enquo(expo)
+    
+    total &lt;- table %&gt;% pull(!!expo_var) %&gt;% sum
+    br &lt;- seq(0, total, length.out = nb + 1) %&gt;% head(-1) %&gt;% c(Inf) %&gt;% unique
+    table %&gt;%
+      arrange(!!sort_by_var) %&gt;%
+      mutate(cumExpo = cumsum(!!expo_var)) %&gt;%
+      mutate(!!group_variable_name := cut(cumExpo, breaks = br, ordered_result = TRUE, include.lowest = TRUE) %&gt;% as.numeric) %&gt;%
+      select(-cumExpo)
+  } else {
+    total &lt;- nrow(table)
+    br &lt;- seq(0, total, length.out = nb + 1) %&gt;% head(-1) %&gt;% c(Inf) %&gt;% unique
+    table %&gt;%
+      arrange(!!sort_by_var) %&gt;%
+      mutate(cumExpo = row_number()) %&gt;%
+      mutate(!!group_variable_name := cut(cumExpo, breaks = br, ordered_result = TRUE, include.lowest = TRUE) %&gt;% as.numeric) %&gt;%
+      select(-cumExpo)
+  }
+}
+
+
+
+
+disloc(data = z, 
+       pred1 = pred_freq_severite, 
+       pred2 = pred_tweedie, 
+       expo = exposure, 
+       obs = claimcst0 ,
+       y_label = &quot;coût moyen ($)&quot;
+) %&gt;% .$graphe</code></pre>
+<p><img src="/post/2020-03-23-tweedie-vs-poisson-gamma_files/figure-html/unnamed-chunk-4-1.png" width="960" style="display: block; margin: auto;" /></p>
+</div>

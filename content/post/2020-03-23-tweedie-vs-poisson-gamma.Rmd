@@ -1,0 +1,293 @@
+---
+title: Tweedie vs Poisson * Gamma
+author: Simon
+date: '2020-03-23'
+slug: tweedie-vs-poisson-gamma
+categories:
+  - R
+  - insurnace
+tags: []
+keywords:
+  - tech
+---
+
+
+
+```{r setup, include =F, echo =F}
+#
+# TODO : valider ceci : Chunk options must be written in one line; no line breaks are allowed inside chunk options;
+# https://yihui.name/knitr/options/
+knitr::opts_chunk$set(echo = TRUE, 
+                      collapse = FALSE,
+                      warning = FALSE,
+                      error = FALSE,
+                      message = FALSE,
+                      fig.align= "center",
+                      fig.width = 10,
+                      highlight = TRUE,
+                      cache = FALSE,
+                      cache.lazy = FALSE) # fixes long vecto rnot supported quand on cache des gros éléments https://stackoverflow.com/questions/39417003/long-vectors-not-supported-yet-error-in-rmd-but-not-in-r-script
+```
+
+Quick post to create a loss cost (tweedie) model vs multiplying a frequency (Poisson) and a severity (Gamma) model.  
+
+
+```{r load_stuff}
+# https://www.cybaea.net/Journal/2012/03/13/R-code-for-Chapter-2-of-Non_Life-Insurance-Pricing-with-GLM/
+library(insuranceData) # pour les données dataCar
+library(tidyverse)  # pour la manipulation de données
+library(statmod) #pour glm(family = tweedie)
+library(modelr) # pour add_predictions()
+library(broom) # pour afficher les coefficients
+data(dataCar)
+
+# claimcst0claim amount (0 if no claim)
+mydb <- dataCar %>% select(numclaims, claimcst0, exposure, veh_value, veh_body,
+                           veh_age, gender, area, agecat)
+```
+# Tweedie model
+```{r}
+
+tweedie_fit <- 
+  glm(claimcst0 ~ veh_value + veh_body + veh_age + gender + area + agecat,
+      family=tweedie(var.power=1.1, link.power=0),
+      offset = log(exposure),
+      data = mydb)
+
+
+#broom::tidy(tweedie_fit)
+summary(tweedie_fit)
+
+```
+
+
+
+
+# Poisson model
+```{r}
+
+poisson_fit <-
+  glm(numclaims ~ veh_value + veh_body + veh_age + gender + area + agecat,
+      family = poisson(link = "log"),
+      offset = log(exposure),
+      data = mydb)
+
+
+#broom::tidy(poisson_fit)
+summary(poisson_fit)
+```
+
+# Gamma model
+
+```{r}
+gamma_fit <-
+  glm(claimcst0 ~ veh_value + veh_body + veh_age + gender + area + agecat,
+      data = mydb %>% filter( claimcst0 > 0),
+      family = Gamma("log"))
+
+#broom::tidy(gamma_fit) 
+summary(gamma_fit)
+```
+
+
+
+
+# Compare model performance with double lift chart
+
+```{r}
+z <- mydb %>%
+  modelr::add_predictions(. , 
+                          var = "pred_tweedie",
+                          model = tweedie_fit,
+                          type = "response") %>%
+  modelr::add_predictions(. , 
+                          var = "pred_poisson",
+                          model = poisson_fit,
+                          type = "response") %>%
+  modelr::add_predictions(. , 
+                          var = "pred_gamma",
+                          model = gamma_fit,
+                          type = "response") %>%
+  mutate(pred_freq_severite = pred_poisson * pred_gamma)
+
+
+
+# double lift charts
+
+#' @title disloc()
+#'
+#' @description Cette fonction crée un tableau et une double lift chart
+#' @param data data.frame  source
+#' @param pred1 prediction of first model
+#' @param pred1 prediction of second model
+#' @param expo exposure var
+#' @param obs observed result
+#' @param nb nombre de quantils créés
+#' @param obs_lab Label pour la valeur observée dans le graphique
+#' @param pred1_lab Label pour la première prédiction dans le graphique
+#' @param pred2_lab Label pour la deuxième prédiction dans le graphique
+#' @param x_label Label pour la valeur réalisée dans le graphique
+#' @param y_label Label pour la valeur réalisée dans le graphique
+#' @param y_format Fonction utilisée pour formater l'axe des y dans le graphique (par exemple percent_format() ou dollar_format() du package scales)
+#' @export
+
+
+disloc <- function(data, pred1, pred2, expo, obs, nb = 10,
+                   obs_lab = "",
+                   pred1_lab = "", pred2_lab = "",
+                   x_label = "",
+                   y_label= "sinistralité",
+                   y_format = scales::number_format(accuracy = 1,  big.mark = " ", decimal.mark = ",")
+                   ) {
+  # obligé de mettre les variables dans un enquo pour pouvoir les utiliser dans dplyr
+
+  pred1_var <- enquo(pred1)
+  pred2_var <- enquo(pred2)
+  expo_var <- enquo(expo)
+  obs_var <- enquo(obs)
+  
+  
+  pred1_name <- quo_name(pred1_var)
+  pred2_name <- quo_name(pred2_var)
+  obs_name <- quo_name(obs_var)
+  
+  
+  if (pred1_lab =="") {pred1_lab <- pred1_name}
+  if (pred2_lab =="") {pred2_lab <- pred2_name}
+  if (obs_lab =="") {obs_lab <- obs_name}
+  
+  if (x_label == ""){ x_label <- paste0("ratio entre les prédictions ", pred1_lab, " / ", pred2_lab)}
+  
+  # création de la comparaison entre les deux pred
+  dd <- data %>%
+    mutate(ratio = !!pred1_var / !!pred2_var) %>%
+    filter(!!expo_var > 0) %>%
+    drop_na()
+  
+  # constitution des buckets de poids égaux
+  dd <- dd %>% add_equal_weight_group(
+    sort_by = ratio,
+    expo = !!expo_var, # était nb_day
+    group_variable_name = "groupe",
+    nb = nb
+  )
+  
+  # comparaison sur ces buckets
+  dd <- full_join(
+    dd %>% group_by(groupe) %>%
+      summarise(
+        ratio_moyen = mean(ratio),
+        ratio_min = min(ratio),
+        ratio_max = max(ratio)
+      ),
+    dd %>% group_by(groupe) %>%
+      summarise_at(
+        funs(sum(.) / sum(!!expo_var)),
+        .vars = vars(!!obs_var, !!pred1_var, !!pred2_var)
+      ) %>%
+      ungroup,
+    by = "groupe"
+  )
+  
+  # création des labels
+  dd <- dd %>%
+    mutate(labs = paste0("[", round(ratio_min, 2), ", ", round(ratio_max, 2), "]"))
+  
+  # graphe
+  plotdata <-
+    dd %>%
+    gather(key, variable, !!obs_var, !!pred1_var, !!pred2_var) %>%
+    ## Pas optimal mais je ne trouve pas mieux...
+    mutate(key = case_when(
+      key == obs_name ~ obs_lab,
+      key == pred1_name ~ pred1_lab,
+      key == pred2_name ~ pred2_lab
+    )) %>%
+    mutate(key = factor(key, levels = c(obs_lab, pred1_lab, pred2_lab), ordered = TRUE))
+  
+  pl <- plotdata %>%
+    ggplot(aes(ratio_moyen, variable, color = key, linetype = key)) +
+    cowplot::theme_cowplot() +
+    cowplot::background_grid()+
+    ggthemes::scale_color_colorblind() +
+    
+    scale_x_continuous(breaks = scales::pretty_breaks())+
+    geom_line() +
+    geom_point() +
+   scale_x_continuous(breaks = dd$ratio_moyen, labels = dd$labs) +
+   scale_y_continuous(breaks = scales::pretty_breaks() )+  
+   labs(
+     x = x_label,
+     y = y_label
+   )+
+   theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1)) #+
+  
+  
+  # écart au réalisé, pondéré
+  ecart <- dd %>%
+    mutate(poids = abs(1 - ratio_moyen)) %>%
+    summarise_at(
+      vars(!!pred1_var, !!pred2_var),
+      funs(weighted.mean((. - !!obs_var)^2, w = poids) %>% sqrt())
+    ) %>% summarise(ratio_distance = !!pred2_var / !!pred1_var) %>%
+    as.numeric()
+  
+  list(
+    graphe = pl,
+    ecart = ecart,
+    tableau = dd
+  )
+}
+
+
+
+#' @title add_equal_weight_group()
+#'
+#' @description Cette fonction crée des groupe (quantiles) avec le nombre nombre total d'exposition.
+#' @param table data.frame  source
+#' @param sort_by Variable utilisée pour trier les observations.
+#' @param expo Exposition (utilisée pour créer des quantiles de la même taille.  Si NULL, l'exposition est égale pour toutes les observations) (Défault = NULL).
+#' @param nb Nombre de quantiles crées (défaut = 10)
+#' @param group_variable_name Nom de la variable de groupes créée
+#' @export
+
+
+add_equal_weight_group <- function(table, sort_by, expo = NULL, group_variable_name = "groupe", nb = 10) {
+  sort_by_var <- enquo(sort_by)
+  groupe_variable_name_var <- enquo(group_variable_name)
+  
+  if (!(missing(expo))){ # https://stackoverflow.com/questions/48504942/testing-a-function-that-uses-enquo-for-a-null-parameter
+    
+    expo_var <- enquo(expo)
+    
+    total <- table %>% pull(!!expo_var) %>% sum
+    br <- seq(0, total, length.out = nb + 1) %>% head(-1) %>% c(Inf) %>% unique
+    table %>%
+      arrange(!!sort_by_var) %>%
+      mutate(cumExpo = cumsum(!!expo_var)) %>%
+      mutate(!!group_variable_name := cut(cumExpo, breaks = br, ordered_result = TRUE, include.lowest = TRUE) %>% as.numeric) %>%
+      select(-cumExpo)
+  } else {
+    total <- nrow(table)
+    br <- seq(0, total, length.out = nb + 1) %>% head(-1) %>% c(Inf) %>% unique
+    table %>%
+      arrange(!!sort_by_var) %>%
+      mutate(cumExpo = row_number()) %>%
+      mutate(!!group_variable_name := cut(cumExpo, breaks = br, ordered_result = TRUE, include.lowest = TRUE) %>% as.numeric) %>%
+      select(-cumExpo)
+  }
+}
+
+
+
+
+disloc(data = z, 
+       pred1 = pred_freq_severite, 
+       pred2 = pred_tweedie, 
+       expo = exposure, 
+       obs = claimcst0 ,
+       y_label = "coût moyen ($)"
+) %>% .$graphe
+```
+
+
