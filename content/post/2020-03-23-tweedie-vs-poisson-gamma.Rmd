@@ -31,7 +31,8 @@ knitr::opts_chunk$set(echo = TRUE,
 
 Quick post to create a loss cost (tweedie) model vs multiplying a frequency (Poisson) and a severity (Gamma) model.  
 
-
+clm = 0 or 1, while  numclaims = 0 , 1 ,2 ,3 or 4.
+We will model clm (0 or 1) because the cost variables (claimcst0claim) is the total cost of all claims.
 ```{r load_stuff}
 # https://www.cybaea.net/Journal/2012/03/13/R-code-for-Chapter-2-of-Non_Life-Insurance-Pricing-with-GLM/
 library(insuranceData) # pour les données dataCar
@@ -39,15 +40,25 @@ library(tidyverse)  # pour la manipulation de données
 library(statmod) #pour glm(family = tweedie)
 library(modelr) # pour add_predictions()
 library(broom) # pour afficher les coefficients
+library(tidymodels)
+library(xgboost)
+library(tictoc)
+library(dviz.supp) # devtools::install_github("clauswilke/dviz.supp")
+library(colorblindr)  # devtools::install_github("clauswilke/colorblindr")
+
 data(dataCar)
 
 # claimcst0claim amount (0 if no claim)
-mydb <- dataCar %>% select(numclaims, claimcst0, exposure, veh_value, veh_body,
-                           veh_age, gender, area, agecat)
+# clm = 0 or 1. numclaims = 0 , 1 ,2 ,3 or 4.. on va essayer clm (0-1).. car j'ai un claimcst0 représente
+mydb <- dataCar %>% select(clm, claimcst0, exposure, veh_value, veh_body,
+                           veh_age, gender, area, agecat) %>% 
+  mutate(row_num = row_number() )
+
+sinistres <- mydb %>% filter(claimcst0 > 0)
+pas_sinistres <- mydb %>% filter(claimcst0 == 0)
 ```
 # Tweedie model
 ```{r}
-
 tweedie_fit <- 
   glm(claimcst0 ~ veh_value + veh_body + veh_age + gender + area + agecat,
       family=tweedie(var.power=1.1, link.power=0),
@@ -67,11 +78,10 @@ summary(tweedie_fit)
 ```{r}
 
 poisson_fit <-
-  glm(numclaims ~ veh_value + veh_body + veh_age + gender + area + agecat,
+  glm(clm ~ veh_value + veh_body + veh_age + gender + area + agecat,
       family = poisson(link = "log"),
       offset = log(exposure),
       data = mydb)
-
 
 #broom::tidy(poisson_fit)
 summary(poisson_fit)
@@ -82,7 +92,7 @@ summary(poisson_fit)
 ```{r}
 gamma_fit <-
   glm(claimcst0 ~ veh_value + veh_body + veh_age + gender + area + agecat,
-      data = mydb %>% filter( claimcst0 > 0),
+      data = sinistres %>% filter( claimcst0 > 0),
       family = Gamma("log"))
 
 #broom::tidy(gamma_fit) 
@@ -92,24 +102,291 @@ summary(gamma_fit)
 
 
 
-# Compare model performance with double lift chart
+
+
+
+# xgboost  
+
+
 
 ```{r}
-z <- mydb %>%
-  modelr::add_predictions(. , 
-                          var = "pred_tweedie",
-                          model = tweedie_fit,
-                          type = "response") %>%
-  modelr::add_predictions(. , 
-                          var = "pred_poisson",
-                          model = poisson_fit,
-                          type = "response") %>%
-  modelr::add_predictions(. , 
-                          var = "pred_gamma",
-                          model = gamma_fit,
-                          type = "response") %>%
-  mutate(pred_freq_severite = pred_poisson * pred_gamma)
+feature_vars <- c("veh_value" ,  "veh_body" ,  "veh_age" , "gender" , "area" , "agecat")
+offset_var <- "exposure"
+```
 
+## xgboost tweedie
+
+```{r}
+label_var <- "claimcst0" 
+
+# one hot encoding of categorical (factor) data
+myformula <- paste0( "~", paste0( feature_vars, collapse = " + ") ) %>% 
+  as.formula()
+
+dummyFier <- caret::dummyVars(myformula, data=mydb, fullRank = TRUE)
+dummyVars.df <- predict(dummyFier,newdata = mydb)
+mydb_dummy <- cbind(mydb %>% select(one_of(c(label_var, offset_var))), 
+                    dummyVars.df)
+rm(myformula, dummyFier, dummyVars.df)
+
+# get  list the column names of the db with the dummy variables
+feature_vars_dummy <-  mydb_dummy  %>% 
+  select(-one_of(c(label_var, offset_var))) %>% 
+  colnames()
+
+# create xgb.matrix for xgboost consumption
+mydb_xgbmatrix <- xgb.DMatrix(
+  data = mydb_dummy %>% select(feature_vars_dummy) %>% as.matrix, 
+  label = mydb_dummy %>% pull(label_var),
+  missing = "NAN")
+
+#base_margin: apply exposure offset 
+setinfo(mydb_xgbmatrix,"base_margin", 
+        mydb %>% pull(offset_var) %>% log() )
+
+# a fake constraint, just to show how it is done.  
+#Here we force "the older the car, the less likely are claims"
+# myConstraint   <- data_frame(Variable = feature_vars_dummy) %>%
+#   mutate(sens = ifelse(Variable == "veh_age", -1, 0))
+# 
+
+# cv fold doesnt work for tweedie?  
+# random folds for xgb.cv
+# cv_folds = rBayesianOptimization::KFold(mydb_dummy$clm, 
+#                                         nfolds= 5,
+#                                         stratified = TRUE,
+#                                         
+#                                         seed= 0)
+
+simon_params <-list(
+  booster = "gbtree",
+  eta = 0.01,
+  max_depth = 4,
+  min_child_weight = 3,
+  gamma = 0,
+  subsample = 0.8,
+  colsample_bytree = 0.8,
+  objective = 'reg:tweedie',
+  eval_metric = "tweedie-nloglik@1.5",
+  tweedie_variance_power = 1.5)
+
+
+set.seed(1234)
+
+cv_tweedie <- xgb.cv(
+  params = simon_params,
+  data = mydb_xgbmatrix,
+  nround = 1000,
+  nfold=  5,
+  #monotone_constraints = myConstraint$sens,
+  prediction = TRUE,
+  showsd = TRUE,
+  early_stopping_rounds = 50,
+  verbose = 0)
+
+cv_tweedie$best_iteration
+
+
+```
+
+
+
+## xgboost poisson  
+
+
+
+```{r}
+
+label_var <- "clm" 
+
+# one hot encoding of categorical (factor) data
+myformula <- paste0( "~", paste0( feature_vars, collapse = " + ") ) %>% 
+  as.formula()
+
+dummyFier <- caret::dummyVars(myformula, data=mydb, fullRank = TRUE)
+dummyVars.df <- predict(dummyFier,newdata = mydb)
+mydb_dummy <- cbind(mydb %>% select(one_of(c(label_var, offset_var))), 
+                    dummyVars.df)
+rm(myformula, dummyFier, dummyVars.df)
+
+# get  list the column names of the db with the dummy variables
+feature_vars_dummy <-  mydb_dummy  %>% 
+  select(-one_of(c(label_var, offset_var))) %>% 
+  colnames()
+
+# create xgb.matrix for xgboost consumption
+mydb_xgbmatrix <- xgb.DMatrix(
+  data = mydb_dummy %>% select(feature_vars_dummy) %>% as.matrix, 
+  label = mydb_dummy %>% pull(label_var),
+  missing = "NAN")
+
+#base_margin: apply exposure offset 
+setinfo(mydb_xgbmatrix,"base_margin", 
+        mydb %>% pull(offset_var) %>% log() )
+
+# a fake constraint, just to show how it is done.  
+#Here we force "the older the car, the less likely are claims"
+myConstraint   <- data_frame(Variable = feature_vars_dummy) %>%
+  mutate(sens = ifelse(Variable == "veh_age", -1, 0))
+
+# random folds for xgb.cv
+cv_folds = rBayesianOptimization::KFold(mydb_dummy$clm, 
+                                        nfolds= 5,
+                                        stratified = TRUE,
+                                        seed= 0)
+
+simon_params <-list(
+  booster = "gbtree",
+  eta = 0.1,
+  max_depth = 6,
+  min_child_weight = 3,
+  gamma = 0,
+  subsample = 0.8,
+  colsample_bytree = 0.8,
+  objective = 'count:poisson', 
+  eval_metric = "poisson-nloglik")
+
+
+set.seed(1234)
+
+cv_poisson <- xgb.cv(
+  params = simon_params,
+  data = mydb_xgbmatrix,
+  nround = 200,
+  folds=  cv_folds,
+  monotone_constraints = myConstraint$sens,
+  prediction = TRUE,
+  showsd = TRUE,
+  early_stopping_rounds = 50,
+  verbose = 0)
+
+
+
+```
+
+
+
+
+
+## xgboost gamma  
+
+
+
+```{r}
+
+label_var <- "claimcst0" 
+
+# one hot encoding of categorical (factor) data
+myformula <- paste0( "~", paste0( feature_vars, collapse = " + ") ) %>% 
+  as.formula()
+
+dummyFier <- caret::dummyVars(myformula, data=sinistres , fullRank = TRUE)
+dummyVars.df <- predict(dummyFier,newdata = sinistres )
+mydb_dummy <- cbind(sinistres  %>% select(one_of(c(label_var))),  #, offset_var
+                    dummyVars.df)
+rm(myformula, dummyFier, dummyVars.df)
+
+
+
+
+# get  list the column names of the db with the dummy variables
+feature_vars_dummy <-  mydb_dummy  %>% 
+  select(-one_of(c(label_var))) %>%  # , offset_var
+  colnames()
+
+# create xgb.matrix for xgboost consumption
+mydb_xgbmatrix <- xgb.DMatrix(
+  data = mydb_dummy %>% select(feature_vars_dummy) %>% as.matrix, 
+  label = mydb_dummy %>% pull(label_var),
+  missing = "NAN")
+
+# pas de offset pour gamma
+
+# a fake constraint, just to show how it is done.  
+#Here we force "the older the car, the less likely are claims"
+# myConstraint   <- data_frame(Variable = feature_vars_dummy) %>%
+#   mutate(sens = ifelse(Variable == "veh_age", -1, 0))
+
+
+# cv folds doesnt work with gamma?  
+# # random folds for xgb.cv
+# cv_folds = rBayesianOptimization::KFold(mydb_dummy$clm, 
+#                                         nfolds= 5,
+#                                         stratified = TRUE,
+#                                         seed= 0)
+
+simon_params <-list(
+  booster = "gbtree",
+  eta = 0.01,
+  max_depth = 4,
+  min_child_weight = 3,
+  gamma = 0,
+  subsample = 0.8,
+  colsample_bytree = 0.8,
+  objective = 'reg:gamma')
+
+
+set.seed(1234)
+
+cv_gamma <- xgb.cv(
+  params = simon_params,
+  data = mydb_xgbmatrix,
+  nround = 1000,
+  #folds=  cv_folds,
+  nfold =5 ,
+  #monotone_constraints = myConstraint$sens,
+  prediction = TRUE,
+  showsd = TRUE,
+  early_stopping_rounds = 50,
+  verbose = 0)
+
+
+
+
+
+# we need a gamma model to predict values on everyone that didnt get a claim.    we will run a new gamma model  on everyone who had a claim
+full_model <- xgboost::xgb.train(
+  data = mydb_xgbmatrix,
+  params = simon_params,
+  nrounds = cv_gamma$best_iteration,
+  nthread = parallel::detectCores() - 1,
+  monotone_constraints = myConstraint$sens,,
+)
+
+
+myformula <- paste0( "~", paste0( feature_vars, collapse = " + ") ) %>% 
+  as.formula()
+dummyFier <- caret::dummyVars(myformula, data = pas_sinistres , fullRank = TRUE)
+dummyVars.df <- predict(dummyFier,newdata = pas_sinistres )
+pas_sinistres_dummy <- cbind(pas_sinistres  %>% select(one_of(c(label_var))),  #, offset_var
+                             dummyVars.df)
+rm(myformula, dummyFier, dummyVars.df)
+
+pas_sinistres_xgbmatrix <- xgb.DMatrix(
+  data = pas_sinistres_dummy %>% select(feature_vars_dummy) %>% as.matrix, 
+  label = pas_sinistres_dummy %>% pull(label_var),
+  missing = "NAN")
+
+
+
+# mettre de l'ordre dans la prédiction gamma xgboost
+
+sinistres$pred_xgboost_gamma <- cv_gamma$pred
+pas_sinistres$pred_xgboost_gamma <- predict(full_model, pas_sinistres_xgbmatrix)
+
+pred_xgboost_gamma <- bind_rows(
+  sinistres %>% select(row_num, pred_xgboost_gamma),
+  pas_sinistres %>% select(row_num, pred_xgboost_gamma)
+) %>%
+  arrange(row_num) %>%
+  pull(pred_xgboost_gamma)
+
+
+```
+
+
+# functions   lift  double lift 
+```{r}
 
 
 # double lift charts
@@ -138,9 +415,9 @@ disloc <- function(data, pred1, pred2, expo, obs, nb = 10,
                    x_label = "",
                    y_label= "sinistralité",
                    y_format = scales::number_format(accuracy = 1,  big.mark = " ", decimal.mark = ",")
-                   ) {
+) {
   # obligé de mettre les variables dans un enquo pour pouvoir les utiliser dans dplyr
-
+  
   pred1_var <- enquo(pred1)
   pred2_var <- enquo(pred2)
   expo_var <- enquo(expo)
@@ -167,7 +444,7 @@ disloc <- function(data, pred1, pred2, expo, obs, nb = 10,
   # constitution des buckets de poids égaux
   dd <- dd %>% add_equal_weight_group(
     sort_by = ratio,
-    expo = !!expo_var, # était nb_day
+    expo = !!expo_var, 
     group_variable_name = "groupe",
     nb = nb
   )
@@ -209,18 +486,18 @@ disloc <- function(data, pred1, pred2, expo, obs, nb = 10,
     ggplot(aes(ratio_moyen, variable, color = key, linetype = key)) +
     cowplot::theme_cowplot() +
     cowplot::background_grid()+
-    ggthemes::scale_color_colorblind() +
+    colorblindr::scale_color_OkabeIto( ) + 
     
     scale_x_continuous(breaks = scales::pretty_breaks())+
     geom_line() +
     geom_point() +
-   scale_x_continuous(breaks = dd$ratio_moyen, labels = dd$labs) +
-   scale_y_continuous(breaks = scales::pretty_breaks() )+  
-   labs(
-     x = x_label,
-     y = y_label
-   )+
-   theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1)) #+
+    scale_x_continuous(breaks = dd$ratio_moyen, labels = dd$labs) +
+    scale_y_continuous(breaks = scales::pretty_breaks() )+  
+    labs(
+      x = x_label,
+      y = y_label
+    )+
+    theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1)) #+
   
   
   # écart au réalisé, pondéré
@@ -279,7 +556,202 @@ add_equal_weight_group <- function(table, sort_by, expo = NULL, group_variable_n
 }
 
 
+```
 
+
+```{r}
+get_lift_chart_data <- function(
+  data, 
+  sort_by,
+  pred, 
+  expo, 
+  obs, 
+  nb = 10) {
+  
+  pred_var <- enquo(pred)
+  sort_by_var <- enquo(sort_by)
+  expo_var <- enquo(expo)
+  obs_var <- enquo(obs)
+  
+  
+  pred_name <- quo_name(pred_var)
+  sort_by_name <- quo_name(sort_by_var)
+  obs_name <- quo_name(obs_var)
+  
+  # constitution des buckets de poids égaux
+  dd <- data %>% add_equal_weight_group(
+    sort_by = !!sort_by_var,
+    expo = !!expo_var, 
+    group_variable_name = "groupe",
+    nb = nb
+  )
+  
+  # comparaison sur ces buckets
+  dd <- full_join(
+    dd %>% group_by(groupe) %>%
+      summarise(
+        sort_by_moyen = mean(!!sort_by_var),
+        sort_by_min = min(!!sort_by_var),
+        sort_by_max = max(!!sort_by_var)
+      ),
+    dd %>% group_by(groupe) %>%
+      summarise_at(
+        funs(sum(.) / sum(!!expo_var)),
+        .vars = vars(!!obs_var, !!pred_var)
+      ) %>%
+      ungroup,
+    by = "groupe"
+  )
+  
+  # création des labels
+  dd <- dd %>%
+    mutate(labs = paste0("[", round(sort_by_min, 2), ", ", round(sort_by_max, 2), "]"))
+  
+}
+
+
+```
+
+```{r}
+get_lift_chart <- function(data, 
+                           sort_by,
+                           pred, 
+                           expo, 
+                           obs, 
+                           nb){
+
+  pred_var <- enquo(pred)
+  sort_by_var <- enquo(sort_by)
+  expo_var <- enquo(expo)
+  obs_var <- enquo(obs)
+
+  lift_data <- get_lift_chart_data(
+    data = data, 
+    sort_by = !!sort_by_var,
+    pred = !!pred_var, 
+    expo = !!expo_var, 
+    obs = !!obs_var, 
+    nb = 10)
+  
+  lift_data %>% 
+    select(groupe, labs, !!pred_var, !!obs_var) %>%
+    gather(key = type, value = average, !!pred_var, !!obs_var)  %>% 
+    ggplot(aes(x= groupe, y = average, color =type)) +
+    geom_line() +
+    geom_point()+
+    cowplot::theme_half_open() +
+    cowplot::background_grid() +
+    colorblindr::scale_color_OkabeIto( ) + 
+    scale_x_continuous(
+      expand = c(0,0),
+      breaks  = scales::pretty_breaks()
+    )+
+    scale_y_continuous(
+      expand = c(0,0),
+      breaks  = scales::pretty_breaks()
+    )+
+    theme(legend.position = c(0.8, 0.1)
+    )
+  
+  
+}
+```
+
+
+
+
+
+
+Add predictions to database.  Quick check: the means for predictions of frequency and total cost don't appear to be way off:  
+```{r}
+z <- mydb %>%
+  modelr::add_predictions(. , 
+                          var = "pred_tweedie",
+                          model = tweedie_fit,
+                          type = "response") %>%
+  modelr::add_predictions(. , 
+                          var = "pred_poisson",
+                          model = poisson_fit,
+                          type = "response") %>%
+  modelr::add_predictions(. , 
+                          var = "pred_gamma",
+                          model = gamma_fit,
+                          type = "response") %>%
+  mutate(pred_freq_severite = pred_poisson * pred_gamma)
+
+z$pred_xgboost_poisson <- cv_poisson$pred
+z$pred_xgboost_tweedie <- cv_tweedie$pred
+z$pred_xgboost_gamma <- pred_xgboost_gamma
+
+
+z <- z %>% 
+  mutate(pred_xgboost_freq_severite = pred_xgboost_poisson * pred_xgboost_gamma)
+
+
+z %>% select(clm, pred_poisson, pred_xgboost_poisson,  claimcst0,pred_freq_severite, pred_tweedie,  pred_xgboost_freq_severite, pred_xgboost_tweedie) %>% summary()
+
+```
+
+# Lift charts of select models  
+
+
+
+
+
+## lift chart poisson (fréquence annuelle)  
+
+```{r}
+z %>% 
+  mutate(annual_rate_pred_poisson = pred_poisson / exposure) %>%
+  get_lift_chart(sort_by= annual_rate_pred_poisson, pred = pred_poisson, obs = clm, expo  = exposure )
+
+```
+
+
+## lift chart tweedie (prime annuelle)  
+
+
+```{r}
+
+z %>% 
+  mutate(annual_rate_tweedie = pred_tweedie / exposure) %>%
+  get_lift_chart(sort_by= annual_rate_tweedie, pred = pred_tweedie, obs = claimcst0, expo  = exposure )
+
+```
+
+
+
+
+## lift chart xgboost poisson (fréquence annuelle)  
+
+```{r}
+z %>% 
+  mutate(annual_rate_xgboost_pred_poisson = pred_xgboost_poisson / exposure) %>%
+  get_lift_chart(sort_by= annual_rate_xgboost_pred_poisson, pred = pred_xgboost_poisson, obs = clm, expo  = exposure )
+
+```
+
+
+## lift chart xgboost  tweedie (prime annuelle)  
+
+pas vargeux mon tweedie xgboost!    Il a pourtant terminé d'apprendre, car le best iteration `r cv_tweedie$best_iteration ` est plus petit que le 1000 permis.
+```{r}
+
+z %>% 
+  mutate(annual_rate_xgboost_tweedie = pred_xgboost_tweedie / exposure) %>%
+  get_lift_chart(sort_by= annual_rate_xgboost_tweedie, pred = pred_xgboost_tweedie, obs = claimcst0, expo  = exposure )
+
+```
+
+
+# Compare model performance with double lift chart  
+
+
+
+## GLM Tweedie vs Poisson * Gamma   
+
+GLM Tweedie ( power = 1.1) appears   similar to than Poisson * Gamma .  
+```{r}
 
 disloc(data = z, 
        pred1 = pred_freq_severite, 
@@ -288,6 +760,38 @@ disloc(data = z,
        obs = claimcst0 ,
        y_label = "coût moyen ($)"
 ) %>% .$graphe
+
 ```
 
+## GLM Tweedie vs XGB Tweedie  
 
+Why is the xgboost tweedie doing so poorly vs GLM tweedie?  
+partial answer: xgboost is out of fold, glm can try to overfit.. but it really doesnt have that many variables to overfit on.
+
+```{r}
+
+disloc(data = z, 
+       pred1 = pred_xgboost_tweedie, 
+       pred2 = pred_tweedie, 
+       expo = exposure, 
+       obs = claimcst0 ,
+       y_label = "coût moyen ($)"
+) %>% .$graphe
+
+```
+
+## GLM Poisson*Gamma  vs XGB Poisson*Gamma  
+
+
+Why is the xgboost Poisson * Gamma doing so poorly vs GLM Poisson * Gamma?  
+partial answer: xgboost is out of fold, glm can try to overfit.. but it really doesnt have that many variables to overfit on.
+```{r}
+disloc(data = z, 
+       pred1 = pred_freq_severite, 
+       pred2 = pred_xgboost_freq_severite, 
+       expo = exposure, 
+       obs = claimcst0 ,
+       y_label = "coût moyen ($)"
+) %>% .$graphe
+
+```

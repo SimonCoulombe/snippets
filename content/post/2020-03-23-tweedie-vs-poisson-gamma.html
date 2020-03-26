@@ -14,17 +14,30 @@ keywords:
 
 
 <p>Quick post to create a loss cost (tweedie) model vs multiplying a frequency (Poisson) and a severity (Gamma) model.</p>
+<p>clm = 0 or 1, while numclaims = 0 , 1 ,2 ,3 or 4.
+We will model clm (0 or 1) because the cost variables (claimcst0claim) is the total cost of all claims.</p>
 <pre class="r"><code># https://www.cybaea.net/Journal/2012/03/13/R-code-for-Chapter-2-of-Non_Life-Insurance-Pricing-with-GLM/
 library(insuranceData) # pour les données dataCar
 library(tidyverse)  # pour la manipulation de données
 library(statmod) #pour glm(family = tweedie)
 library(modelr) # pour add_predictions()
 library(broom) # pour afficher les coefficients
+library(tidymodels)
+library(xgboost)
+library(tictoc)
+library(dviz.supp) # devtools::install_github(&quot;clauswilke/dviz.supp&quot;)
+library(colorblindr)  # devtools::install_github(&quot;clauswilke/colorblindr&quot;)
+
 data(dataCar)
 
 # claimcst0claim amount (0 if no claim)
-mydb &lt;- dataCar %&gt;% select(numclaims, claimcst0, exposure, veh_value, veh_body,
-                           veh_age, gender, area, agecat)</code></pre>
+# clm = 0 or 1. numclaims = 0 , 1 ,2 ,3 or 4.. on va essayer clm (0-1).. car j&#39;ai un claimcst0 représente
+mydb &lt;- dataCar %&gt;% select(clm, claimcst0, exposure, veh_value, veh_body,
+                           veh_age, gender, area, agecat) %&gt;% 
+  mutate(row_num = row_number() )
+
+sinistres &lt;- mydb %&gt;% filter(claimcst0 &gt; 0)
+pas_sinistres &lt;- mydb %&gt;% filter(claimcst0 == 0)</code></pre>
 <div id="tweedie-model" class="section level1">
 <h1>Tweedie model</h1>
 <pre class="r"><code>tweedie_fit &lt;- 
@@ -84,56 +97,55 @@ summary(tweedie_fit)</code></pre>
 <div id="poisson-model" class="section level1">
 <h1>Poisson model</h1>
 <pre class="r"><code>poisson_fit &lt;-
-  glm(numclaims ~ veh_value + veh_body + veh_age + gender + area + agecat,
+  glm(clm ~ veh_value + veh_body + veh_age + gender + area + agecat,
       family = poisson(link = &quot;log&quot;),
       offset = log(exposure),
       data = mydb)
-
 
 #broom::tidy(poisson_fit)
 summary(poisson_fit)</code></pre>
 <pre><code>## 
 ## Call:
-## glm(formula = numclaims ~ veh_value + veh_body + veh_age + gender + 
+## glm(formula = clm ~ veh_value + veh_body + veh_age + gender + 
 ##     area + agecat, family = poisson(link = &quot;log&quot;), data = mydb, 
 ##     offset = log(exposure))
 ## 
 ## Deviance Residuals: 
 ##     Min       1Q   Median       3Q      Max  
-## -0.8871  -0.4527  -0.3463  -0.2217   4.4836  
+## -0.8328  -0.4380  -0.3352  -0.2146   3.7439  
 ## 
 ## Coefficients:
-##                Estimate Std. Error z value Pr(&gt;|z|)    
-## (Intercept)   -0.531652   0.329096  -1.615 0.106205    
-## veh_value      0.024810   0.017096   1.451 0.146710    
-## veh_bodyCONVT -1.677009   0.668566  -2.508 0.012129 *  
-## veh_bodyCOUPE -0.512677   0.337317  -1.520 0.128545    
-## veh_bodyHBACK -0.963076   0.318557  -3.023 0.002501 ** 
-## veh_bodyHDTOP -0.826808   0.327821  -2.522 0.011665 *  
-## veh_bodyMCARA -0.364432   0.409547  -0.890 0.373551    
-## veh_bodyMIBUS -0.987641   0.350226  -2.820 0.004802 ** 
-## veh_bodyPANVN -0.842453   0.339216  -2.484 0.013009 *  
-## veh_bodyRDSTR -0.570593   0.660161  -0.864 0.387410    
-## veh_bodySEDAN -0.912573   0.317942  -2.870 0.004102 ** 
-## veh_bodySTNWG -0.906872   0.318064  -2.851 0.004355 ** 
-## veh_bodyTRUCK -0.941049   0.328422  -2.865 0.004165 ** 
-## veh_bodyUTE   -1.108397   0.322100  -3.441 0.000579 ***
-## veh_age       -0.049492   0.017956  -2.756 0.005845 ** 
-## genderM       -0.026297   0.030070  -0.875 0.381840    
-## areaB          0.050238   0.042790   1.174 0.240374    
-## areaC          0.005597   0.038990   0.144 0.885845    
-## areaD         -0.112353   0.052966  -2.121 0.033903 *  
-## areaE         -0.032488   0.057870  -0.561 0.574525    
-## areaF          0.060958   0.066124   0.922 0.356591    
-## agecat        -0.089260   0.010260  -8.700  &lt; 2e-16 ***
+##               Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept)   -0.65908    0.34640  -1.903  0.05709 .  
+## veh_value      0.02504    0.01769   1.415  0.15699    
+## veh_bodyCONVT -1.56842    0.67753  -2.315  0.02062 *  
+## veh_bodyCOUPE -0.50840    0.35538  -1.431  0.15255    
+## veh_bodyHBACK -0.91100    0.33567  -2.714  0.00665 ** 
+## veh_bodyHDTOP -0.76754    0.34485  -2.226  0.02603 *  
+## veh_bodyMCARA -0.33343    0.42858  -0.778  0.43658    
+## veh_bodyMIBUS -0.93253    0.36719  -2.540  0.01110 *  
+## veh_bodyPANVN -0.83585    0.35724  -2.340  0.01930 *  
+## veh_bodyRDSTR -0.87110    0.78342  -1.112  0.26617    
+## veh_bodySEDAN -0.89021    0.33508  -2.657  0.00789 ** 
+## veh_bodySTNWG -0.86507    0.33519  -2.581  0.00986 ** 
+## veh_bodyTRUCK -0.92002    0.34587  -2.660  0.00781 ** 
+## veh_bodyUTE   -1.06656    0.33925  -3.144  0.00167 ** 
+## veh_age       -0.04952    0.01855  -2.669  0.00760 ** 
+## genderM       -0.01993    0.03106  -0.642  0.52104    
+## areaB          0.07928    0.04431   1.789  0.07357 .  
+## areaC          0.03479    0.04042   0.861  0.38943    
+## areaD         -0.08245    0.05469  -1.507  0.13171    
+## areaE         -0.01559    0.05999  -0.260  0.79493    
+## areaF          0.05769    0.06896   0.837  0.40284    
+## agecat        -0.08852    0.01060  -8.352  &lt; 2e-16 ***
 ## ---
 ## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
 ## 
 ## (Dispersion parameter for poisson family taken to be 1)
 ## 
-##     Null deviance: 25507  on 67855  degrees of freedom
-## Residual deviance: 25348  on 67834  degrees of freedom
-## AIC: 34827
+##     Null deviance: 23803  on 67855  degrees of freedom
+## Residual deviance: 23660  on 67834  degrees of freedom
+## AIC: 32952
 ## 
 ## Number of Fisher Scoring iterations: 6</code></pre>
 </div>
@@ -141,7 +153,7 @@ summary(poisson_fit)</code></pre>
 <h1>Gamma model</h1>
 <pre class="r"><code>gamma_fit &lt;-
   glm(claimcst0 ~ veh_value + veh_body + veh_age + gender + area + agecat,
-      data = mydb %&gt;% filter( claimcst0 &gt; 0),
+      data = sinistres %&gt;% filter( claimcst0 &gt; 0),
       family = Gamma(&quot;log&quot;))
 
 #broom::tidy(gamma_fit) 
@@ -149,8 +161,8 @@ summary(gamma_fit)</code></pre>
 <pre><code>## 
 ## Call:
 ## glm(formula = claimcst0 ~ veh_value + veh_body + veh_age + gender + 
-##     area + agecat, family = Gamma(&quot;log&quot;), data = mydb %&gt;% filter(claimcst0 &gt; 
-##     0))
+##     area + agecat, family = Gamma(&quot;log&quot;), data = sinistres %&gt;% 
+##     filter(claimcst0 &gt; 0))
 ## 
 ## Deviance Residuals: 
 ##     Min       1Q   Median       3Q      Max  
@@ -191,26 +203,260 @@ summary(gamma_fit)</code></pre>
 ## 
 ## Number of Fisher Scoring iterations: 7</code></pre>
 </div>
-<div id="compare-model-performance-with-double-lift-chart" class="section level1">
-<h1>Compare model performance with double lift chart</h1>
-<pre class="r"><code>z &lt;- mydb %&gt;%
-  modelr::add_predictions(. , 
-                          var = &quot;pred_tweedie&quot;,
-                          model = tweedie_fit,
-                          type = &quot;response&quot;) %&gt;%
-  modelr::add_predictions(. , 
-                          var = &quot;pred_poisson&quot;,
-                          model = poisson_fit,
-                          type = &quot;response&quot;) %&gt;%
-  modelr::add_predictions(. , 
-                          var = &quot;pred_gamma&quot;,
-                          model = gamma_fit,
-                          type = &quot;response&quot;) %&gt;%
-  mutate(pred_freq_severite = pred_poisson * pred_gamma)
+<div id="xgboost" class="section level1">
+<h1>xgboost</h1>
+<pre class="r"><code>feature_vars &lt;- c(&quot;veh_value&quot; ,  &quot;veh_body&quot; ,  &quot;veh_age&quot; , &quot;gender&quot; , &quot;area&quot; , &quot;agecat&quot;)
+offset_var &lt;- &quot;exposure&quot;</code></pre>
+<div id="xgboost-tweedie" class="section level2">
+<h2>xgboost tweedie</h2>
+<pre class="r"><code>label_var &lt;- &quot;claimcst0&quot; 
+
+# one hot encoding of categorical (factor) data
+myformula &lt;- paste0( &quot;~&quot;, paste0( feature_vars, collapse = &quot; + &quot;) ) %&gt;% 
+  as.formula()
+
+dummyFier &lt;- caret::dummyVars(myformula, data=mydb, fullRank = TRUE)
+dummyVars.df &lt;- predict(dummyFier,newdata = mydb)
+mydb_dummy &lt;- cbind(mydb %&gt;% select(one_of(c(label_var, offset_var))), 
+                    dummyVars.df)
+rm(myformula, dummyFier, dummyVars.df)
+
+# get  list the column names of the db with the dummy variables
+feature_vars_dummy &lt;-  mydb_dummy  %&gt;% 
+  select(-one_of(c(label_var, offset_var))) %&gt;% 
+  colnames()
+
+# create xgb.matrix for xgboost consumption
+mydb_xgbmatrix &lt;- xgb.DMatrix(
+  data = mydb_dummy %&gt;% select(feature_vars_dummy) %&gt;% as.matrix, 
+  label = mydb_dummy %&gt;% pull(label_var),
+  missing = &quot;NAN&quot;)
+
+#base_margin: apply exposure offset 
+setinfo(mydb_xgbmatrix,&quot;base_margin&quot;, 
+        mydb %&gt;% pull(offset_var) %&gt;% log() )</code></pre>
+<pre><code>## [1] TRUE</code></pre>
+<pre class="r"><code># a fake constraint, just to show how it is done.  
+#Here we force &quot;the older the car, the less likely are claims&quot;
+# myConstraint   &lt;- data_frame(Variable = feature_vars_dummy) %&gt;%
+#   mutate(sens = ifelse(Variable == &quot;veh_age&quot;, -1, 0))
+# 
+
+# cv fold doesnt work for tweedie?  
+# random folds for xgb.cv
+# cv_folds = rBayesianOptimization::KFold(mydb_dummy$clm, 
+#                                         nfolds= 5,
+#                                         stratified = TRUE,
+#                                         
+#                                         seed= 0)
+
+simon_params &lt;-list(
+  booster = &quot;gbtree&quot;,
+  eta = 0.01,
+  max_depth = 4,
+  min_child_weight = 3,
+  gamma = 0,
+  subsample = 0.8,
+  colsample_bytree = 0.8,
+  objective = &#39;reg:tweedie&#39;,
+  eval_metric = &quot;tweedie-nloglik@1.5&quot;,
+  tweedie_variance_power = 1.5)
+
+
+set.seed(1234)
+
+cv_tweedie &lt;- xgb.cv(
+  params = simon_params,
+  data = mydb_xgbmatrix,
+  nround = 1000,
+  nfold=  5,
+  #monotone_constraints = myConstraint$sens,
+  prediction = TRUE,
+  showsd = TRUE,
+  early_stopping_rounds = 50,
+  verbose = 0)
+
+cv_tweedie$best_iteration</code></pre>
+<pre><code>## [1] 623</code></pre>
+</div>
+<div id="xgboost-poisson" class="section level2">
+<h2>xgboost poisson</h2>
+<pre class="r"><code>label_var &lt;- &quot;clm&quot; 
+
+# one hot encoding of categorical (factor) data
+myformula &lt;- paste0( &quot;~&quot;, paste0( feature_vars, collapse = &quot; + &quot;) ) %&gt;% 
+  as.formula()
+
+dummyFier &lt;- caret::dummyVars(myformula, data=mydb, fullRank = TRUE)
+dummyVars.df &lt;- predict(dummyFier,newdata = mydb)
+mydb_dummy &lt;- cbind(mydb %&gt;% select(one_of(c(label_var, offset_var))), 
+                    dummyVars.df)
+rm(myformula, dummyFier, dummyVars.df)
+
+# get  list the column names of the db with the dummy variables
+feature_vars_dummy &lt;-  mydb_dummy  %&gt;% 
+  select(-one_of(c(label_var, offset_var))) %&gt;% 
+  colnames()
+
+# create xgb.matrix for xgboost consumption
+mydb_xgbmatrix &lt;- xgb.DMatrix(
+  data = mydb_dummy %&gt;% select(feature_vars_dummy) %&gt;% as.matrix, 
+  label = mydb_dummy %&gt;% pull(label_var),
+  missing = &quot;NAN&quot;)
+
+#base_margin: apply exposure offset 
+setinfo(mydb_xgbmatrix,&quot;base_margin&quot;, 
+        mydb %&gt;% pull(offset_var) %&gt;% log() )</code></pre>
+<pre><code>## [1] TRUE</code></pre>
+<pre class="r"><code># a fake constraint, just to show how it is done.  
+#Here we force &quot;the older the car, the less likely are claims&quot;
+myConstraint   &lt;- data_frame(Variable = feature_vars_dummy) %&gt;%
+  mutate(sens = ifelse(Variable == &quot;veh_age&quot;, -1, 0))
+
+# random folds for xgb.cv
+cv_folds = rBayesianOptimization::KFold(mydb_dummy$clm, 
+                                        nfolds= 5,
+                                        stratified = TRUE,
+                                        seed= 0)
+
+simon_params &lt;-list(
+  booster = &quot;gbtree&quot;,
+  eta = 0.1,
+  max_depth = 6,
+  min_child_weight = 3,
+  gamma = 0,
+  subsample = 0.8,
+  colsample_bytree = 0.8,
+  objective = &#39;count:poisson&#39;, 
+  eval_metric = &quot;poisson-nloglik&quot;)
+
+
+set.seed(1234)
+
+cv_poisson &lt;- xgb.cv(
+  params = simon_params,
+  data = mydb_xgbmatrix,
+  nround = 200,
+  folds=  cv_folds,
+  monotone_constraints = myConstraint$sens,
+  prediction = TRUE,
+  showsd = TRUE,
+  early_stopping_rounds = 50,
+  verbose = 0)</code></pre>
+</div>
+<div id="xgboost-gamma" class="section level2">
+<h2>xgboost gamma</h2>
+<pre class="r"><code>label_var &lt;- &quot;claimcst0&quot; 
+
+# one hot encoding of categorical (factor) data
+myformula &lt;- paste0( &quot;~&quot;, paste0( feature_vars, collapse = &quot; + &quot;) ) %&gt;% 
+  as.formula()
+
+dummyFier &lt;- caret::dummyVars(myformula, data=sinistres , fullRank = TRUE)
+dummyVars.df &lt;- predict(dummyFier,newdata = sinistres )
+mydb_dummy &lt;- cbind(sinistres  %&gt;% select(one_of(c(label_var))),  #, offset_var
+                    dummyVars.df)
+rm(myformula, dummyFier, dummyVars.df)
 
 
 
-# double lift charts
+
+# get  list the column names of the db with the dummy variables
+feature_vars_dummy &lt;-  mydb_dummy  %&gt;% 
+  select(-one_of(c(label_var))) %&gt;%  # , offset_var
+  colnames()
+
+# create xgb.matrix for xgboost consumption
+mydb_xgbmatrix &lt;- xgb.DMatrix(
+  data = mydb_dummy %&gt;% select(feature_vars_dummy) %&gt;% as.matrix, 
+  label = mydb_dummy %&gt;% pull(label_var),
+  missing = &quot;NAN&quot;)
+
+# pas de offset pour gamma
+
+# a fake constraint, just to show how it is done.  
+#Here we force &quot;the older the car, the less likely are claims&quot;
+# myConstraint   &lt;- data_frame(Variable = feature_vars_dummy) %&gt;%
+#   mutate(sens = ifelse(Variable == &quot;veh_age&quot;, -1, 0))
+
+
+# cv folds doesnt work with gamma?  
+# # random folds for xgb.cv
+# cv_folds = rBayesianOptimization::KFold(mydb_dummy$clm, 
+#                                         nfolds= 5,
+#                                         stratified = TRUE,
+#                                         seed= 0)
+
+simon_params &lt;-list(
+  booster = &quot;gbtree&quot;,
+  eta = 0.01,
+  max_depth = 4,
+  min_child_weight = 3,
+  gamma = 0,
+  subsample = 0.8,
+  colsample_bytree = 0.8,
+  objective = &#39;reg:gamma&#39;)
+
+
+set.seed(1234)
+
+cv_gamma &lt;- xgb.cv(
+  params = simon_params,
+  data = mydb_xgbmatrix,
+  nround = 1000,
+  #folds=  cv_folds,
+  nfold =5 ,
+  #monotone_constraints = myConstraint$sens,
+  prediction = TRUE,
+  showsd = TRUE,
+  early_stopping_rounds = 50,
+  verbose = 0)
+
+
+
+
+
+# we need a gamma model to predict values on everyone that didnt get a claim.    we will run a new gamma model  on everyone who had a claim
+full_model &lt;- xgboost::xgb.train(
+  data = mydb_xgbmatrix,
+  params = simon_params,
+  nrounds = cv_gamma$best_iteration,
+  nthread = parallel::detectCores() - 1,
+  monotone_constraints = myConstraint$sens,,
+)
+
+
+myformula &lt;- paste0( &quot;~&quot;, paste0( feature_vars, collapse = &quot; + &quot;) ) %&gt;% 
+  as.formula()
+dummyFier &lt;- caret::dummyVars(myformula, data = pas_sinistres , fullRank = TRUE)
+dummyVars.df &lt;- predict(dummyFier,newdata = pas_sinistres )
+pas_sinistres_dummy &lt;- cbind(pas_sinistres  %&gt;% select(one_of(c(label_var))),  #, offset_var
+                             dummyVars.df)
+rm(myformula, dummyFier, dummyVars.df)
+
+pas_sinistres_xgbmatrix &lt;- xgb.DMatrix(
+  data = pas_sinistres_dummy %&gt;% select(feature_vars_dummy) %&gt;% as.matrix, 
+  label = pas_sinistres_dummy %&gt;% pull(label_var),
+  missing = &quot;NAN&quot;)
+
+
+
+# mettre de l&#39;ordre dans la prédiction gamma xgboost
+
+sinistres$pred_xgboost_gamma &lt;- cv_gamma$pred
+pas_sinistres$pred_xgboost_gamma &lt;- predict(full_model, pas_sinistres_xgbmatrix)
+
+pred_xgboost_gamma &lt;- bind_rows(
+  sinistres %&gt;% select(row_num, pred_xgboost_gamma),
+  pas_sinistres %&gt;% select(row_num, pred_xgboost_gamma)
+) %&gt;%
+  arrange(row_num) %&gt;%
+  pull(pred_xgboost_gamma)</code></pre>
+</div>
+</div>
+<div id="functions-lift-double-lift" class="section level1">
+<h1>functions lift double lift</h1>
+<pre class="r"><code># double lift charts
 
 #&#39; @title disloc()
 #&#39;
@@ -236,9 +482,9 @@ disloc &lt;- function(data, pred1, pred2, expo, obs, nb = 10,
                    x_label = &quot;&quot;,
                    y_label= &quot;sinistralité&quot;,
                    y_format = scales::number_format(accuracy = 1,  big.mark = &quot; &quot;, decimal.mark = &quot;,&quot;)
-                   ) {
+) {
   # obligé de mettre les variables dans un enquo pour pouvoir les utiliser dans dplyr
-
+  
   pred1_var &lt;- enquo(pred1)
   pred2_var &lt;- enquo(pred2)
   expo_var &lt;- enquo(expo)
@@ -265,7 +511,7 @@ disloc &lt;- function(data, pred1, pred2, expo, obs, nb = 10,
   # constitution des buckets de poids égaux
   dd &lt;- dd %&gt;% add_equal_weight_group(
     sort_by = ratio,
-    expo = !!expo_var, # était nb_day
+    expo = !!expo_var, 
     group_variable_name = &quot;groupe&quot;,
     nb = nb
   )
@@ -307,18 +553,18 @@ disloc &lt;- function(data, pred1, pred2, expo, obs, nb = 10,
     ggplot(aes(ratio_moyen, variable, color = key, linetype = key)) +
     cowplot::theme_cowplot() +
     cowplot::background_grid()+
-    ggthemes::scale_color_colorblind() +
+    colorblindr::scale_color_OkabeIto( ) + 
     
     scale_x_continuous(breaks = scales::pretty_breaks())+
     geom_line() +
     geom_point() +
-   scale_x_continuous(breaks = dd$ratio_moyen, labels = dd$labs) +
-   scale_y_continuous(breaks = scales::pretty_breaks() )+  
-   labs(
-     x = x_label,
-     y = y_label
-   )+
-   theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1)) #+
+    scale_x_continuous(breaks = dd$ratio_moyen, labels = dd$labs) +
+    scale_y_continuous(breaks = scales::pretty_breaks() )+  
+    labs(
+      x = x_label,
+      y = y_label
+    )+
+    theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1)) #+
   
   
   # écart au réalisé, pondéré
@@ -374,17 +620,215 @@ add_equal_weight_group &lt;- function(table, sort_by, expo = NULL, group_variabl
       mutate(!!group_variable_name := cut(cumExpo, breaks = br, ordered_result = TRUE, include.lowest = TRUE) %&gt;% as.numeric) %&gt;%
       select(-cumExpo)
   }
-}
+}</code></pre>
+<pre class="r"><code>get_lift_chart_data &lt;- function(
+  data, 
+  sort_by,
+  pred, 
+  expo, 
+  obs, 
+  nb = 10) {
+  
+  pred_var &lt;- enquo(pred)
+  sort_by_var &lt;- enquo(sort_by)
+  expo_var &lt;- enquo(expo)
+  obs_var &lt;- enquo(obs)
+  
+  
+  pred_name &lt;- quo_name(pred_var)
+  sort_by_name &lt;- quo_name(sort_by_var)
+  obs_name &lt;- quo_name(obs_var)
+  
+  # constitution des buckets de poids égaux
+  dd &lt;- data %&gt;% add_equal_weight_group(
+    sort_by = !!sort_by_var,
+    expo = !!expo_var, 
+    group_variable_name = &quot;groupe&quot;,
+    nb = nb
+  )
+  
+  # comparaison sur ces buckets
+  dd &lt;- full_join(
+    dd %&gt;% group_by(groupe) %&gt;%
+      summarise(
+        sort_by_moyen = mean(!!sort_by_var),
+        sort_by_min = min(!!sort_by_var),
+        sort_by_max = max(!!sort_by_var)
+      ),
+    dd %&gt;% group_by(groupe) %&gt;%
+      summarise_at(
+        funs(sum(.) / sum(!!expo_var)),
+        .vars = vars(!!obs_var, !!pred_var)
+      ) %&gt;%
+      ungroup,
+    by = &quot;groupe&quot;
+  )
+  
+  # création des labels
+  dd &lt;- dd %&gt;%
+    mutate(labs = paste0(&quot;[&quot;, round(sort_by_min, 2), &quot;, &quot;, round(sort_by_max, 2), &quot;]&quot;))
+  
+}</code></pre>
+<pre class="r"><code>get_lift_chart &lt;- function(data, 
+                           sort_by,
+                           pred, 
+                           expo, 
+                           obs, 
+                           nb){
+
+  pred_var &lt;- enquo(pred)
+  sort_by_var &lt;- enquo(sort_by)
+  expo_var &lt;- enquo(expo)
+  obs_var &lt;- enquo(obs)
+
+  lift_data &lt;- get_lift_chart_data(
+    data = data, 
+    sort_by = !!sort_by_var,
+    pred = !!pred_var, 
+    expo = !!expo_var, 
+    obs = !!obs_var, 
+    nb = 10)
+  
+  lift_data %&gt;% 
+    select(groupe, labs, !!pred_var, !!obs_var) %&gt;%
+    gather(key = type, value = average, !!pred_var, !!obs_var)  %&gt;% 
+    ggplot(aes(x= groupe, y = average, color =type)) +
+    geom_line() +
+    geom_point()+
+    cowplot::theme_half_open() +
+    cowplot::background_grid() +
+    colorblindr::scale_color_OkabeIto( ) + 
+    scale_x_continuous(
+      expand = c(0,0),
+      breaks  = scales::pretty_breaks()
+    )+
+    scale_y_continuous(
+      expand = c(0,0),
+      breaks  = scales::pretty_breaks()
+    )+
+    theme(legend.position = c(0.8, 0.1)
+    )
+  
+  
+}</code></pre>
+<p>Add predictions to database. Quick check: the means for predictions of frequency and total cost don’t appear to be way off:</p>
+<pre class="r"><code>z &lt;- mydb %&gt;%
+  modelr::add_predictions(. , 
+                          var = &quot;pred_tweedie&quot;,
+                          model = tweedie_fit,
+                          type = &quot;response&quot;) %&gt;%
+  modelr::add_predictions(. , 
+                          var = &quot;pred_poisson&quot;,
+                          model = poisson_fit,
+                          type = &quot;response&quot;) %&gt;%
+  modelr::add_predictions(. , 
+                          var = &quot;pred_gamma&quot;,
+                          model = gamma_fit,
+                          type = &quot;response&quot;) %&gt;%
+  mutate(pred_freq_severite = pred_poisson * pred_gamma)
+
+z$pred_xgboost_poisson &lt;- cv_poisson$pred
+z$pred_xgboost_tweedie &lt;- cv_tweedie$pred
+z$pred_xgboost_gamma &lt;- pred_xgboost_gamma
 
 
+z &lt;- z %&gt;% 
+  mutate(pred_xgboost_freq_severite = pred_xgboost_poisson * pred_xgboost_gamma)
 
 
-disloc(data = z, 
+z %&gt;% select(clm, pred_poisson, pred_xgboost_poisson,  claimcst0,pred_freq_severite, pred_tweedie,  pred_xgboost_freq_severite, pred_xgboost_tweedie) %&gt;% summary()</code></pre>
+<pre><code>##       clm           pred_poisson       pred_xgboost_poisson
+##  Min.   :0.00000   Min.   :0.0002185   Min.   :0.0002036   
+##  1st Qu.:0.00000   1st Qu.:0.0309467   1st Qu.:0.0327161   
+##  Median :0.00000   Median :0.0634658   Median :0.0673217   
+##  Mean   :0.06814   Mean   :0.0681443   Mean   :0.0725259   
+##  3rd Qu.:0.00000   3rd Qu.:0.1009753   3rd Qu.:0.1074489   
+##  Max.   :1.00000   Max.   :0.3601767   Max.   :0.4429930   
+##    claimcst0       pred_freq_severite  pred_tweedie     
+##  Min.   :    0.0   Min.   :  0.3929   Min.   :  0.3691  
+##  1st Qu.:    0.0   1st Qu.: 58.9642   1st Qu.: 60.6512  
+##  Median :    0.0   Median :122.4400   Median :125.9862  
+##  Mean   :  137.3   Mean   :137.3453   Mean   :141.7508  
+##  3rd Qu.:    0.0   3rd Qu.:196.3937   3rd Qu.:202.6984  
+##  Max.   :55922.1   Max.   :896.3259   Max.   :931.8630  
+##  pred_xgboost_freq_severite pred_xgboost_tweedie
+##  Min.   :  0.2681           Min.   :   0.0738   
+##  1st Qu.: 51.6204           1st Qu.:  61.6274   
+##  Median :106.7376           Median : 129.2015   
+##  Mean   :117.0218           Mean   : 147.9379   
+##  3rd Qu.:171.6407           3rd Qu.: 213.8701   
+##  Max.   :691.7917           Max.   :1821.3561</code></pre>
+</div>
+<div id="lift-charts-of-select-models" class="section level1">
+<h1>Lift charts of select models</h1>
+<div id="lift-chart-poisson-frequence-annuelle" class="section level2">
+<h2>lift chart poisson (fréquence annuelle)</h2>
+<pre class="r"><code>z %&gt;% 
+  mutate(annual_rate_pred_poisson = pred_poisson / exposure) %&gt;%
+  get_lift_chart(sort_by= annual_rate_pred_poisson, pred = pred_poisson, obs = clm, expo  = exposure )</code></pre>
+<p><img src="/post/2020-03-23-tweedie-vs-poisson-gamma_files/figure-html/unnamed-chunk-12-1.png" width="960" style="display: block; margin: auto;" /></p>
+</div>
+<div id="lift-chart-tweedie-prime-annuelle" class="section level2">
+<h2>lift chart tweedie (prime annuelle)</h2>
+<pre class="r"><code>z %&gt;% 
+  mutate(annual_rate_tweedie = pred_tweedie / exposure) %&gt;%
+  get_lift_chart(sort_by= annual_rate_tweedie, pred = pred_tweedie, obs = claimcst0, expo  = exposure )</code></pre>
+<p><img src="/post/2020-03-23-tweedie-vs-poisson-gamma_files/figure-html/unnamed-chunk-13-1.png" width="960" style="display: block; margin: auto;" /></p>
+</div>
+<div id="lift-chart-xgboost-poisson-frequence-annuelle" class="section level2">
+<h2>lift chart xgboost poisson (fréquence annuelle)</h2>
+<pre class="r"><code>z %&gt;% 
+  mutate(annual_rate_xgboost_pred_poisson = pred_xgboost_poisson / exposure) %&gt;%
+  get_lift_chart(sort_by= annual_rate_xgboost_pred_poisson, pred = pred_xgboost_poisson, obs = clm, expo  = exposure )</code></pre>
+<p><img src="/post/2020-03-23-tweedie-vs-poisson-gamma_files/figure-html/unnamed-chunk-14-1.png" width="960" style="display: block; margin: auto;" /></p>
+</div>
+<div id="lift-chart-xgboost-tweedie-prime-annuelle" class="section level2">
+<h2>lift chart xgboost tweedie (prime annuelle)</h2>
+<p>pas vargeux mon tweedie xgboost! Il a pourtant terminé d’apprendre, car le best iteration 623 est plus petit que le 1000 permis.</p>
+<pre class="r"><code>z %&gt;% 
+  mutate(annual_rate_xgboost_tweedie = pred_xgboost_tweedie / exposure) %&gt;%
+  get_lift_chart(sort_by= annual_rate_xgboost_tweedie, pred = pred_xgboost_tweedie, obs = claimcst0, expo  = exposure )</code></pre>
+<p><img src="/post/2020-03-23-tweedie-vs-poisson-gamma_files/figure-html/unnamed-chunk-15-1.png" width="960" style="display: block; margin: auto;" /></p>
+</div>
+</div>
+<div id="compare-model-performance-with-double-lift-chart" class="section level1">
+<h1>Compare model performance with double lift chart</h1>
+<div id="glm-tweedie-vs-poisson-gamma" class="section level2">
+<h2>GLM Tweedie vs Poisson * Gamma</h2>
+<p>GLM Tweedie ( power = 1.1) appears similar to than Poisson * Gamma .</p>
+<pre class="r"><code>disloc(data = z, 
        pred1 = pred_freq_severite, 
        pred2 = pred_tweedie, 
        expo = exposure, 
        obs = claimcst0 ,
        y_label = &quot;coût moyen ($)&quot;
 ) %&gt;% .$graphe</code></pre>
-<p><img src="/post/2020-03-23-tweedie-vs-poisson-gamma_files/figure-html/unnamed-chunk-4-1.png" width="960" style="display: block; margin: auto;" /></p>
+<p><img src="/post/2020-03-23-tweedie-vs-poisson-gamma_files/figure-html/unnamed-chunk-16-1.png" width="960" style="display: block; margin: auto;" /></p>
+</div>
+<div id="glm-tweedie-vs-xgb-tweedie" class="section level2">
+<h2>GLM Tweedie vs XGB Tweedie</h2>
+<p>Why is the xgboost tweedie doing so poorly vs GLM tweedie?<br />
+partial answer: xgboost is out of fold, glm can try to overfit.. but it really doesnt have that many variables to overfit on.</p>
+<pre class="r"><code>disloc(data = z, 
+       pred1 = pred_xgboost_tweedie, 
+       pred2 = pred_tweedie, 
+       expo = exposure, 
+       obs = claimcst0 ,
+       y_label = &quot;coût moyen ($)&quot;
+) %&gt;% .$graphe</code></pre>
+<p><img src="/post/2020-03-23-tweedie-vs-poisson-gamma_files/figure-html/unnamed-chunk-17-1.png" width="960" style="display: block; margin: auto;" /></p>
+</div>
+<div id="glm-poissongamma-vs-xgb-poissongamma" class="section level2">
+<h2>GLM Poisson<em>Gamma vs XGB Poisson</em>Gamma</h2>
+<p>Why is the xgboost Poisson * Gamma doing so poorly vs GLM Poisson * Gamma?<br />
+partial answer: xgboost is out of fold, glm can try to overfit.. but it really doesnt have that many variables to overfit on.</p>
+<pre class="r"><code>disloc(data = z, 
+       pred1 = pred_freq_severite, 
+       pred2 = pred_xgboost_freq_severite, 
+       expo = exposure, 
+       obs = claimcst0 ,
+       y_label = &quot;coût moyen ($)&quot;
+) %&gt;% .$graphe</code></pre>
+<p><img src="/post/2020-03-23-tweedie-vs-poisson-gamma_files/figure-html/unnamed-chunk-18-1.png" width="960" style="display: block; margin: auto;" /></p>
+</div>
 </div>
