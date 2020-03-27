@@ -18,7 +18,7 @@ keywords:
 # TODO : valider ceci : Chunk options must be written in one line; no line breaks are allowed inside chunk options;
 # https://yihui.name/knitr/options/
 knitr::opts_chunk$set(echo = TRUE, 
-                      collapse = FALSE,
+                      collapse = TRUE,
                       warning = FALSE,
                       error = FALSE,
                       message = FALSE,
