@@ -27,7 +27,7 @@ library(xgboost)
 library(tictoc)
 library(dviz.supp) # devtools::install_github(&quot;clauswilke/dviz.supp&quot;)
 library(colorblindr)  # devtools::install_github(&quot;clauswilke/colorblindr&quot;)
-
+library(patchwork)
 data(dataCar)
 
 # claimcst0claim amount (0 if no claim)
@@ -209,6 +209,8 @@ summary(gamma_fit)</code></pre>
 offset_var &lt;- &quot;exposure&quot;</code></pre>
 <div id="xgboost-tweedie" class="section level2">
 <h2>xgboost tweedie</h2>
+<p>pdf le fun avec weight et tou
+<a href="https://pdfs.semanticscholar.org/c93b/36764413698a1f39f27969c5815363497370.pdf" class="uri">https://pdfs.semanticscholar.org/c93b/36764413698a1f39f27969c5815363497370.pdf</a></p>
 <pre class="r"><code>label_var &lt;- &quot;claimcst0&quot; 
 
 # one hot encoding of categorical (factor) data
@@ -649,13 +651,17 @@ add_equal_weight_group &lt;- function(table, sort_by, expo = NULL, group_variabl
   
   # comparaison sur ces buckets
   dd &lt;- full_join(
-    dd %&gt;% group_by(groupe) %&gt;%
+    dd %&gt;% 
+      group_by(groupe) %&gt;%
       summarise(
+        exposure = sum(!!expo_var),
         sort_by_moyen = mean(!!sort_by_var),
         sort_by_min = min(!!sort_by_var),
         sort_by_max = max(!!sort_by_var)
-      ),
-    dd %&gt;% group_by(groupe) %&gt;%
+      ) %&gt;%
+      ungroup(),
+    dd %&gt;% 
+      group_by(groupe) %&gt;%
       summarise_at(
         funs(sum(.) / sum(!!expo_var)),
         .vars = vars(!!obs_var, !!pred_var)
@@ -689,7 +695,7 @@ add_equal_weight_group &lt;- function(table, sort_by, expo = NULL, group_variabl
     obs = !!obs_var, 
     nb = 10)
   
-  lift_data %&gt;% 
+p1 &lt;- lift_data %&gt;% 
     select(groupe, labs, !!pred_var, !!obs_var) %&gt;%
     gather(key = type, value = average, !!pred_var, !!obs_var)  %&gt;% 
     ggplot(aes(x= groupe, y = average, color =type)) +
@@ -709,7 +715,25 @@ add_equal_weight_group &lt;- function(table, sort_by, expo = NULL, group_variabl
     theme(legend.position = c(0.8, 0.1)
     )
   
-  
+p2 &lt;- lift_data %&gt;% 
+    select(groupe, labs, exposure) %&gt;%
+    ggplot(aes(x= groupe, y = exposure)) +
+    geom_col() +
+    cowplot::theme_half_open() +
+    cowplot::background_grid() +
+    colorblindr::scale_color_OkabeIto( ) + 
+    scale_x_continuous(
+      expand = c(0,0),
+      breaks  = scales::pretty_breaks()
+    )+
+    scale_y_continuous(
+      expand = c(0,0),
+      breaks  = scales::pretty_breaks()
+    )+
+    theme(legend.position = c(0.8, 0.1)
+    )  
+
+return(p1 / p2)
 }</code></pre>
 <p>Add predictions to database. Quick check: the means for predictions of frequency and total cost don’t appear to be way off:</p>
 <pre class="r"><code>z &lt;- mydb %&gt;%
@@ -763,10 +787,9 @@ z %&gt;% select(clm, pred_poisson, pred_xgboost_poisson,  claimcst0,pred_freq_se
 <h1>Lift charts of select models</h1>
 <div id="lift-chart-poisson-frequence-annuelle" class="section level2">
 <h2>lift chart poisson (fréquence annuelle)</h2>
-<pre class="r"><code>z %&gt;% 
+<pre class="r"><code>gaa &lt;- z %&gt;% 
   mutate(annual_rate_pred_poisson = pred_poisson / exposure) %&gt;%
-  get_lift_chart(sort_by= annual_rate_pred_poisson, pred = pred_poisson, obs = clm, expo  = exposure )</code></pre>
-<p><img src="/post/2020-03-23-tweedie-vs-poisson-gamma_files/figure-html/unnamed-chunk-12-1.png" width="960" style="display: block; margin: auto;" /></p>
+  get_lift_chart_data(sort_by= annual_rate_pred_poisson, pred = pred_poisson, obs = clm, expo  = exposure )</code></pre>
 </div>
 <div id="lift-chart-tweedie-prime-annuelle" class="section level2">
 <h2>lift chart tweedie (prime annuelle)</h2>
