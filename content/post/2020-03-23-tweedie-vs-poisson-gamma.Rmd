@@ -646,21 +646,6 @@ test_w_preds %>%
 
 
 # Lift charts of select models  
-<!-- testplus %>%  -->
-<!--   get_lift_chart(sort_by= pred_glm, pred = pred_claim, obs = claim, expo  = exposure ) -->
-
-
-<!-- testplus %>%  -->
-<!--   get_lift_chart(sort_by= pred_xgboost, pred = pred_xgboost_claim, obs = claim, expo  = exposure ) -->
-
-
-<!-- disloc(data = testplus,  -->
-<!--        pred1 = pred_claim,  -->
-<!--        pred2 = pred_xgboost_claim,  -->
-<!--        expo = exposure,  -->
-<!--        obs = claim , -->
-<!--        y_label = "coût moyen ($)" -->
-<!-- ) %>% .$graphe -->
 
 
 

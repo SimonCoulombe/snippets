@@ -290,7 +290,7 @@ xgcv_tweedie &lt;- xgb.cv(
   verbose = 0)
 
 xgcv_tweedie$best_iteration
-## [1] 314
+## [1] 324
 
 
 # xgb.cv doesnt ouput any model -- we need a model to predict test dataset
@@ -343,7 +343,7 @@ xgcv_poisson &lt;- xgb.cv(
   verbose = 0)
 
 xgcv_poisson$best_iteration
-## [1] 206
+## [1] 204
 
 
 # xgb.cv doesnt ouput any model -- we need a model to predict test dataset
@@ -388,7 +388,7 @@ xgcv_gamma &lt;- xgb.cv(
   verbose = 0)
 
 xgcv_gamma$best_iteration
-## [1] 221
+## [1] 239
 
 
 # xgb.cv doesnt ouput any model -- we need a model to predict test dataset
@@ -711,33 +711,22 @@ test_w_preds %&gt;%
 ##  3rd Qu.:    0.0   3rd Qu.:194.1813   3rd Qu.:194.5117           
 ##  Max.   :23722.4   Max.   :705.1045   Max.   :704.3376           
 ##  pred_loss_xgboost  pred_frequency_severity_xgboost      clm         
-##  Min.   :   0.335   Min.   : 54.68                  Min.   :0.00000  
-##  1st Qu.:  52.854   1st Qu.:111.67                  1st Qu.:0.00000  
-##  Median : 108.431   Median :132.77                  Median :0.00000  
-##  Mean   : 124.961   Mean   :134.34                  Mean   :0.07111  
-##  3rd Qu.: 176.297   3rd Qu.:147.29                  3rd Qu.:0.00000  
-##  Max.   :6452.642   Max.   :725.16                  Max.   :1.00000  
+##  Min.   :   0.352   Min.   : 48.72                  Min.   :0.00000  
+##  1st Qu.:  53.090   1st Qu.:114.61                  1st Qu.:0.00000  
+##  Median : 108.917   Median :138.65                  Median :0.00000  
+##  Mean   : 125.613   Mean   :140.08                  Mean   :0.07111  
+##  3rd Qu.: 177.029   3rd Qu.:156.33                  3rd Qu.:0.00000  
+##  Max.   :6830.249   Max.   :945.44                  Max.   :1.00000  
 ##  pred_poisson_glm    pred_poisson_xgboost
-##  Min.   :0.0002612   Min.   :0.03877     
-##  1st Qu.:0.0307849   1st Qu.:0.06683     
-##  Median :0.0623851   Median :0.07515     
-##  Mean   :0.0673485   Mean   :0.07454     
-##  3rd Qu.:0.0999587   3rd Qu.:0.08151     
-##  Max.   :0.3341072   Max.   :0.17767</code></pre>
+##  Min.   :0.0002612   Min.   :0.04028     
+##  1st Qu.:0.0307849   1st Qu.:0.06692     
+##  Median :0.0623851   Median :0.07543     
+##  Mean   :0.0673485   Mean   :0.07470     
+##  3rd Qu.:0.0999587   3rd Qu.:0.08156     
+##  Max.   :0.3341072   Max.   :0.18816</code></pre>
 </div>
 <div id="lift-charts-of-select-models" class="section level1">
 <h1>Lift charts of select models</h1>
-<!-- testplus %>%  -->
-<!--   get_lift_chart(sort_by= pred_glm, pred = pred_claim, obs = claim, expo  = exposure ) -->
-<!-- testplus %>%  -->
-<!--   get_lift_chart(sort_by= pred_xgboost, pred = pred_xgboost_claim, obs = claim, expo  = exposure ) -->
-<!-- disloc(data = testplus,  -->
-<!--        pred1 = pred_claim,  -->
-<!--        pred2 = pred_xgboost_claim,  -->
-<!--        expo = exposure,  -->
-<!--        obs = claim , -->
-<!--        y_label = "coût moyen ($)" -->
-<!-- ) %>% .$graphe -->
 <div id="tweedie-lift-charts-pure-premium" class="section level2">
 <h2>Tweedie lift charts (pure premium)</h2>
 <div id="glm" class="section level3">

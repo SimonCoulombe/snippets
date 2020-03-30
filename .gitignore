@@ -5,6 +5,8 @@
 .RData
 .Ruserdata
 public
+content/post/*.fst
+content/post/*.rds
 content/post/data/*
 !content/post/data/raw
 !content/post/data/interim/accidents.rdata
