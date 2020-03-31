@@ -15,12 +15,45 @@ keywords:
 
 <p>I’m building my first tweedie model, and I’m finally trying the {recipes} package.</p>
 <p>We will try to predict the pure premium of car insurance policy. This can be done directly with a tweedie model, or by multiplying two separates models: a frequency (Poisson) and a severity (Gamma) model. We wil be using “lift charts” and “double lift charts” to evaluate the model performance .</p>
-<p>More details about these charts here](<a href="https://www.casact.org/education/rpm/2015/handouts/Paper_4034_handout_2419_0.pdf" class="uri">https://www.casact.org/education/rpm/2015/handouts/Paper_4034_handout_2419_0.pdf</a>). That link says “simple quantile plots” instead of “Lift charts”.</p>
-<p>tl;dr: the glm and xgboost models all perform poorly, but man do I like recipes!!!</p>
+<p>Here’s is the plan:</p>
+<ul>
+<li>Pre-process the train and test data using <code>recipes</code>.<br />
+</li>
+<li>Estimate the pure premium directly using a Tweedie model (93% of <code>claimcst0</code>values are 0$, the others are the claims dollar amount).<br />
+</li>
+<li>Estimate the frequency of claims using a Poisson model (93% of values <code>clm</code>values are 0, the other are equal to 1).</li>
+<li>Estimate the severity of claims using a Gamma model (estimate the <code>claimcst0</code> value for the 7% that is above 0$)<br />
+</li>
+<li>All three models are estimated using a GLM and a GBM approach.<br />
+</li>
+<li>Models are compared using three approaches :
+<ul>
+<li>Normalized Gini Index,</li>
+<li>Lift charts,<br />
+</li>
+<li>Double-lift charts.</li>
+</ul></li>
+</ul>
+<p>More details <a href="https://www.casact.org/education/rpm/2015/handouts/Paper_4034_handout_2419_0.pdf">about these charts here</a>. What I call “lift chart” is named “simple quantile plots” in the pdf.</p>
+<p>tl;dr: <code>recipes</code> is AWESOME. Also, both glm and xgboost models all perform poorly. <a href="https://www.simoncoulombe.com/2020/03/tweedue-and-recipes-part-2-kaggle-data/">I made a new post using 6M observatiosn instead of 67k, and it helps.</a></p>
+<p>Reasons I will come back to this post for code snippets:<br />
+* the rsample, yardstick and recipes packages are used for pre-processing data. I don’t know everything it can do, but I found ot is very useful to prevent leaking data from the test set into the train set, and to generate all the models to impute missing datas.<br />
+* My double-lift chart generation function disloc() and lift-chart generation function get_lift_chart() finally look good.<br />
+* This is my first tweedie, both using glm (package <code>statmod</code>) and xgboost.</p>
+<p>TODO: learn <code>tuner</code> to find the best xgboost hyperparameters and tweedie parameters.</p>
 <div id="libraries" class="section level1">
 <h1>Libraries</h1>
+<p>The data comes from the <code>insuranceData</code> package, described below in the data section.<br />
+Data wrangling and plot is done using the <code>tidyverse</code> and <code>patchwork</code>, as usual.<br />
+The <code>statmod</code> library is required to evaluate tweedie models using GLM.<br />
+<code>modelr</code>is used for the add_predictions() function.<br />
+<code>broom::tidy()</code>is used to get GLM coefficients in table format,<br />
+<code>xgboost</code> is used to evaluate the gradient boosting model.<br />
+<code>tictoc::tic() and tictoc::toc()</code> are used to measure evaluation time.<br />
+Claus Wilke’s <code>cowplot::theme_cowplot()</code>, <code>dviz.supp::theme_dviz_hgrid()</code> and <code>colorblindr::scale_color_OkabeIto()</code> are used for to make my plots look better
+<code>MLmetrics::NormalizedGini</code> for normalized gini coefficient.</p>
 <pre class="r"><code># https://www.cybaea.net/Journal/2012/03/13/R-code-for-Chapter-2-of-Non_Life-Insurance-Pricing-with-GLM/
-library(insuranceData) # pour les données dataCar
+library(insuranceData) # for  dataCar  insurance data
 library(tidyverse)  # pour la manipulation de données
 library(statmod) #pour glm(family = tweedie)
 library(modelr) # pour add_predictions()
@@ -33,11 +66,12 @@ library(colorblindr)  # devtools::install_github(&quot;clauswilke/colorblindr&qu
 library(patchwork)
 library(rsample)
 library(yardstick)
-library(recipes)</code></pre>
+library(recipes)
+library(MLmetrics) # for normalized gini </code></pre>
 </div>
 <div id="data" class="section level1">
 <h1>Data</h1>
-<p>The dataCar data from the <code>insuranceData</code> package. It contains 67 856 one-year vehicle insurance policies taken out in 2004 or 2005.</p>
+<p>The dataCar data from the <code>insuranceData</code> package. It contains 67 856 one-year vehicle insurance policies taken out in 2004 or 2005. It originally came with the book <a href="http://www.businessandeconomics.mq.edu.au/our_departments/Applied_Finance_and_Actuarial_Studies/research/books/GLMsforInsuranceData">Generalized Linear Models for Insurance Data (2008)</a>.</p>
 <p>The <code>exposure</code> variable represents the “number of year of exposure” and is used as the offset variable. It is bounded between 0 and 1.</p>
 <p>Finally, the independent variables are as follow:</p>
 <ul>
@@ -56,17 +90,24 @@ library(recipes)</code></pre>
 <p>The dollar amount of the claims is <code>claimcst0</code>. We will divide it by the exposure to obtain <code>annual_loss</code> which is the pure annual premium.</p>
 <p>For the frequency (Poisosn) model, we will model clm (0 or 1) because the cost variables (claimcst0) represents the total cost, if you have multiple claims (numclaims&gt;1).</p>
 </div>
-<div id="recipe" class="section level1">
-<h1>Recipe</h1>
+<div id="pre-process-the-data-using-recipe" class="section level1">
+<h1>Pre-process the data using recipe</h1>
 <p>I’ve used a few tutorials and vignettes, including the following two:</p>
 <p><a href="https://cran.r-project.org/web/packages/recipes/vignettes/Simple_Example.html" class="uri">https://cran.r-project.org/web/packages/recipes/vignettes/Simple_Example.html</a>
 <a href="https://www.andrewaage.com/post/a-simple-solution-to-a-kaggle-competition-using-xgboost-and-recipes/" class="uri">https://www.andrewaage.com/post/a-simple-solution-to-a-kaggle-competition-using-xgboost-and-recipes/</a></p>
+<p>I honestly havent done that much reading, but here is why I have adopted <code>recipes</code>. :<br />
+* create dummies for xgboost in 1 line of code,<br />
+* trainn knn models to impute all missing predictors in 1 line of code,<br />
+* combine super rare categories into “other” in 1 line of code, (not done here, but all is needed is step_knnimpute(all_predictors()))</p>
+<p>All while making sure that you don’t leak any test data into your train data. What’s not to like?</p>
 <pre class="r"><code>
 
 data(dataCar)
 
-# claimcst0claim amount (0 if no claim)
-# clm = 0 or 1. numclaims = 0 , 1 ,2 ,3 or 4.. on va essayer clm (0-1).. car j&#39;ai un claimcst0 représente
+# claimcst0 = claim amount (0 if no claim)
+# clm = 0 or 1 = has a claim yes/ no  
+#  numclaims = number of claims  0 , 1 ,2 ,3 or 4).       
+# we use clm because the corresponding dollar amount is for all claims combined.  
 mydb &lt;- dataCar %&gt;% select(clm, claimcst0, exposure, veh_value, veh_body,
                            veh_age, gender, area, agecat) %&gt;% 
   mutate(annual_loss = claimcst0 / exposure)
@@ -97,7 +138,9 @@ test &lt;- bake(prepped_rec, new_data = test)</code></pre>
 <h1>GLMs</h1>
 <div id="tweedie-model-pure-premium" class="section level2">
 <h2>Tweedie model (pure premium)</h2>
-<p>the model isnt very impressive, with only agecat and the itnercept having a nice p-value..</p>
+<p>We convert the dollar amount into an annual premium by dividing the dollar amount (claimst0) by the number of years of exposure (exposure).<br />
+We weight each observation by the number of years of exposure.</p>
+<p>The model isnt very impressive, with only agecat and the itnercept having a nice p-value..</p>
 <pre class="r"><code>tweedie_fit &lt;- 
   glm(annual_loss ~ . -exposure -clm -claimcst0,
       family=tweedie(var.power=1.1, link.power=0),
@@ -148,6 +191,7 @@ summary(tweedie_fit)
 </div>
 <div id="poisson-model-frequency" class="section level2">
 <h2>Poisson model (frequency)</h2>
+<p>We model the presence of a claim (clm) and use the log(exposure) as an offset.</p>
 <pre class="r"><code>
 poisson_fit &lt;-
   glm(clm ~ . -annual_loss -exposure -claimcst0 ,
@@ -200,6 +244,7 @@ summary(poisson_fit)
 </div>
 <div id="gamma-model" class="section level2">
 <h2>Gamma model</h2>
+<p>For the 7% of policies with a claim, we model the dollar amount of claims (claimcst0)</p>
 <pre class="r"><code>gamma_fit &lt;-
   glm(claimcst0 ~ . -annual_loss -exposure -clm ,
       data = train %&gt;% filter( claimcst0 &gt; 0),
@@ -361,7 +406,6 @@ xgmodel_poisson &lt;- xgboost::xgb.train(
                              label = train %&gt;% filter(claimcst0 &gt; 0) %&gt;% pull(claimcst0)
 )
 
-
 xgtest_gamma &lt;- xgb.DMatrix(as.matrix(test %&gt;% select(-annual_loss ,-clm, - claimcst0, -exposure )),  
                             label = test$claimcst0
 )
@@ -402,10 +446,7 @@ xgmodel_gamma &lt;- xgboost::xgb.train(
 </div>
 <div id="functions-lift-double-lift" class="section level1">
 <h1>Functions lift &amp; double lift</h1>
-<pre class="r"><code>
-
-# double lift charts
-
+<pre class="r"><code># double lift charts
 #&#39; @title disloc()
 #&#39;
 #&#39; @description Cette fonction crée un tableau et une double lift chart
@@ -422,7 +463,6 @@ xgmodel_gamma &lt;- xgboost::xgb.train(
 #&#39; @param y_label Label pour la valeur réalisée dans le graphique
 #&#39; @param y_format Fonction utilisée pour formater l&#39;axe des y dans le graphique (par exemple percent_format() ou dollar_format() du package scales)
 #&#39; @export
-
 
 disloc &lt;- function(data, pred1, pred2, expo, obs, nb = 10,
                    obs_lab = &quot;&quot;,
@@ -531,8 +571,6 @@ disloc &lt;- function(data, pred1, pred2, expo, obs, nb = 10,
   )
 }
 
-
-
 #&#39; @title add_equal_weight_group()
 #&#39;
 #&#39; @description Cette fonction crée des groupe (quantiles) avec le nombre nombre total d&#39;exposition.
@@ -623,8 +661,6 @@ get_lift_chart_data &lt;- function(
   
 }
 
-
-
 get_lift_chart &lt;- function(data, 
                            sort_by,
                            pred, 
@@ -681,9 +717,10 @@ get_lift_chart &lt;- function(data,
   return(p1 / p2 +   plot_layout(heights = c(3, 1)))
 }</code></pre>
 </div>
-<div id="add-predictions-to-test-database." class="section level1">
-<h1>Add predictions to test database.</h1>
-<p>Quick check: the means for predictions of frequency and total cost don’t appear to be way off</p>
+<div id="results" class="section level1">
+<h1>Results</h1>
+<p>Add predictions to the test dataset.<br />
+Quick check: the means for predictions of frequency and total cost don’t appear to be way off</p>
 <pre class="r"><code>test_w_preds &lt;- test %&gt;%
   add_predictions(&quot;pred_annual_loss_glm&quot;, model = tweedie_fit, type = &quot;response&quot;) %&gt;%
   mutate(pred_loss_glm = pred_annual_loss_glm * exposure) %&gt;%
@@ -702,45 +739,210 @@ get_lift_chart &lt;- function(data,
 test_w_preds %&gt;%
   select(claimcst0, pred_loss_glm, pred_frequency_severity_glm, pred_loss_xgboost, pred_frequency_severity_xgboost,
          clm, pred_poisson_glm, pred_poisson_xgboost) %&gt;% 
-  summary()
-##    claimcst0       pred_loss_glm      pred_frequency_severity_glm
-##  Min.   :    0.0   Min.   :  0.4129   Min.   :  0.4169           
-##  1st Qu.:    0.0   1st Qu.: 58.8170   1st Qu.: 58.8756           
-##  Median :    0.0   Median :120.7763   Median :120.8617           
-##  Mean   :  140.2   Mean   :136.0306   Mean   :136.0360           
-##  3rd Qu.:    0.0   3rd Qu.:194.1813   3rd Qu.:194.5117           
-##  Max.   :23722.4   Max.   :705.1045   Max.   :704.3376           
-##  pred_loss_xgboost  pred_frequency_severity_xgboost      clm         
-##  Min.   :   0.352   Min.   : 48.72                  Min.   :0.00000  
-##  1st Qu.:  53.090   1st Qu.:114.61                  1st Qu.:0.00000  
-##  Median : 108.917   Median :138.65                  Median :0.00000  
-##  Mean   : 125.613   Mean   :140.08                  Mean   :0.07111  
-##  3rd Qu.: 177.029   3rd Qu.:156.33                  3rd Qu.:0.00000  
-##  Max.   :6830.249   Max.   :945.44                  Max.   :1.00000  
-##  pred_poisson_glm    pred_poisson_xgboost
-##  Min.   :0.0002612   Min.   :0.04028     
-##  1st Qu.:0.0307849   1st Qu.:0.06692     
-##  Median :0.0623851   Median :0.07543     
-##  Mean   :0.0673485   Mean   :0.07470     
-##  3rd Qu.:0.0999587   3rd Qu.:0.08156     
-##  Max.   :0.3341072   Max.   :0.18816</code></pre>
+  skimr::skim() %&gt;%
+  knitr::kable(digits = 3L)</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left">skim_type</th>
+<th align="left">skim_variable</th>
+<th align="right">n_missing</th>
+<th align="right">complete_rate</th>
+<th align="right">numeric.mean</th>
+<th align="right">numeric.sd</th>
+<th align="right">numeric.p0</th>
+<th align="right">numeric.p25</th>
+<th align="right">numeric.p50</th>
+<th align="right">numeric.p75</th>
+<th align="right">numeric.p100</th>
+<th align="left">numeric.hist</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">numeric</td>
+<td align="left">claimcst0</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">140.151</td>
+<td align="right">957.834</td>
+<td align="right">0.000</td>
+<td align="right">0.000</td>
+<td align="right">0.000</td>
+<td align="right">0.000</td>
+<td align="right">23722.430</td>
+<td align="left">▇▁▁▁▁</td>
+</tr>
+<tr class="even">
+<td align="left">numeric</td>
+<td align="left">pred_loss_glm</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">136.031</td>
+<td align="right">97.982</td>
+<td align="right">0.413</td>
+<td align="right">58.817</td>
+<td align="right">120.776</td>
+<td align="right">194.181</td>
+<td align="right">705.105</td>
+<td align="left">▇▅▁▁▁</td>
+</tr>
+<tr class="odd">
+<td align="left">numeric</td>
+<td align="left">pred_frequency_severity_glm</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">136.036</td>
+<td align="right">97.671</td>
+<td align="right">0.417</td>
+<td align="right">58.876</td>
+<td align="right">120.862</td>
+<td align="right">194.512</td>
+<td align="right">704.338</td>
+<td align="left">▇▅▁▁▁</td>
+</tr>
+<tr class="even">
+<td align="left">numeric</td>
+<td align="left">pred_loss_xgboost</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">125.613</td>
+<td align="right">122.959</td>
+<td align="right">0.352</td>
+<td align="right">53.090</td>
+<td align="right">108.917</td>
+<td align="right">177.029</td>
+<td align="right">6830.249</td>
+<td align="left">▇▁▁▁▁</td>
+</tr>
+<tr class="odd">
+<td align="left">numeric</td>
+<td align="left">pred_frequency_severity_xgboost</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">140.075</td>
+<td align="right">43.468</td>
+<td align="right">48.720</td>
+<td align="right">114.607</td>
+<td align="right">138.654</td>
+<td align="right">156.335</td>
+<td align="right">945.439</td>
+<td align="left">▇▁▁▁▁</td>
+</tr>
+<tr class="even">
+<td align="left">numeric</td>
+<td align="left">clm</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">0.071</td>
+<td align="right">0.257</td>
+<td align="right">0.000</td>
+<td align="right">0.000</td>
+<td align="right">0.000</td>
+<td align="right">0.000</td>
+<td align="right">1.000</td>
+<td align="left">▇▁▁▁▁</td>
+</tr>
+<tr class="odd">
+<td align="left">numeric</td>
+<td align="left">pred_poisson_glm</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">0.067</td>
+<td align="right">0.044</td>
+<td align="right">0.000</td>
+<td align="right">0.031</td>
+<td align="right">0.062</td>
+<td align="right">0.100</td>
+<td align="right">0.334</td>
+<td align="left">▇▆▁▁▁</td>
+</tr>
+<tr class="even">
+<td align="left">numeric</td>
+<td align="left">pred_poisson_xgboost</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">0.075</td>
+<td align="right">0.013</td>
+<td align="right">0.040</td>
+<td align="right">0.067</td>
+<td align="right">0.075</td>
+<td align="right">0.082</td>
+<td align="right">0.188</td>
+<td align="left">▃▇▁▁▁</td>
+</tr>
+</tbody>
+</table>
+<div id="normalized-gini" class="section level2">
+<h2>Normalized Gini</h2>
+<p>The GLM model systematically perform better than the XGB models.<br />
+The XGB combination of Frequency and Severity models has a Normalized Gini 4x smaller than it’s GLM counterpart.</p>
+<p>We will really need to do this exercise again with a larger dataset.</p>
+<pre class="r"><code>Poisson_GLM = MLmetrics::NormalizedGini(test_w_preds$clm, test_w_preds$pred_poisson_glm)
+Poisson_XGB = MLmetrics::NormalizedGini(test_w_preds$clm, test_w_preds$pred_poisson_xgboost)
+Tweedie_GLM = MLmetrics::NormalizedGini(test_w_preds$claimcst0, test_w_preds$pred_loss_glm)
+Tweedie_XGB = MLmetrics::NormalizedGini(test_w_preds$claimcst0, test_w_preds$pred_loss_xgboost)
+FreqSev_GLM = MLmetrics::NormalizedGini(test_w_preds$claimcst0, test_w_preds$pred_frequency_severity_glm)
+FreqSev_XGB = MLmetrics::NormalizedGini(test_w_preds$claimcst0, test_w_preds$pred_frequency_severity_xgboost    )
+
+
+tibble(Poisson_GLM,
+       Poisson_XGB,
+       Tweedie_GLM,
+       Tweedie_XGB,
+       FreqSev_GLM,
+       FreqSev_XGB) %&gt;%
+  gather(key = model, value = NormalizedGini) %&gt;%
+  knitr::kable(digits = 3L)</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left">model</th>
+<th align="right">NormalizedGini</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Poisson_GLM</td>
+<td align="right">0.028</td>
+</tr>
+<tr class="even">
+<td align="left">Poisson_XGB</td>
+<td align="right">0.011</td>
+</tr>
+<tr class="odd">
+<td align="left">Tweedie_GLM</td>
+<td align="right">0.032</td>
+</tr>
+<tr class="even">
+<td align="left">Tweedie_XGB</td>
+<td align="right">0.038</td>
+</tr>
+<tr class="odd">
+<td align="left">FreqSev_GLM</td>
+<td align="right">0.032</td>
+</tr>
+<tr class="even">
+<td align="left">FreqSev_XGB</td>
+<td align="right">0.008</td>
+</tr>
+</tbody>
+</table>
 </div>
-<div id="lift-charts-of-select-models" class="section level1">
-<h1>Lift charts of select models</h1>
-<div id="tweedie-lift-charts-pure-premium" class="section level2">
-<h2>Tweedie lift charts (pure premium)</h2>
-<div id="glm" class="section level3">
-<h3>GLM</h3>
+<div id="lift-charts-of-select-models" class="section level2">
+<h2>Lift charts of select models</h2>
+<div id="tweedie-glm-pure-premium" class="section level3">
+<h3>Tweedie GLM (pure premium)</h3>
 <pre class="r"><code>get_lift_chart(
   data = test_w_preds,
   sort_by= pred_annual_loss_glm, 
   pred = pred_loss_glm, 
   obs = claimcst0, 
   expo  = exposure )</code></pre>
-<p><img src="/post/2020-03-23-tweedie-vs-poisson-gamma_files/figure-html/unnamed-chunk-10-1.png" width="960" style="display: block; margin: auto;" /></p>
+<p><img src="/post/2020-03-23-tweedie-vs-poisson-gamma_files/figure-html/unnamed-chunk-11-1.png" width="960" style="display: block; margin: auto;" /></p>
 </div>
-<div id="xgboost-1" class="section level3">
-<h3>XGBoost</h3>
+<div id="tweedie-xgboost-pure-premium" class="section level3">
+<h3>Tweedie XGBoost (pure premium)</h3>
 <pre class="r"><code>
 get_lift_chart(
   data = test_w_preds,
@@ -748,33 +950,30 @@ get_lift_chart(
   pred = pred_loss_xgboost, 
   obs = claimcst0, 
   expo  = exposure )</code></pre>
-<p><img src="/post/2020-03-23-tweedie-vs-poisson-gamma_files/figure-html/unnamed-chunk-11-1.png" width="960" style="display: block; margin: auto;" /></p>
+<p><img src="/post/2020-03-23-tweedie-vs-poisson-gamma_files/figure-html/unnamed-chunk-12-1.png" width="960" style="display: block; margin: auto;" /></p>
 </div>
-</div>
-<div id="lift-chart-poisson-frequency" class="section level2">
-<h2>lift chart Poisson (frequency)</h2>
-<div id="glm-1" class="section level3">
-<h3>GLM</h3>
+<div id="poisson-glm-frequency" class="section level3">
+<h3>Poisson GLM (frequency)</h3>
 <pre class="r"><code>get_lift_chart(
   data = test_w_preds, 
   sort_by= pred_annual_freq_glm, 
   pred = pred_poisson_glm,
   obs = clm, 
   expo  = exposure )</code></pre>
-<p><img src="/post/2020-03-23-tweedie-vs-poisson-gamma_files/figure-html/unnamed-chunk-12-1.png" width="960" style="display: block; margin: auto;" /></p>
+<p><img src="/post/2020-03-23-tweedie-vs-poisson-gamma_files/figure-html/unnamed-chunk-13-1.png" width="960" style="display: block; margin: auto;" /></p>
 </div>
-<div id="xgboost-2" class="section level3">
-<h3>XGBoost</h3>
+<div id="poisson-xgboost-frequency" class="section level3">
+<h3>Poisson XGBoost (frequency)</h3>
 <pre class="r"><code>get_lift_chart(
   data = test_w_preds, 
   sort_by= pred_annual_freq_xgboost, 
   pred = pred_poisson_xgboost,
   obs = clm, 
   expo  = exposure )</code></pre>
-<p><img src="/post/2020-03-23-tweedie-vs-poisson-gamma_files/figure-html/unnamed-chunk-13-1.png" width="960" style="display: block; margin: auto;" /></p>
+<p><img src="/post/2020-03-23-tweedie-vs-poisson-gamma_files/figure-html/unnamed-chunk-14-1.png" width="960" style="display: block; margin: auto;" /></p>
 </div>
-<div id="test-extract-individual-plot-from-patchwork-it-works" class="section level3">
-<h3>test: extract individual plot from patchwork (it works!)</h3>
+<div id="a-test-extract-individual-plot-from-a-patchwork-object-it-works" class="section level3">
+<h3>A test: extract individual plot from a patchwork object (it works!)</h3>
 <pre class="r"><code>gaa2 &lt;- get_lift_chart(
   data = test_w_preds, 
   sort_by= pred_annual_freq_glm, 
@@ -790,14 +989,13 @@ gaa1 &lt;- get_lift_chart(
   expo  = exposure )
 
 (gaa1[[1]] + gaa2[[1]]) /(gaa1[[2]] + gaa2[[2]])  +    plot_layout(heights = c(3, 1))</code></pre>
-<p><img src="/post/2020-03-23-tweedie-vs-poisson-gamma_files/figure-html/unnamed-chunk-14-1.png" width="960" style="display: block; margin: auto;" /></p>
+<p><img src="/post/2020-03-23-tweedie-vs-poisson-gamma_files/figure-html/unnamed-chunk-15-1.png" width="960" style="display: block; margin: auto;" /></p>
 </div>
 </div>
-</div>
-<div id="double-lift-chart" class="section level1">
-<h1>Double lift chart</h1>
-<div id="glm-tweedie-vs-glm-poisson-gamma" class="section level2">
-<h2>GLM Tweedie vs GLM Poisson * Gamma</h2>
+<div id="double-lift-chart" class="section level2">
+<h2>Double lift chart</h2>
+<div id="glm-tweedie-vs-glm-poisson-gamma" class="section level3">
+<h3>GLM Tweedie vs GLM Poisson * Gamma</h3>
 <p>GLM Tweedie ( power = 1.1) appears similar to than Poisson * Gamma .</p>
 <pre class="r"><code>disloc(data = test_w_preds, 
        pred1 = pred_loss_glm, 
@@ -806,10 +1004,10 @@ gaa1 &lt;- get_lift_chart(
        obs = claimcst0 ,
        y_label = &quot;coût moyen ($)&quot;
 ) %&gt;% .$graphe</code></pre>
-<p><img src="/post/2020-03-23-tweedie-vs-poisson-gamma_files/figure-html/unnamed-chunk-15-1.png" width="960" style="display: block; margin: auto;" /></p>
+<p><img src="/post/2020-03-23-tweedie-vs-poisson-gamma_files/figure-html/unnamed-chunk-16-1.png" width="960" style="display: block; margin: auto;" /></p>
 </div>
-<div id="glm-tweedie-vs-xgb-tweedie" class="section level2">
-<h2>GLM Tweedie vs XGB Tweedie</h2>
+<div id="glm-tweedie-vs-xgb-tweedie" class="section level3">
+<h3>GLM Tweedie vs XGB Tweedie</h3>
 <p>Why is the xgboost tweedie doing so poorly vs GLM tweedie?<br />
 partial answer: xgboost is out of fold, glm can try to overfit.. but it really doesnt have that many variables to overfit on.</p>
 <pre class="r"><code>
@@ -820,10 +1018,10 @@ disloc(data = test_w_preds,
        obs = claimcst0 ,
        y_label = &quot;coût moyen ($)&quot;
 ) %&gt;% .$graphe</code></pre>
-<p><img src="/post/2020-03-23-tweedie-vs-poisson-gamma_files/figure-html/unnamed-chunk-16-1.png" width="960" style="display: block; margin: auto;" /></p>
+<p><img src="/post/2020-03-23-tweedie-vs-poisson-gamma_files/figure-html/unnamed-chunk-17-1.png" width="960" style="display: block; margin: auto;" /></p>
 </div>
-<div id="glm-poissongamma-vs-xgb-poissongamma" class="section level2">
-<h2>GLM Poisson<em>Gamma vs XGB Poisson</em>Gamma</h2>
+<div id="glm-poissongamma-vs-xgb-poissongamma" class="section level3">
+<h3>GLM Poisson<em>Gamma vs XGB Poisson</em>Gamma</h3>
 <pre class="r"><code>disloc(data = test_w_preds, 
        pred1 = pred_frequency_severity_glm, 
        pred2 = pred_frequency_severity_xgboost, 
@@ -831,6 +1029,7 @@ disloc(data = test_w_preds,
        obs = claimcst0 ,
        y_label = &quot;coût moyen ($)&quot;
 ) %&gt;% .$graphe</code></pre>
-<p><img src="/post/2020-03-23-tweedie-vs-poisson-gamma_files/figure-html/unnamed-chunk-17-1.png" width="960" style="display: block; margin: auto;" /></p>
+<p><img src="/post/2020-03-23-tweedie-vs-poisson-gamma_files/figure-html/unnamed-chunk-18-1.png" width="960" style="display: block; margin: auto;" /></p>
+</div>
 </div>
 </div>

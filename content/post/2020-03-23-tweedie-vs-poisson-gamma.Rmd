@@ -30,21 +30,56 @@ knitr::opts_chunk$set(echo = TRUE,
 ```
 
 
-
-
 I'm building my first tweedie model, and I'm finally trying the {recipes} package.
 
 We will try to predict the pure premium of car insurance policy.  This can be done directly with a tweedie model, or by multiplying two separates models: a frequency (Poisson) and a severity (Gamma) model.  We wil be  using  "lift charts" and "double lift charts" to evaluate the model performance .  
 
-More details about these charts here](https://www.casact.org/education/rpm/2015/handouts/Paper_4034_handout_2419_0.pdf).  That link says "simple quantile plots" instead of "Lift charts".  
 
-tl;dr: the glm and xgboost models all perform poorly, but man do I like recipes!!!
+Here's is the plan:   
+
+  * Pre-process the train and test data using `recipes`.   
+  * Estimate  the pure premium directly using a Tweedie model  (93% of `claimcst0`values are 0$, the others are the claims dollar amount).  
+  * Estimate the frequency of claims using a Poisson model (93% of values  `clm`values are 0, the other are equal to 1).
+  * Estimate the severity of claims using a  Gamma model (estimate the `claimcst0` value for the 7% that is above 0$)  
+  * All three models are estimated using a GLM and a GBM approach.   
+  * Models are compared using three approaches :   
+      * Normalized Gini Index,
+      * Lift charts,  
+      * Double-lift charts.  
+
+More details [about these charts here](https://www.casact.org/education/rpm/2015/handouts/Paper_4034_handout_2419_0.pdf).  What I call  "lift chart" is named  "simple quantile plots" in the pdf.  
+
+
+
+tl;dr: `recipes` is AWESOME.  Also, both glm and xgboost models all perform poorly.  [I made a new post using 6M observatiosn instead of 67k, and it helps.](https://www.simoncoulombe.com/2020/03/tweedue-and-recipes-part-2-kaggle-data/)  
+
+Reasons I will come back to this post for code snippets:   
+  * the rsample, yardstick and recipes packages are used for pre-processing data.   I don't know everything it can do, but I found ot is very useful to prevent leaking data from the test set into the train set, and to generate all the models to impute missing datas.   
+  * My double-lift chart generation function disloc() and lift-chart generation function get_lift_chart() finally look good.  
+  * This is my first tweedie, both using glm (package `statmod`) and xgboost.  
+  
+
+TODO: learn `tuner` to find the best xgboost hyperparameters and tweedie parameters.  
+
 
 # Libraries  
 
+The data comes from the `insuranceData` package, described below in the data section.    
+Data wrangling and plot is done using the `tidyverse` and `patchwork`, as usual.  
+The `statmod` library is required to evaluate tweedie models using GLM.    
+`modelr`is used for the add_predictions() function.  
+`broom::tidy()`is used to get GLM coefficients in table format,  
+`xgboost` is used to evaluate the gradient boosting model.  
+`tictoc::tic() and tictoc::toc()` are used to measure evaluation time.  
+Claus Wilke's `cowplot::theme_cowplot()`, `dviz.supp::theme_dviz_hgrid()` and `colorblindr::scale_color_OkabeIto()` are used for to make my plots look better
+`MLmetrics::NormalizedGini` for normalized gini coefficient.  
+
+
+
+
 ```{r}
 # https://www.cybaea.net/Journal/2012/03/13/R-code-for-Chapter-2-of-Non_Life-Insurance-Pricing-with-GLM/
-library(insuranceData) # pour les données dataCar
+library(insuranceData) # for  dataCar  insurance data
 library(tidyverse)  # pour la manipulation de données
 library(statmod) #pour glm(family = tweedie)
 library(modelr) # pour add_predictions()
@@ -58,13 +93,14 @@ library(patchwork)
 library(rsample)
 library(yardstick)
 library(recipes)
+library(MLmetrics) # for normalized gini 
 
 ```
 
 
 #  Data  
 
-The dataCar data from the `insuranceData` package.  It contains 67 856 one-year vehicle insurance policies taken out in 2004 or 2005.   
+The dataCar data from the `insuranceData` package.  It contains 67 856 one-year vehicle insurance policies taken out in 2004 or 2005.   It originally came with the book [Generalized Linear Models for Insurance Data (2008)](http://www.businessandeconomics.mq.edu.au/our_departments/Applied_Finance_and_Actuarial_Studies/research/books/GLMsforInsuranceData).
 
 The `exposure` variable  represents the "number of year of exposure" and is used as the offset variable.  It is bounded between 0 and 1.   
 
@@ -77,12 +113,11 @@ Finally, the independent variables are as follow:
 * `area` a factor with levels A B C D E F,   
 * `agecat` 1 (youngest), 2, 3, 4, 5, 6  
 
-
 The dollar amount of the claims is  `claimcst0`.  We will divide it by the exposure to obtain `annual_loss` which is the pure annual premium.
 
 For the frequency (Poisosn) model, we will model clm (0 or 1) because the cost variables (claimcst0) represents the total cost,  if you have multiple claims (numclaims>1).
 
-# Recipe
+# Pre-process the data using recipe
 
 I've used a few tutorials and vignettes, including the following two:  
 
@@ -90,13 +125,23 @@ https://cran.r-project.org/web/packages/recipes/vignettes/Simple_Example.html
 https://www.andrewaage.com/post/a-simple-solution-to-a-kaggle-competition-using-xgboost-and-recipes/
 
 
+I honestly havent done that much reading, but here is why I have adopted  `recipes`.  :  
+  * create dummies for xgboost in 1 line of code,  
+  * trainn knn models to impute all missing predictors in 1 line of code,  
+  * combine super rare categories into "other" in 1 line of code,    (not done here, but all is needed is step_knnimpute(all_predictors()))
+
+All while making sure that you don't leak any test data into your train data.  What's not to like?  
+
+
 ```{r recipe}
 
 
 data(dataCar)
 
-# claimcst0claim amount (0 if no claim)
-# clm = 0 or 1. numclaims = 0 , 1 ,2 ,3 or 4.. on va essayer clm (0-1).. car j'ai un claimcst0 représente
+# claimcst0 = claim amount (0 if no claim)
+# clm = 0 or 1 = has a claim yes/ no  
+#  numclaims = number of claims  0 , 1 ,2 ,3 or 4).       
+# we use clm because the corresponding dollar amount is for all claims combined.  
 mydb <- dataCar %>% select(clm, claimcst0, exposure, veh_value, veh_body,
                            veh_age, gender, area, agecat) %>% 
   mutate(annual_loss = claimcst0 / exposure)
@@ -127,8 +172,10 @@ test <- bake(prepped_rec, new_data = test)
 # GLMs 
 ## Tweedie model (pure premium)
 
+We convert the dollar amount into an annual premium by dividing the dollar amount (claimst0) by the number of years of exposure (exposure).  
+We weight each observation by the number of years of exposure.  
 
-the model isnt very impressive, with only agecat and the itnercept having a nice p-value..
+The model isnt very impressive, with only agecat and the itnercept having a nice p-value..
 
 ```{r}
 tweedie_fit <- 
@@ -142,6 +189,9 @@ summary(tweedie_fit)
 
 
 ## Poisson model (frequency)
+
+We model the presence of a claim (clm)  and use the log(exposure) as an offset.  
+
 ```{r}
 
 poisson_fit <-
@@ -156,6 +206,7 @@ summary(poisson_fit)
 
 ## Gamma model
 
+For the 7% of policies with a claim, we model the dollar amount of claims (claimcst0)
 ```{r}
 gamma_fit <-
   glm(claimcst0 ~ . -annual_loss -exposure -clm ,
@@ -287,7 +338,6 @@ xgtrain_gamma <- xgb.DMatrix(as.matrix(train %>% filter(claimcst0 > 0) %>%select
                              label = train %>% filter(claimcst0 > 0) %>% pull(claimcst0)
 )
 
-
 xgtest_gamma <- xgb.DMatrix(as.matrix(test %>% select(-annual_loss ,-clm, - claimcst0, -exposure )),  
                             label = test$claimcst0
 )
@@ -331,10 +381,7 @@ xgmodel_gamma <- xgboost::xgb.train(
 
 # Functions   lift   & double lift 
 ```{r}
-
-
 # double lift charts
-
 #' @title disloc()
 #'
 #' @description Cette fonction crée un tableau et une double lift chart
@@ -351,7 +398,6 @@ xgmodel_gamma <- xgboost::xgb.train(
 #' @param y_label Label pour la valeur réalisée dans le graphique
 #' @param y_format Fonction utilisée pour formater l'axe des y dans le graphique (par exemple percent_format() ou dollar_format() du package scales)
 #' @export
-
 
 disloc <- function(data, pred1, pred2, expo, obs, nb = 10,
                    obs_lab = "",
@@ -460,8 +506,6 @@ disloc <- function(data, pred1, pred2, expo, obs, nb = 10,
   )
 }
 
-
-
 #' @title add_equal_weight_group()
 #'
 #' @description Cette fonction crée des groupe (quantiles) avec le nombre nombre total d'exposition.
@@ -552,8 +596,6 @@ get_lift_chart_data <- function(
   
 }
 
-
-
 get_lift_chart <- function(data, 
                            sort_by,
                            pred, 
@@ -616,11 +658,12 @@ get_lift_chart <- function(data,
 
 
 
-# Add predictions to test database.  
+# Results  
 
+Add predictions to the test dataset.    
 Quick check: the means for predictions of frequency and total cost don't appear to be way off
 
-```{r}
+```{r, results='asis'}
 test_w_preds <- test %>%
   add_predictions("pred_annual_loss_glm", model = tweedie_fit, type = "response") %>%
   mutate(pred_loss_glm = pred_annual_loss_glm * exposure) %>%
@@ -639,19 +682,43 @@ test_w_preds <- test %>%
 test_w_preds %>%
   select(claimcst0, pred_loss_glm, pred_frequency_severity_glm, pred_loss_xgboost, pred_frequency_severity_xgboost,
          clm, pred_poisson_glm, pred_poisson_xgboost) %>% 
-  summary()
+  skimr::skim() %>%
+  knitr::kable(digits = 3L)
 
 ```
 
+## Normalized Gini  
+
+The GLM model systematically perform better than the XGB models.  
+The XGB combination of Frequency and Severity models has a Normalized Gini 4x smaller than it's GLM counterpart.   
+
+We will really need to do this exercise again with a larger dataset.  
+
+```{r}
+Poisson_GLM = MLmetrics::NormalizedGini(test_w_preds$clm, test_w_preds$pred_poisson_glm)
+Poisson_XGB = MLmetrics::NormalizedGini(test_w_preds$clm, test_w_preds$pred_poisson_xgboost)
+Tweedie_GLM = MLmetrics::NormalizedGini(test_w_preds$claimcst0, test_w_preds$pred_loss_glm)
+Tweedie_XGB = MLmetrics::NormalizedGini(test_w_preds$claimcst0, test_w_preds$pred_loss_xgboost)
+FreqSev_GLM = MLmetrics::NormalizedGini(test_w_preds$claimcst0, test_w_preds$pred_frequency_severity_glm)
+FreqSev_XGB = MLmetrics::NormalizedGini(test_w_preds$claimcst0, test_w_preds$pred_frequency_severity_xgboost	)
 
 
-# Lift charts of select models  
+tibble(Poisson_GLM,
+       Poisson_XGB,
+       Tweedie_GLM,
+       Tweedie_XGB,
+       FreqSev_GLM,
+       FreqSev_XGB) %>%
+  gather(key = model, value = NormalizedGini) %>%
+  knitr::kable(digits = 3L)
+  
+```
 
 
+## Lift charts of select models  
 
-## Tweedie lift charts (pure premium)    
 
-### GLM  
+### Tweedie GLM (pure premium)
 ```{r}
 get_lift_chart(
   data = test_w_preds,
@@ -662,7 +729,7 @@ get_lift_chart(
 
 ```
 
-### XGBoost
+### Tweedie XGBoost (pure premium)
 
 
 ```{r}
@@ -679,9 +746,7 @@ get_lift_chart(
 
 
 
-## lift chart Poisson (frequency)  
-
-### GLM  
+### Poisson  GLM  (frequency)
 
 
 ```{r}
@@ -695,7 +760,7 @@ get_lift_chart(
 
 
 
-### XGBoost
+### Poisson XGBoost (frequency)
 
 ```{r}
 get_lift_chart(
@@ -707,8 +772,8 @@ get_lift_chart(
 ```
 
 
-
-### test: extract individual plot from patchwork (it works!) 
+ 
+### A test: extract individual plot from a patchwork  object (it works!) 
 ```{r}
 gaa2 <- get_lift_chart(
   data = test_w_preds, 
@@ -730,11 +795,11 @@ gaa1 <- get_lift_chart(
 
 
 
-# Double lift chart  
+## Double lift chart  
 
 
 
-## GLM Tweedie vs GLM Poisson * Gamma   
+### GLM Tweedie vs GLM Poisson * Gamma   
 
 GLM Tweedie ( power = 1.1) appears   similar to than Poisson * Gamma .  
 ```{r}
@@ -748,7 +813,7 @@ disloc(data = test_w_preds,
 
 ```
 
-## GLM Tweedie vs XGB Tweedie  
+### GLM Tweedie vs XGB Tweedie  
 
 Why is the xgboost tweedie doing so poorly vs GLM tweedie?  
 partial answer: xgboost is out of fold, glm can try to overfit.. but it really doesnt have that many variables to overfit on.
@@ -765,7 +830,7 @@ disloc(data = test_w_preds,
 
 ```
 
-## GLM Poisson*Gamma  vs XGB Poisson*Gamma  
+### GLM Poisson*Gamma  vs XGB Poisson*Gamma  
 
 
 ```{r}
