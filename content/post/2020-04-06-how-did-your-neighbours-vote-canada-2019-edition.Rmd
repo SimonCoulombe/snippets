@@ -1,0 +1,456 @@
+---
+title: "Who did your neighbours vote for?"
+keywords: tech
+slug: how-did-your-neighbours-vote-canada-2019-edition
+tags: []
+categories: []
+---
+
+```{r setup, include =F, echo =F}
+#
+# TODO : valider ceci : Chunk options must be written in one line; no line breaks are allowed inside chunk options;
+# https://yihui.name/knitr/options/
+knitr::opts_chunk$set(echo = FALSE, 
+                      collapse = FALSE,
+                      warning = FALSE,
+                      error = FALSE,
+                      message = FALSE,
+                      fig.align= "center",
+                      fig.width = 10,
+                      highlight = TRUE,
+                      cache = FALSE,
+                      cache.lazy = FALSE) # fixes long vecto rnot supported quand on cache des gros éléments https://stackoverflow.com/questions/39417003/long-vectors-not-supported-yet-error-in-rmd-but-not-in-r-script
+```
+
+```{r}
+library(tidyverse)
+library(purrr)
+library(furrr)
+library(sf)
+library(DT)
+plan(multiprocess, workers = availableCores()-1)
+library(mapdeck)
+key <- Sys.getenv("mapbox_token_esperance_de_vie_canada_usa")
+MAPBOX <- Sys.getenv("mapbox")
+library(mapview)
+library(rmapshaper)
+```
+
+
+```{r}
+canada2019 <- read_rds( "data/final/canada2019.rds")
+```
+
+
+```{r}
+colors <- tibble(
+  winner = c("libéral", "conservateur", "npd", "bloc", "vert", "autre"),
+  colour = c("#D71920", "#1A4782",  "#F37021", "#33B2CC", "#3D9B35","#CCCCCC" )
+)
+```
+
+
+```{r, eval=  F}
+
+
+# 
+# # polling division boundaries 2019  
+# 
+# https://open.canada.ca/data/en/dataset/e70e3263-8584-4f22-94cb-8c15b616cbfc
+# 
+# I create a "pollid" variable by concatenating FED_NUM with  PD_NUM and PD_NBR_SFX.  Since I will be merging the shapefile with the election results, I want to have a single row for each pollid values.  Note that while PD_NBR_SFX is never missing, it is not added to pollid if its value is 0.  
+
+
+
+download.file("http://ftp.maps.canada.ca/pub/elections_elections/Electoral-districts_Circonscription-electorale/Elections_Canada_2019/polling_divisions_boundaries_2019.shp.zip",
+              destfile =  here::here("content/post/data/downloads/", "polling_divisions_boundaries_2019.shp.zip")
+)
+utils::unzip(here::here("content/post/data/downloads/", "polling_divisions_boundaries_2019.shp.zip"),
+             exdir = here::here("content/post/data/downloads/")
+)
+
+```
+
+
+
+
+```{r, eval=  F}
+poll_shp_bak <- sf::st_read(here::here("content/post/data/downloads/","PD_CA_2019_EN.shp")) %>% 
+  mutate(pollid = 
+           if_else(PDNUMSFX == 0, str_c(FEDNUM,PDNUM, sep= "_") , str_c(str_c(FEDNUM,PDNUM, sep= "_"), PDNUMSFX, sep= "-")))
+```
+
+
+```{r, eval=  F}
+poll_shp_agg <- aggregate(x = poll_shp_bak %>% select(),
+                          by = list(poll_shp_bak %>% pull(pollid)),
+                          FUN = function(x) x)
+
+## can't keep BLDG_NAMEF , as each building of the mobile poll has its own line 
+#with a different building name
+# poll_shp_vars <- poll_shp_bak %>% 
+#   as.data.frame %>% 
+#   select(FED_NUM = FEDNUM, PD_NUM = PDNUM,   POLL_NAME = POLLNAME, pollid, PD_TYPE = PDTYPE) %>% # EMRP_NAME # PD_NBR_SFX = PDNUMSFX, , ADV_POLL = ADVPOLLNUM
+#   distinct()
+
+poll_shp <- poll_shp_agg %>% rename(pollid = Group.1) #%>%
+#   left_join(poll_shp_vars)
+
+```
+
+
+```{r testthat_poll_shp_unique_pollid, cache=T, eval = F}
+testthat::test_that(" poll_shp : No pollid has more than 1 row", {
+  testthat::expect_equal(poll_shp %>% as.data.frame %>% count(pollid) %>% filter(n > 1) %>% count()  %>% pull(n),  # was pull(nn)
+                         0)})
+```
+
+
+
+
+
+```{r, eval = F}
+
+# polling station results  
+download.file("https://www.elections.ca/res/rep/off/ovr2019app/51/data_donnees/pollresults_resultatsbureauCanada.zip",
+              destfile =  here::here("content/post/data/downloads/", "pollresults_resultatsbureauCanada.zip")
+)
+
+utils::unzip(here::here("content/post/data/downloads/", "pollresults_resultatsbureauCanada.zip"),
+             exdir = here::here("content/post/data/downloads/")
+)
+```
+
+```{r, eval=  F}
+
+result_files <- list.files(
+  here::here("content/post/data/downloads/"),
+  pattern = "pollresults*"
+) 
+
+z <- future_map(result_files,  ~{read_csv(here::here("content/post/data/downloads/", .x),
+                                          col_types = cols(.default = col_character()),
+                                          locale = locale(encoding = "UTF-8")) %>%
+    type_convert() %>%
+    rename(
+      FED_NUM = "Electoral District Number/Numéro de circonscription",
+      dist_name = "Electoral District Name_English/Nom de circonscription_Anglais",
+      dist_nom = "Electoral District Name_French/Nom de circonscription_Français",
+      poll_num = "Polling Station Number/Numéro du bureau de scrutin",
+      poll_name = "Polling Station Name/Nom du bureau de scrutin",
+      poll_void_flag = "Void Poll Indicator/Indicateur de bureau supprimé",
+      no_poll_flag = "No Poll Held Indicator/Indicateur de bureau sans scrutin",
+      poll_merged_with = "Merge With/Fusionné avec",
+      poll_ballot_reject = "Rejected Ballots for Polling Station/Bulletins rejetés du bureau",
+      poll_electors = "Electors for Polling Station/Électeurs du bureau",
+      cand_last_name = `Candidate’s Family Name/Nom de famille du candidat`,
+      cand_middle_name= `Candidate’s Middle Name/Second prénom du candidat`,
+      cand_first_name = `Candidate’s First Name/Prénom du candidat`,
+      party = "Political Affiliation Name_English/Appartenance politique_Anglais",
+      parti = "Political Affiliation Name_French/Appartenance politique_Français",
+      incumbent_flag = "Incumbent Indicator/Indicateur_Candidat sortant",
+      elected_flag = "Elected Candidate Indicator/Indicateur du candidat élu",
+      votes = "Candidate Poll Votes Count/Votes du candidat pour le bureau") %>%
+    mutate(
+      cand = str_c(
+        str_replace_na(cand_first_name,replacement = ""),
+        str_replace_na(cand_middle_name,replacement = ""),
+        str_replace_na(cand_last_name,replacement = ""),
+        sep =" "),
+      poll_num = as.character(poll_num),
+      poll_merged_with = as.character(poll_merged_with),
+      parti2 = case_when(
+        parti == "Libéral" ~ "libéral",
+        parti == "Conservateur" ~ "conservateur",
+        parti == "NPD-Nouveau Parti démocratique" ~ "npd",
+        parti == "Parti Vert" ~ "vert",
+        parti == "Bloc Québécois" ~ "bloc",
+        TRUE ~ "autre"  ),
+      incumbent_flag = case_when(
+        incumbent_flag == "Y" ~ 1,
+        incumbent_flag == "N" ~ 0),
+      elected_flag = case_when(
+        elected_flag == "Y" ~ 1,
+        elected_flag == "N" ~ 0))  %>%
+    mutate(EMRP_NAME = str_extract(poll_num,"^[\\d-]+" ),  #select digits and "-", no letters
+           pollid = str_c(FED_NUM,EMRP_NAME, sep= "_"),
+           PD_NUM = as.numeric(str_extract(EMRP_NAME, "^\\d+"))  , #tous les chiffres jusqu'à un nom chiffre (donc avant le "-")
+           PD_NBR_SFX = ifelse(
+             str_detect(EMRP_NAME, "-") == FALSE, 0, # si pas de "-", alors 0
+             as.numeric(str_extract(EMRP_NAME, "\\d+$"))),  # si présence de "-", alors tous les chiffres parès le -
+           poll_merged_with_bak = poll_merged_with,
+           poll_merged_with = str_extract(poll_merged_with,"^[\\d-]+" )
+    )
+}
+)
+poll_results_bak <- z %>%
+  bind_rows() %>%
+  filter(poll_name != "SVR Group 1/RÉS Groupe 1",
+         poll_name != "SVR Group 2/RÉS Groupe 2")
+```
+
+
+
+```{r results_for_poll_not_entirely_merged, eval=  F}
+poll_rejects <- poll_results_bak %>% 
+  filter(is.na(poll_merged_with))%>%
+  select(
+    FED_NUM, dist_name, EMRP_NAME,
+    poll_ballot_reject) %>%
+  distinct() %>% #avant ce distinct on a des lignes multiples( 1 ligne par candidat x sous-poll (genre 10001-34A et 10001-34B..)
+  group_by(FED_NUM, dist_name, EMRP_NAME) %>%
+  summarise(poll_ballot_reject = sum(poll_ballot_reject)) %>%
+  ungroup()
+
+poll_votes  <- poll_results_bak %>% 
+  filter(is.na(poll_merged_with))%>%
+  select(FED_NUM, dist_name, EMRP_NAME,   cand, votes) %>%
+  group_by(FED_NUM, dist_name, EMRP_NAME) %>%
+  summarise(poll_votes = sum(votes)) %>%
+  ungroup()
+
+# 1 row per poll (FED_NUM * EMRP_NAME)
+results_poll_unmerged <- poll_rejects %>%
+  left_join(poll_votes) %>%
+  ungroup()   
+rm(poll_votes, poll_rejects)
+
+
+# 1 row per candidate-poll
+results_poll_cand_unmerged  <- poll_results_bak %>%
+  filter(is.na(poll_merged_with)) %>%
+  select(FED_NUM, EMRP_NAME, cand, votes) %>%
+  group_by(FED_NUM, EMRP_NAME, cand) %>%
+  summarise(votes = sum(votes)) %>%
+  ungroup()
+# 
+# testthat::test_that(" results_poll_cand_unmerged : 1 seule ligne par candidate-FED_NUM- EMRP-nae", {
+#   testthat::expect_equal(results_poll_cand_unmerged %>% count(FED_NUM, EMRP_NAME,  cand) %>% filter(n > 1) %>% 
+#                            count()  %>% pull(nn), 
+#                          0)})
+
+#1 row per candidate 
+cand  <- poll_results_bak %>%  ## mais non pas bak2
+  select(FED_NUM, cand, incumbent_flag, elected_flag, 
+         party, parti, parti2, votes) %>%
+  group_by(FED_NUM, cand, incumbent_flag, elected_flag, 
+           party, parti, parti2) %>%
+  summarise(cand_votes = sum(votes)) %>%
+  ungroup() 
+# 
+# testthat::test_that(" cand : 1 seule ligne par cand", {
+#   testthat::expect_equal(cand %>% count(FED_NUM, cand) %>% filter(n > 1) %>% 
+#                            count()  %>% pull(nn), 
+#                          0)})
+
+# 1 row per party-poll
+
+result_parti_poll <- results_poll_cand_unmerged %>% 
+  left_join(cand %>% select(cand, FED_NUM, parti2)) %>%  #candidate names are not unique canada wide, but they are unique at the district level
+  group_by(FED_NUM, EMRP_NAME, parti2) %>%
+  summarise(votes = sum(votes)) %>%
+  ungroup() %>%
+  left_join(results_poll_unmerged %>% 
+              select(FED_NUM, EMRP_NAME,  poll_votes)) %>%
+  mutate(pct_votes = 100 * votes / poll_votes) %>%
+  select(FED_NUM, EMRP_NAME,  parti2,  votes, pct_votes)
+# 
+# testthat::test_that(" result_parti_poll: 1 seule ligne par parti-poll", {
+#   testthat::expect_equal(result_parti_poll %>% count(FED_NUM, EMRP_NAME, parti2) %>% filter(n > 1) %>% 
+#                            count()  %>% pull(nn), 
+#                          0)})
+
+# 1 row per poll
+poll_winner <- result_parti_poll %>% 
+  group_by(FED_NUM, EMRP_NAME) %>%
+  slice(which.max(votes)) %>%
+  ungroup() %>%
+  #mutate(winner = as_factor(parti2)) %>%
+  mutate(winner =parti2) %>%
+  select(FED_NUM, EMRP_NAME, winner, pct_winner = pct_votes) 
+
+# 1 row per poll
+
+result_poll_parti_wide_unmerged <- 
+  results_poll_unmerged %>% 
+  left_join(poll_winner) %>%
+  left_join(
+    result_parti_poll %>%  
+      select(FED_NUM, EMRP_NAME, parti2, pct_votes) %>%
+      spread(key= parti2, value = pct_votes) %>%
+      mutate(
+        vert = case_when(
+          !is.na(vert) ~ vert,
+          !is.na(libéral) ~ 0,
+          TRUE ~ vert),
+        bloc = case_when(
+          !is.na(bloc) ~ bloc,
+          !is.na(libéral) ~ 0,
+          TRUE ~ bloc),        
+        autre = case_when(
+          !is.na(autre) ~ autre,
+          !is.na(libéral) ~ 0,
+          TRUE ~ autre)))
+
+rm(poll_winner)
+```
+
+
+```{r results_for_poll_entirely_merged, eval=  F}
+list_entirely_merged_polls <-  poll_results_bak  %>% select(FED_NUM, EMRP_NAME) %>%
+  anti_join(poll_results_bak  %>% 
+              filter(is.na(poll_merged_with)) %>%
+              select(FED_NUM, EMRP_NAME)) %>%
+  distinct()
+
+# for the entirely merged polls, fetch the results of the poll where it sent
+# the most electors
+results_entirely_merged_polls <- poll_results_bak %>% 
+  inner_join(list_entirely_merged_polls) %>% 
+  select(FED_NUM, EMRP_NAME, poll_electors, poll_merged_with) %>%
+  group_by(FED_NUM, EMRP_NAME) %>%
+  arrange(desc(poll_electors)) %>%
+  slice(1) %>%
+  ungroup() %>%
+  select(FED_NUM , EMRP_NAME, poll_merged_with)  %>%
+  left_join(result_poll_parti_wide_unmerged %>% 
+              select(FED_NUM, 
+                     poll_merged_with = EMRP_NAME,
+                     everything()))
+
+```
+
+
+```{r combine_both_steps, eval= F}
+poll_results <- bind_rows(result_poll_parti_wide_unmerged, 
+                          results_entirely_merged_polls) %>%
+  mutate(pollid = str_c(FED_NUM,EMRP_NAME, sep= "_"))
+
+# testthat::test_that(" poll_results : No pollid has more than 1 row", {
+#   testthat::expect_equal(poll_results %>% count(pollid) %>% filter(n > 1) %>% count()  %>% pull(nn), 
+#                          0)})
+```
+
+```{r, eval=  F}
+
+
+
+# # merge shp and results
+# 
+# 
+# How good is my link between poll_results and poll_shp?
+# 
+# Amazingly, we have results for ALL polls defined in the shapefile!  
+# But what are these polls for which we dont have a shape?  Mostly, this is the advance poll (numbers 600-630) for which we didnt expect to have a shapefile.
+# 
+# note : https://github.com/SymbolixAU/mapdeck/issues/39   mapdeck requires MULTIPOLYGONS need to be down-cast to POLYGONs.  How?by uniformising to multipolygon then casting to polygon (https://github.com/r-spatial/sf/issues/763)
+
+shp_not_results <- poll_shp %>% anti_join(poll_results)
+results_not_shp <- poll_results %>% anti_join(poll_shp)
+both <-  poll_shp %>% 
+  inner_join(poll_results) %>%
+  st_transform(crs=4326) %>%
+  mutate(fct_winner = factor(winner))  %>% 
+  st_cast( "MULTIPOLYGON") %>%
+  st_cast("POLYGON") %>%
+  mutate(my_opacity = floor(pmin(pct_winner *3, 200))) %>%
+  mutate(my_opacity = if_else(poll_votes ==0, 200, my_opacity))
+
+```
+
+
+```{r, eval=  F}
+poll_shp  %>% st_set_geometry(NULL) %>%   group_by(pollid) %>% mutate(n = n() ) %>% filter(n>1) %>% arrange(pollid)
+poll_results  %>% count(pollid) %>% count(n)
+```
+
+```{r, eval = F}
+write_rds(both, "data/final/canada2019.rds")
+```
+
+
+```{r, eval=  F}
+
+both2 <- both[!is.na(st_is_valid(both, reason= TRUE)),]  %>%   
+  lwgeom::st_make_valid() %>% 
+  st_cast("POLYGON") 
+```
+
+
+```{r, eval=  F}
+
+
+mapviewOptions(platform = "leaflet")
+both3 %>% slice(540:550) %>%
+  filter(pollid %in% c( "10003_177",  "10003_178" ))%>%  # , , 
+  lwgeom::st_make_valid() %>% 
+  #mapview()
+  rmapshaper::ms_simplify( ) %>%
+  mapview()
+```
+
+```{r, eval=  F}
+
+
+mapviewOptions(platform = "mapdeck")
+mapdeck(token = MAPBOX, style = 'mapbox://styles/mapbox/light-v9')
+mapdeck_style(style = 'light')
+
+
+```
+
+
+
+
+
+```{r, include = F, eval = F}
+
+#test avec mapviewOptions(platform = "mapdeck")
+leaflet(both %>%slice(132:132)) %>% addPolygons() #%>% addTiles
+both %>%slice(132:132)  %>% pull
+
+
+
+test <- both %>%  slice(1:1000)
+```
+
+
+
+```{r}
+
+# mapdeck colours https://symbolixau.github.io/mapdeck/articles/colours.html
+# manual legend 
+#https://symbolixau.github.io/mapdeck/articles/legends.html#manual-legends
+l1 <- legend_element(
+  variables = colors$winner,
+  colours = colors$colour,
+  colour_type = "fill",
+  variable_type = "category",
+  title = "Gagnant"
+)
+
+
+js <- mapdeck_legend(l1)
+```
+
+
+```{r, }
+canada2019plus <- canada2019 %>% 
+  left_join(colors) %>%
+  mutate(colour = paste0(colour,as.hexmode(my_opacity))) %>%
+  mutate(my_tooltip = paste0(dist_name, " ", EMRP_NAME,   ": ", winner, " (", round(pct_winner,1), " % de ", poll_votes, " votes)")) 
+
+
+zz <- mapdeck(token = MAPBOX, style = mapdeck_style('light'))  %>% #  # 
+  add_polygon(data = canada2019plus   ,
+              fill_colour = "colour",
+              legend = js,
+              auto_highlight = TRUE,
+              highlight_colour = "#FFFFFFAA",
+              tooltip = "my_tooltip"
+              
+  )
+
+widgetframe::frameWidget(zz, height =1000)
+```
+
