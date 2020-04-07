@@ -1,5 +1,6 @@
 ---
 title: "Who did your neighbours vote for?"
+date: 2020-04-06
 keywords: tech
 slug: how-did-your-neighbours-vote-canada-2019-edition
 tags: []
@@ -36,7 +37,7 @@ library(mapview)
 library(rmapshaper)
 ```
 ```{r, eval = F}
-poll_shp <- read_sf(here::here("content/post/data/raw/simple_election.shp"))
+
 ```
 
 
@@ -78,27 +79,57 @@ utils::unzip(here::here("content/post/data/downloads/", "polling_divisions_bound
 
 
 ```{r, eval=  F}
-poll_shp_bak <- sf::st_read(here::here("content/post/data/downloads/","PD_CA_2019_EN.shp")) %>% 
-  mutate(pollid = 
-           if_else(PDNUMSFX == 0, str_c(FEDNUM,PDNUM, sep= "_") , str_c(str_c(FEDNUM,PDNUM, sep= "_"), PDNUMSFX, sep= "-")))
+
 ```
 
 
 ```{r, eval=  F}
+
+
+poll_shp_bak <- read_sf("C:/Users/simon/git/polling_divisions_boundaries_2019.shp/PD_CA_2019_EN.shp") %>%
+  
+  mutate(pollid = 
+           if_else(PDNUMSFX == 0, str_c(FEDNUM,PDNUM, sep= "_") , str_c(str_c(FEDNUM,PDNUM, sep= "_"), PDNUMSFX, sep= "-")))
+
 poll_shp_agg <- aggregate(x = poll_shp_bak %>% select(),
                           by = list(poll_shp_bak %>% pull(pollid)),
                           FUN = function(x) x)
 
-## can't keep BLDG_NAMEF , as each building of the mobile poll has its own line 
-#with a different building name
-# poll_shp_vars <- poll_shp_bak %>% 
-#   as.data.frame %>% 
-#   select(FED_NUM = FEDNUM, PD_NUM = PDNUM,   POLL_NAME = POLLNAME, pollid, PD_TYPE = PDTYPE) %>% # EMRP_NAME # PD_NBR_SFX = PDNUMSFX, , ADV_POLL = ADVPOLLNUM
-#   distinct()
+poll_shp <- poll_shp_agg %>% select(pollid = Group.1) %>%
+    mutate(PR = str_sub(pollid, 1 , 2))  %>%
+  st_transform(crs=4326) %>%
+  st_cast( "MULTIPOLYGON") %>%
+  st_cast("POLYGON") 
 
-poll_shp <- poll_shp_agg %>% rename(pollid = Group.1) #%>%
-#   left_join(poll_shp_vars)
+write_rds(poll_shp, "poll_shp.rds")
 
+pr_east <-poll_shp%>%  
+  filter(PR %in% c("10", "11", "12", "13", "24")) %>%
+  ms_simplify(keep_shapes = TRUE, explode = TRUE)
+
+pr35 <- poll_shp %>%  
+  filter(PR == "35") %>%
+  ms_simplify(keep_shapes = TRUE, explode = TRUE)
+
+pr_west <- poll_shp %>%  
+  filter(PR %in% c("46", "47", "48", "59", "60", "61", "62")) %>%
+  ms_simplify(keep_shapes = TRUE, explode = TRUE)
+
+simple_election <- sf::st_as_sf(data.table::rbindlist(list(pr_east, 
+                                                 pr35, 
+                                                 pr_west %>% st_cast("POLYGON"))))
+
+
+# print(object.size(poll_shp), units = "MB")
+# print(object.size(pr_east), units = "MB")
+# print(object.size(pr35), units = "MB")
+# print(object.size(pr_west), units = "MB")
+# print(object.size(simple_election), units = "MB")
+# 
+# mapview(pr_west)
+
+st_write(simple_election, here::here("content/post/data/raw/simple_election.shp"))
+poll_shp <- read_sf(here::here("content/post/data/raw/simple_election.shp"))
 ```
 
 
@@ -375,30 +406,19 @@ write_rds(both, "data/final/canada2019_v2.rds")
 
 ```{r, eval=  F}
 
-both2 <- both[!is.na(st_is_valid(both, reason= TRUE)),]  %>%   
-  lwgeom::st_make_valid() %>% 
-  st_cast("POLYGON") 
 ```
 
 
 ```{r, eval=  F}
 
-
-mapviewOptions(platform = "leaflet")
-both3 %>% slice(540:550) %>%
-  filter(pollid %in% c( "10003_177",  "10003_178" ))%>%  # , , 
-  lwgeom::st_make_valid() %>% 
-  #mapview()
-  rmapshaper::ms_simplify( ) %>%
-  mapview()
 ```
 
 ```{r, eval=  F}
 
-
-mapviewOptions(platform = "mapdeck")
-mapdeck(token = MAPBOX, style = 'mapbox://styles/mapbox/light-v9')
-mapdeck_style(style = 'light')
+# 
+# mapviewOptions(platform = "mapdeck")
+# mapdeck(token = MAPBOX, style = 'mapbox://styles/mapbox/light-v9')
+# mapdeck_style(style = 'light')
 
 
 ```
@@ -409,13 +429,6 @@ mapdeck_style(style = 'light')
 
 ```{r, include = F, eval = F}
 
-#test avec mapviewOptions(platform = "mapdeck")
-leaflet(both %>%slice(132:132)) %>% addPolygons() #%>% addTiles
-both %>%slice(132:132)  %>% pull
-
-
-
-test <- both %>%  slice(1:1000)
 ```
 
 

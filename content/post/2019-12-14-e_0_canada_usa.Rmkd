@@ -1,0 +1,217 @@
+---
+title: United States of they don't want no socialist healthcare system
+author: simon
+date: '2019-12-14'
+slug: e_0_canada_usa
+categories:
+  - R
+  - demography
+tags: []
+keywords:
+  - tech
+---
+
+I found life expectancy at birth data for "health regions" in Canada for 2015-2017 and in "census tracts" in the USA for 2010-2015.  
+
+Here is a map of these two countries, excluding areas with a life expectancy at birth lower than 0.
+
+## Data sources and shapefiles:  
+* [Canada mortality]("https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1310038901"). 
+* [Canada shapefiles]("https://www150.statcan.gc.ca/n1/en/pub/82-402-x/2018001/data-donnees/boundary-limites/arcinfo/HR_000a18a-eng.zip?st=-yCcI4RR"). 
+* [USA mortality]("https://www.cdc.gov/nchs/nvss/usaleep/usaleep.html#life-expectancy"). 
+* USA shapefiles downloaded using the tigris package.  
+
+## Libraries  
+
+The usual data wrangling libraries for spatial data (`tidyverse`, `sf`), mapped using `mapview` and `leaflet`.  
+
+`tigris`is used to download USA census tract shapefiles for the year 2015.  
+
+I tried ggmap for static map, but for some reason my polygons were offset to the North of the tiles.  
+```{r, include = F}
+library(tidyverse)
+library(sf)
+library(mapview)# slippy map
+library(tigris)  # us shapefiles
+library(ggmap) # static map
+library(leaflet)
+ggmap::register_google(key = Sys.getenv("googlemap_api_key"),
+                       account_type="premium")
+library(mapdeck)
+key <- Sys.getenv("mapbox_token_esperance_de_vie_canada_usa")
+
+```
+
+
+```{r, eval = F}
+# https://www150.statcan.gc.ca/n1/pub/82-402-x/2018001/hrbf-flrs-eng.htm
+download.file("https://www150.statcan.gc.ca/n1/en/pub/82-402-x/2018001/data-donnees/boundary-limites/arcinfo/HR_000a18a-eng.zip?st=-yCcI4RR",
+              destfile = here::here("content/post/data/downloads/HR_000a18a-eng.zip")
+)
+utils::unzip(here::here("content/post/data/downloads/HR_000a18a-eng.zip"),
+             exdir = here::here("content/post/data/downloads/")
+)
+
+```
+
+```{r CANADA, include = F}
+# https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1310038901
+canada_mortality <- read_csv("https://www150.statcan.gc.ca/t1/tbl1/en/dtl!downloadDbLoadingData-nonTraduit.action?pid=1310038901&latestN=5&startDate=&endDate=&csvLocale=en&selectedMembers=%5B%5B49%2C93%2C82%2C95%2C103%2C57%2C73%2C42%2C139%2C83%2C22%2C1%2C4%2C21%2C84%2C114%2C39%2C30%2C38%2C53%2C46%2C132%2C40%2C18%2C115%2C100%2C33%2C52%2C41%2C97%2C112%2C17%2C9%2C15%2C50%2C31%2C102%2C28%2C45%2C66%2C87%2C138%2C107%2C119%2C8%2C23%2C54%2C47%2C51%2C108%2C141%2C105%2C77%2C26%2C129%2C20%2C127%2C143%2C121%2C48%2C118%2C101%2C58%2C96%2C94%2C12%2C36%2C5%2C86%2C69%2C10%2C111%2C80%2C16%2C3%2C71%2C85%2C104%2C78%2C59%2C65%2C25%2C90%2C11%2C64%2C76%2C109%2C68%2C79%2C91%2C34%2C29%2C44%2C106%2C7%2C133%2C32%2C35%2C123%2C63%2C43%2C113%2C140%2C56%2C124%2C110%2C13%2C19%2C88%2C75%2C70%2C6%2C89%2C136%2C2%2C131%2C55%2C142%2C14%2C125%2C137%2C37%2C72%2C67%2C116%2C128%2C74%2C135%2C98%2C60%2C99%2C120%2C27%2C61%2C92%2C62%2C81%2C24%5D%2C%5B1%5D%2C%5B1%5D%2C%5B1%5D%5D") %>%
+  janitor::clean_names()  %>%
+  filter(sex == "Both sexes", 
+         age_group == "At birth") %>%
+  filter(ref_date == "2015/2017" | geo == "Yukon" & ref_date =="2014/2016")  %>% 
+  mutate(geo2 = str_replace(geo, ",[^,]+$", ""))  %>% # https://stackoverflow.com/questions/40142682/remove-everything-after-last-space-with-stringr
+  filter(str_sub(dguid,1,4)== "2015" | geo == "Mamawetan/Keewatin/Athabasca, Saskatchewan")
+
+
+canada_health_boundary <- read_sf(here::here("content/post/data/downloads/HR_000a18a_e/HR_000a18a_e.shp")) %>%
+  mutate(
+    geo2 = case_when(
+      ENGNAME == "Région du Saguenay—Lac-Saint-Jean" ~"Région du Saguenay - Lac-Saint-Jean",
+      ENGNAME == "The Eastern Ontario Health Unit" ~  "Eastern Ontario Health Unit",
+      ENGNAME == "Région de la Gaspésie—Îles-de-la-Madeleine" ~ "Région de la Gaspésie - Îles-de-la-Madeleine",
+      ENGNAME == "Peterborough County–City Health Unit" ~ "Peterborough County-City Health Unit",
+      ENGNAME == "The District of Algoma Health Unit" ~ "District of Algoma Health Unit",
+      ENGNAME == "Southern Health—Santé Sud" ~ "Southern Health",
+      ENGNAME == "Keewatin Yatthé Regional Health Authority"~ "Mamawetan/Keewatin/Athabasca",
+      ENGNAME == "Mamawetan Churchill River Regional Health Authority"~ "Mamawetan/Keewatin/Athabasca",
+      ENGNAME == "Athabasca Health Authority"~ "Mamawetan/Keewatin/Athabasca",
+      TRUE ~ ENGNAME)) 
+
+
+canada_mortality_with_boundary <- canada_health_boundary %>% 
+  inner_join(canada_mortality) %>% 
+  rmapshaper::ms_simplify()
+
+
+```
+
+```{r, include = F}
+mapview(canada_mortality_with_boundary , zcol ="value")
+```
+
+test avec mapviewOptions(platform = "mapdeck")
+
+```{r, include = F}
+
+#mapviewOptions(platform = "mapdeck")
+#mapview(canada_mortality_with_boundary , zcol ="value")
+```
+
+
+```{r USA, include= F}
+
+# usa https://www.cdc.gov/nchs/nvss/usaleep/usaleep.html#life-expectancy
+
+#*Maine and Wisconsin were excluded from this study because they only have 5 years of geocoded death records (2011-2015).
+
+usa_mortality <- read_csv("https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Datasets/NVSS/USALEEP/CSV/US_A.CSV") %>%
+  janitor::clean_names()
+
+# shapes usa  https://www.census.gov/geographies/mapping-files/time-series/geo/tiger-line-file.2015.html
+usa_states_shape <- states(cb=TRUE)  # get states shapefiles (for states codes)
+
+
+usa_states <- usa_states_shape %>% 
+  st_as_sf() %>%
+  st_transform(crs=4326)
+
+# download all tract shapefiles
+usa_all_tracts_boundary <-map(usa_states$STUSPS, 
+                              ~ tracts(state =.x, cb= TRUE, year = 2015)
+)
+
+usa_sf_all_tracts_boundary <- map(usa_all_tracts_boundary, 
+                                  ~st_as_sf(.x) %>% 
+                                    select(STATEFP, COUNTYFP, TRACTCE,GEOID) %>%
+                                    st_cast("MULTIPOLYGON"))
+
+usa_census_tract_boundary <- sf::st_as_sf(
+  data.table::rbindlist(usa_sf_all_tracts_boundary))
+
+usa_mortality_with_boundary <- usa_census_tract_boundary %>% 
+  select(tract_id = GEOID)  %>%
+  left_join(usa_mortality) %>%  # 
+  left_join(usa_states %>%  
+              st_set_geometry(NULL) %>%# add state name 
+              mutate(state2kx = GEOID))
+
+
+usa_mortality_with_boundary <- 
+  usa_mortality_with_boundary %>% rmapshaper::ms_simplify()
+
+```
+
+
+
+Map of both countries excluding areas with life expectancy at birth below 80.
+Maine and Wisonsin are excluded because data is not available.  
+
+
+
+```{r BOTH, include= T}
+
+
+both <- list(
+  usa_mortality_with_boundary %>%
+    select(ID = tract_id ,
+           NAME = NAME,
+           e_0 = e_0
+    )%>%
+    st_transform(crs=4326)
+  ,
+  canada_mortality_with_boundary %>%
+    select(ID = HR_UID,
+           NAME = geo2,
+           e_0 = value) %>%
+    st_transform(crs=4326)
+)
+
+
+# map both!
+both_mortality_with_boundary <-sf::st_as_sf(
+  data.table::rbindlist(both))
+
+
+#https://twitter.com/TimSalabim3/status/1206673522053066753
+#mapviewOptions(platform = "leaflet")
+mymapview <- both_mortality_with_boundary %>%
+  filter(e_0 > 80) %>%
+  mapview::mapview(zcol = "e_0",
+                   layer.name = "Life expectancy at birth <br> 
+                   when above 80 <br>
+                   Canada 2015-2017 <br>
+                   USA 2010-2015")  
+mymapview@map %>%
+  addPolygons(data= usa_states %>% filter(STUSPS %in% c("ME","WI")),
+              color = "gray60", fillColor = "gray60")
+```
+
+
+
+```{r staticmap, include =F}
+# 
+# # ?
+# bbox <- both_mortality_with_boundary %>%
+#   filter(e_0 > 80) %>%
+#   st_bbox()
+# 
+# mymap <- get_map(
+#   location = as.numeric(bbox),
+#   zoom=4,  # 4 pour stamen
+#   #maptype = 'toner'
+#   maptype = "roadmap")
+# 
+# # ggmap(mymap) +
+# #   geom_sf(data = both_mortality_with_boundary %>%
+# #             filter(e_0 > 80) %>% head(1000), fill = "red", inherit.aes= FALSE)
+#   
+# ggplot(data = both_mortality_with_boundary %>%
+#                       filter(e_0 > 80)) +
+#   geom_sf(fill = "red", color ="red")
+
+# pourquoi le mapvire marche mais le ggmap est décalé?& esti
+
+```
+
