@@ -35,10 +35,13 @@ MAPBOX <- Sys.getenv("mapbox")
 library(mapview)
 library(rmapshaper)
 ```
+```{r, eval = F}
+poll_shp <- read_sf(here::here("content/post/data/raw/simple_election.shp"))
+```
 
 
 ```{r}
-canada2019 <- read_rds( "data/final/canada2019.rds")
+canada2019 <- read_rds( "data/final/canada2019_v2.rds")
 ```
 
 
@@ -365,7 +368,8 @@ poll_results  %>% count(pollid) %>% count(n)
 ```
 
 ```{r, eval = F}
-write_rds(both, "data/final/canada2019.rds")
+#write_rds(both, "data/final/canada2019.rds")
+write_rds(both, "data/final/canada2019_v2.rds")
 ```
 
 
