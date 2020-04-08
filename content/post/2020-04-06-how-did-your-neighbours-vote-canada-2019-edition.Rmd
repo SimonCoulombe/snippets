@@ -65,7 +65,7 @@ canada2019 <-  poll_pop_shp %>%
 
 ```
 
-```{r,eval = F}
+```{r out.width='100%', warning=FALSE, message=FALSE, echo=FALSE, include=TRUE}
 
 # mapdeck colours https://symbolixau.github.io/mapdeck/articles/colours.html
 # manual legend 

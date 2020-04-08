@@ -1,0 +1,266 @@
+---
+title: I'm getting started with the tune package
+author: Simon
+date: '2020-03-31'
+slug: i-m-getting-started-with-the-tune-package
+categories: []
+tags: []
+keywords:
+  - tech
+---
+
+# Resources  
+https://rviews.rstudio.com/2019/06/19/a-gentle-intro-to-tidymodels/
+https://hansjoerg.me/2020/02/09/tidymodels-for-machine-learning/  ..incluant workflows package et  tune_bayes().
+https://www.kaggle.com/hansjoerg/glmnet-xgboost-and-svm-using-tidymodels ## meme gars avec tune_bayes
+https://www.business-science.io/code-tools/2020/01/21/hyperparamater-tune-product-price-prediction.html  .. incluant vip package
+les vignettes de tune (https://github.com/tidymodels/tune) incluent une pour le bayesien
+https://tidymodels.github.io/tune/articles/getting_started.html
+https://tidymodels.github.io/tune/articles/extras/svm_classification.html
+
+https://github.com/tidymodels/parsnip
+https://github.com/tidymodels/parsnip/blob/master/vignettes/articles/Models.Rmd
+Data: still using the dataCar data from the insuranceData package.  
+
+We are going to tune the tweedie power parameter and the xgboost hyperparameters as well
+https://cran.r-project.org/web/packages/dials/vignettes/Basics.html
+```{r}
+library(tidyverse)
+library(insuranceData)
+library(tidymodels)
+library(tune)
+library(xgboost)
+library(knitr)
+library(kableExtra)
+data(dataCar)
+```
+
+```{r}
+mydb <- dataCar %>% select(clm, claimcst0, exposure, veh_value, veh_body,
+                           veh_age, gender, area, agecat) %>% 
+  mutate(annual_loss = claimcst0 / exposure)
+
+set.seed(42)
+
+split <- rsample::initial_split(mydb, prop = 0.8)
+train <- rsample::training(split)
+test <- rsample::testing(split)
+
+rec <-  recipes::recipe(train %>% select(annual_loss,  exposure, veh_value,veh_body, veh_age, gender,area,agecat)) %>% 
+  recipes::update_role(everything(), new_role = "predictor") %>%
+  recipes::update_role(annual_loss, new_role = "outcome") %>%
+  recipes::update_role(exposure, new_role = "case weight") %>%
+  recipes::step_zv(recipes::all_predictors()) %>%   # remove variable with all equal values
+  recipes::step_other(recipes::all_predictors(), threshold = 0.01)  %>%       # combine categories with less than 1% of observation
+  recipes::step_dummy(recipes::all_nominal())  %>% # convert to dummy for xgboost use
+  check_missing(all_predictors()) ## break the bake function if any of the checked columns contains NA value
+
+
+prepped_rec <- prep(rec)
+train <- juice(prepped_rec)
+test <- bake(prepped_rec, new_data = test)
+```
+
+```{r}
+set.seed(123)
+cv_folds <- train %>% 
+  vfold_cv(v = 3)
+
+cv_folds
+```
+
+
+
+apparently parsnip doesnt work with lightgbm.. we'll stick to xgboost
+```{r model-table, include = FALSE}
+mod_names <- get_from_env("models")
+mod_list <- 
+  map_dfr(mod_names, ~ get_from_env(.x) %>% mutate(model = .x)) %>% 
+  distinct(mode, model) %>% 
+  mutate(model = paste0("`", model, "()`")) %>%
+  arrange(mode, model) %>%
+  group_by(mode) %>%
+  summarize(models = paste(model, collapse = ", "))
+```
+
+```{r}
+map_dfr(mod_names, ~ get_from_env(paste0(.x, "_predict")) %>% mutate(model = .x)) %>% 
+  dplyr::filter(mode == "classification") %>% 
+  dplyr::select(model, engine, type) %>%
+  mutate(
+    type = paste0("`", type, "`"),
+    model = paste0("`", model, "()`"),
+  ) %>%
+  mutate(check = cli::symbol$tick) %>%
+  spread(type, check, fill =  cli::symbol$times) %>%
+  kable(format = "html") %>% 
+  kable_styling(full_width = FALSE) %>%
+  collapse_rows(columns = 1)
+```
+
+
+define xgboost:
+
+```{r}
+xgboost_model <- boost_tree(
+  mode       = "regression",   # A single character string for the type of model. 
+  trees      = 300,  # 	(nround) An integer for the number of trees contained in the ensemble.
+  min_n      = tune(), # 	(min_child_weight) An integer for the minimum number of data points in a node that are required for the node to be split further.
+  tree_depth = tune(),  # (max_depth) An integer for the maximum deopth of the tree (i.e. number of splits) (xgboost only).
+  learn_rate = tune(), # (eta) A number for the rate at which the boosting algorithm adapts from iteration-to-iteration (xgboost only).
+  sample_size =  0.8 # subsample)j
+) %>%
+  set_engine("xgboost",   objective = 'reg:tweedie', eval_metric = "tweedie-nloglik@1.1", tweedie_variance_power = 1.1
+  )
+
+xgboost_model
+
+```
+```{r}
+xgboost_params <- dials::parameters(
+  dials::min_n(),  #  # default 2-40
+  dials::tree_depth(range = c(1, 8)),  # default  1-15
+  dials::learn_rate(range = c(-3, -1))  # default -10 -1  (transformer: log10)
+)
+xgboost_params
+```
+
+```{r}
+set.seed(123)
+xgboost_grid <- dials::grid_max_entropy(xgboost_params, size = 5)
+xgboost_grid
+```
+
+```{r}
+
+xgboost_stage_1_cv_results_tbl <- tune::tune_grid(
+  formula   = annual_loss ~ .,
+  model     = xgboost_model,
+  resamples = cv_folds,
+  grid      = xgboost_grid,
+  metrics   = yardstick::metric_set(yardstick::mae, yardstick::mape, yardstick::rmse, yardstick::rsq),
+  control   = control_grid(verbose = TRUE)
+)
+
+xgboost_stage_1_cv_results_tbl %>% show_best("mae", n = 10, maximize = FALSE)
+```
+```{r}
+# ca a marché sans le metrics.. mais ca devrait marcher avec aussi non?
+ctrl <- control_bayes(no_improve = 15, verbose = FALSE)
+xgb_search <- tune::tune_bayes(
+  formula   = annual_loss ~ .,
+  model     = xgboost_model,
+  resamples = cv_folds,
+  param_info = xgboost_params,
+  initial = 5, iter = 10,
+  #metrics   = yardstick::metric_set(yardstick::mae, yardstick::mape, yardstick::rmse, yardstick::rsq),
+  control   = ctrl
+)
+
+show_best(xgb_search, "rmse", maximize = FALSE, n = 10)
+autoplot(xgb_search, metric = "rmse")
+xgb_param_best <- select_best(xgb_search, metric = "rmse", maximize = FALSE)
+
+
+xgb_model_best <- finalize_model(xgboost_model, xgb_param_best)
+```
+
+```{r}
+# ca a marché sans le metrics.. mais ca devrait marcher avec aussi non?
+ctrl <- control_bayes(no_improve = 15, verbose = FALSE)
+xgb_search <- tune::tune_bayes(
+  formula   = annual_loss ~ .,
+  model     = xgboost_model,
+  resamples = cv_folds,
+  param_info = xgboost_params,
+  initial = 5, iter = 10,
+  metrics   = yardstick::metric_set( yardstick::rmse,yardstick::mae),
+  control   = ctrl
+)
+
+show_best(xgb_search, "mae", maximize = FALSE, n = 10)
+autoplot(xgb_search, metric = "mae")
+xgb_param_best <- select_best(xgb_search, metric = "mae", maximize = FALSE)
+
+
+xgb_model_best <- finalize_model(xgboost_model, xgb_param_best)
+```
+
+
+```{r}
+params_xgboost_best <- xgboost_stage_1_cv_results_tbl %>% 
+  select_best("mae", maximize = FALSE)
+
+params_xgboost_best
+```
+
+```{r}
+xgboost_stage_2_model <- xgboost_model %>% 
+  finalize_model(params_xgboost_best)
+
+xgboost_stage_2_model
+```
+
+
+
+```{r}
+calc_test_metrics <- function(formula, model_spec, recipe, split) {
+  
+  train_processed <- training(split) %>% bake(recipe, new_data = .)
+  test_processed  <- testing(split) %>% bake(recipe, new_data = .)
+  
+  target_expr <- recipe %>% 
+    purrr::pluck("last_term_info") %>% # equivalent to    .$last_term_info %>%  
+    filter(role == "outcome") %>%
+    pull(variable) %>%
+    rlang::sym()   # character to symbol
+  
+  model_spec %>%
+    parsnip::fit(formula = as.formula(formula), 
+                 data    = train_processed) %>%
+    predict(new_data = test_processed) %>%
+    bind_cols(testing(split)) %>%
+    yardstick::metrics(!! target_expr, .pred)
+}
+
+
+```
+
+
+```{r}
+xgboost_stage_2_metrics <- calc_test_metrics(
+  formula    = annual_loss ~ .,
+  model_spec = xgboost_stage_2_model,
+  recipe     = prepped_rec,
+  split      = split 
+)
+xgboost_stage_2_metrics
+```
+
+full model on train+test
+
+
+
+```{r}
+model_final <- xgboost_stage_2_model %>%
+  parsnip::fit(annual_loss ~ . , 
+      data = bake(prepped_rec, new_data = mydb))
+```
+
+
+
+
+```{r}
+vip::vip(
+  model_final#, 
+  #aesthetics = list(fill = palette_light()["blue"])) +
+  #labs(title = "XGBoost Model Importance - pure premium") +
+  #theme_tq()
+)
+```
+
+
+```{r}
+xgb.importance(model = model_final)
+```
+
