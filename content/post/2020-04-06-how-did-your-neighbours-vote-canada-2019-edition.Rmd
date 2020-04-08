@@ -5,8 +5,11 @@ keywords: tech
 slug: how-did-your-neighbours-vote-canada-2019-edition
 tags: []
 categories: []
+thumbnailImage: "/post/2020-04-06-how-did-your-neighbours-vote-canada-2019-edition_files/neighbours_map.png"
+thumbnailImagePosition: left
 ---
 Canada Federal Election 2019   
+
 
 ```{r setup, include =F, echo =F}
 #
@@ -35,7 +38,6 @@ library(sf)
 library(DT)
 plan(multiprocess, workers = availableCores()-1)
 library(mapdeck)
-key <- Sys.getenv("mapbox_token_esperance_de_vie_canada_usa")
 MAPBOX <- Sys.getenv("mapbox")
 library(mapview)
 library(rmapshaper)
@@ -47,8 +49,8 @@ colors <- tibble(
   colour = c("#D71920", "#1A4782",  "#F37021", "#33B2CC", "#3D9B35","#CCCCCC" )
 )
 
-poll_results <- read_rds("poll_results.rds")
-poll_pop_shp <- read_rds("poll_pop_shp.rds")
+poll_results <- read_rds(here::here("content/post/data/interim/poll_results.rds"))
+poll_pop_shp <- read_rds(here::here("content/post/data/interim/poll_pop_shp.rds"))
 poll_shp_simple <- read_sf(here::here("content/post/data/interim/simple_election.shp"))
 shp_pr <- read_sf(here::here("content/post/data/interim/shp_pr.shp"))
 
@@ -59,13 +61,9 @@ canada2019 <-  poll_pop_shp %>%
   mutate(fct_winner = factor(winner))  %>% 
   mutate(my_opacity = floor(pmin(pct_winner *3, 200))) %>%
   mutate(my_opacity = if_else(poll_votes ==0, 200, my_opacity))
-
-
-
-
 ```
 
-```{r out.width='100%', warning=FALSE, message=FALSE, echo=FALSE, include=TRUE}
+```{r neighbours_map, out.width='100%', warning=FALSE, message=FALSE, echo=FALSE, include=TRUE}
 
 # mapdeck colours https://symbolixau.github.io/mapdeck/articles/colours.html
 # manual legend 
@@ -78,14 +76,12 @@ l1 <- legend_element(
   title = "Gagnant"
 )
 
-
 js <- mapdeck_legend(l1)
 
 canada2019plus <- canada2019 %>% 
   left_join(colors) %>%
   mutate(colour = paste0(colour,as.hexmode(my_opacity))) %>%
   mutate(my_tooltip = paste0(dist_name, " ", EMRP_NAME,   ": ", winner, " (", round(pct_winner,1), " % de ", poll_votes, " votes)")) 
-
 
 mymap <- mapdeck(token = MAPBOX, style = mapdeck_style('light'))  %>% #  # 
   add_polygon(data = canada2019plus   ,
@@ -97,9 +93,7 @@ mymap <- mapdeck(token = MAPBOX, style = mapdeck_style('light'))  %>% #  #
               
   )
 
-widgetframe::frameWidget(mymap, height =1000)
-
-
+widgetframe::frameWidget(mymap, height =600)
 ########################## END: EVALUATED PART FOR THE BLOG ############################################
 ```
 
@@ -147,8 +141,8 @@ poll_shp <- poll_shp_agg %>% select(pollid = Group.1) %>%
   st_cast( "MULTIPOLYGON") %>%
   st_cast("POLYGON") 
 
-write_rds(poll_shp, "poll_shp.rds")
-poll_shp <- read_rds("poll_shp.rds")
+write_rds(poll_shp, here::here("content/post/data/interim/poll_shp.rds")
+poll_shp <- read_rds(here::here("content/post/data/interim/poll_shp.rds")
 
 # tictoc::tic() # code de dave cooley  https://twitter.com/vb_jens/status/1247640763648765952
 # geo <- geojsonsf::sf_geojson(poll_shp)
@@ -221,8 +215,8 @@ poll_pop_shp <- poll_pop_shp %>%
     type = c("POLYGON")
   ) %>%
   st_cast("POLYGON")
-write_rds(poll_pop_shp ,"poll_pop_shp.rds")
-poll_pop_shp <- read_rds("poll_pop_shp.rds")
+write_rds(poll_pop_shp ,here::here("content/post/data/interim/poll_pop_shp.rds"))
+poll_pop_shp <- read_rds(here::here("content/post/data/interim/poll_pop_shp.rds"))
 
 
 ```
@@ -611,7 +605,7 @@ poll_results <- bind_rows(result_poll_parti_wide_unmerged,
 #   testthat::expect_equal(poll_results %>% count(pollid) %>% filter(n > 1) %>% count()  %>% pull(nn), 
 #                          0)})
 
-write_rds(poll_results, "poll_results.rds")
+write_rds(poll_results, here::here("content/post/data/interim/poll_results.rds"))
 ```
 
 ```{r, eval=  F}
