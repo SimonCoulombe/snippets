@@ -93,9 +93,9 @@ The polling divisions shapefile is downloaded from [Open Canada](http://open.can
 ```{r download_poll_shapefile, cache=T}
 if(download_and_extract_files){
 download.file("http://ftp.geogratis.gc.ca/pub/nrcan_rncan/vector/electoral/2015/pd338.2015.zip",
-               destfile = "temp_files/pd338.2015.zip")
-  utils::unzip("temp_files/pd338.2015.zip", 
-             exdir ="temp_files")
+               destfile = here::here("content/post/data/downloads/pd338.2015.zip"))
+  utils::unzip(here::here("content/post/data/downloads/pd338.2015.zip"), 
+             exdir =here::here("content/post/data/downloads/"))
 }
 ```
 The zip contains multiple files, including a shapefile (PD_A.shp)  and a data 
@@ -119,7 +119,7 @@ I create a "pollid" variable by concatenating FED_NUM and EMRP_NAME, where EMRP_
 We already have bad news.  The "pollid" variable is not unique:
 
 ```{r poll_shp, cache=T}
-poll_shp_bak <- sf::st_read("temp_files/PD_A.shp", 
+poll_shp_bak <- sf::st_read(here::here("content/post/data/downloads/PD_A.shp"), 
                          options = "ENCODING=Windows-1252")  %>%
    mutate(pollid = str_c(FED_NUM,EMRP_NAME, sep= "_")) 
 
@@ -185,16 +185,20 @@ poll_shp_vars <- poll_shp_bak %>%
   as.data.frame %>% 
   select(FED_NUM, PD_NUM, PD_NBR_SFX, EMRP_NAME, POLL_NAME, pollid, PD_TYPE, ADV_POLL) %>%
   distinct()
+
 poll_shp <- poll_shp_agg %>% rename(pollid = Group.1) %>%
   left_join(poll_shp_vars)
-save(poll_shp, file="temp_files/poll_shp.rdata")
-} else {load("temp_files/poll_shp.rdata")}
+
+
+dir.create(file.path(here::here("content/post/data/"), "interim"), showWarnings = FALSE)
+save(poll_shp, file=here::here("content/post/data/interim/poll_shp.rdata"))
+} else {load(here::here("content/post/data/interim/poll_shp.rdata"))}
 ```
 Below is test made using `testthat` that ensures that poll_shp, our final sf data.frame, only has 1 row per pollid.
 
 ```{r testthat_poll_shp_unique_pollid, cache=T}
  testthat::test_that(" poll_shp : No pollid has more than 1 row", {
-   testthat::expect_equal(poll_shp %>% as.data.frame %>% count(pollid) %>% filter(n > 1) %>% count()  %>% pull(nn), 
+   testthat::expect_equal(poll_shp %>% as.data.frame %>% count(pollid) %>% filter(n > 1) %>% count()  %>% pull(n), 
                           0)})
 ```
 
@@ -295,7 +299,7 @@ if(download_and_extract_files){
                    .x,
                    ".csv"),
                  write_disk(paste0(
-                   "temp_files//pollresults_resultatsbureau", 
+                   here::here("content/post/data/downloads", "pollresults_resultatsbureau"),
                    .x ,
                    ".csv"), 
                    overwrite = T),
@@ -322,7 +326,7 @@ I am not sure how to deal with them, so I ended up filtering them out.
 ```{r read_poll_results, cache = TRUE} 
 
 poll_results_bak2 <- purrr::map_df( districts$districts ,
-                                    ~ read_csv(paste0("temp_files/pollresults_resultatsbureau", .x ,".csv"),
+                                    ~ read_csv(paste0(here::here("content/post/data/downloads", "pollresults_resultatsbureau"), .x ,".csv"),
                                col_types = cols(.default = col_character()),
                                locale = locale(encoding = "UTF-8")
                     ) %>%
@@ -510,7 +514,7 @@ results_poll_cand_unmerged  <- poll_results_bak %>%
 
 testthat::test_that(" results_poll_cand_unmerged : 1 seule ligne par candidate-FED_NUM- EMRP-nae", {
   testthat::expect_equal(results_poll_cand_unmerged %>% count(FED_NUM, EMRP_NAME,  cand) %>% filter(n > 1) %>% 
-                           count()  %>% pull(nn), 
+                           count()  %>% pull(n), 
                          0)})
 
 #1 row per candidate 
@@ -524,7 +528,7 @@ cand  <- poll_results_bak %>%  ## mais non pas bak2
 
 testthat::test_that(" cand : 1 seule ligne par cand", {
   testthat::expect_equal(cand %>% count(FED_NUM, cand) %>% filter(n > 1) %>% 
-                           count()  %>% pull(nn), 
+                           count()  %>% pull(n), 
                          0)})
 
 # 1 row per party-poll
@@ -541,7 +545,7 @@ result_parti_poll <- results_poll_cand_unmerged %>%
 
 testthat::test_that(" result_parti_poll: 1 seule ligne par parti-poll", {
   testthat::expect_equal(result_parti_poll %>% count(FED_NUM, EMRP_NAME, parti2) %>% filter(n > 1) %>% 
-                           count()  %>% pull(nn), 
+                           count()  %>% pull(n), 
                          0)})
 
 # 1 row per poll
@@ -611,7 +615,7 @@ poll_results <- bind_rows(result_poll_parti_wide_unmerged,
   mutate(pollid = str_c(FED_NUM,EMRP_NAME, sep= "_"))
 
  testthat::test_that(" poll_results : No pollid has more than 1 row", {
-   testthat::expect_equal(poll_results %>% count(pollid) %>% filter(n > 1) %>% count()  %>% pull(nn), 
+   testthat::expect_equal(poll_results %>% count(pollid) %>% filter(n > 1) %>% count()  %>% pull(n), 
                           0)})
 ```
 
@@ -643,9 +647,9 @@ poll_final <- poll_shp %>%
   left_join(poll_results) %>%  
   st_transform("+proj=longlat +datum=WGS84" )
 
-save(poll_final, file= "temp_files/poll_final.rdata")
+save(poll_final, file= here::here("content/post/data/interim/poll_final.rdata"))
 
-st_write(poll_final, "temp_files/poll_final.shp",delete_dsn = TRUE)
+st_write(poll_final, here::here("content/post/data/interim/poll_final.shp"),delete_dsn = TRUE)
 
 myfednum <- cand %>% filter(str_detect(cand,"Lightbound")) %>% pull(FED_NUM) 
 
