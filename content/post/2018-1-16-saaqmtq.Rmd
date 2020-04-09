@@ -57,6 +57,7 @@ type <- "bikes"   # bikes , pedestrians
 download_files <- FALSE  # download files?  only do once
 read_from_csv <- FALSE  # read csv and wrangle (only do once), or read pre-created rdata?
 geocode <- FALSE  # geocode the data using google maps ( 50 cents per 1000), or read pre-geocoded rdata ?
+### accident geocode data is included in the repository in data/raw.. leave at false to reduce cost.
 
 #https://stackoverflow.com/questions/36175529/getting-over-query-limit-after-one-request-with-geocode
 register_google(key = Sys.getenv("googlemap_api_key"),
@@ -65,7 +66,7 @@ register_google(key = Sys.getenv("googlemap_api_key"),
 
 if(city == "province"){
   citytext <- "province de Québec"
-  } else {citytext <- paste0("city of ",city)}
+} else {citytext <- paste0("city of ",city)}
 
 ```
 # Objective
@@ -115,12 +116,12 @@ if(download_files){
                 destfile= "./data/downloads/rapports-accident-2012.csv")
   download.file("https://saaq.gouv.qc.ca/donnees-ouvertes/rapports-accident/rapports-accident-2011.csv", 
                 destfile= "./data/downloads/rapports-accident-2011.csv")
-
-# table to convert municipalite code to municipalite name
-# I manually created a .tsv from the table found here
-#(https://www.mamrot.gouv.qc.ca/recherche-avancee/fiche/municipalite/).
-download.file("https://raw.githubusercontent.com/SimonCoulombe/saaqmtq/master/data/code_to_mun.tsv", 
-              destfile= "data/downloads/code_to_mun.tsv")
+  
+  # table to convert municipalite code to municipalite name
+  # I manually created a .tsv from the table found here
+  #(https://www.mamrot.gouv.qc.ca/recherche-avancee/fiche/municipalite/).
+  download.file("https://raw.githubusercontent.com/SimonCoulombe/saaqmtq/master/data/code_to_mun.tsv", 
+                destfile= "data/downloads/code_to_mun.tsv")
 }
 ```
 
@@ -131,88 +132,92 @@ download.file("https://raw.githubusercontent.com/SimonCoulombe/saaqmtq/master/da
 
 if (read_from_csv){
   
-accidents16 <- read_csv("data/downloads/rapports-accident-2016.csv") %>%
-  mutate(NO_ROUTE = as.numeric(NO_ROUTE), 
-         SFX_NO_CIVIQ_ACCDN= as.character(SFX_NO_CIVIQ_ACCDN),
-         CD_MUNCP = as.numeric(CD_MUNCP))%>%
-   rename(heure_accdn = HR_ACCDN)
-
-accidents15 <- read_csv("data/downloads/rapports-accident-2015.csv")%>%
-  mutate(NO_ROUTE = as.numeric(NO_ROUTE), SFX_NO_CIVIQ_ACCDN= as.character(SFX_NO_CIVIQ_ACCDN),
-         CD_MUNCP = as.numeric(CD_MUNCP))%>%
-   rename(heure_accdn = HR_ACCDN)
-
-accidents14 <- read_csv("data/downloads/rapports-accident-2014.csv")%>%
-  mutate(NO_ROUTE = as.numeric(NO_ROUTE), SFX_NO_CIVIQ_ACCDN= as.character(SFX_NO_CIVIQ_ACCDN),
-         CD_MUNCP = as.numeric(CD_MUNCP))%>%
-   rename(heure_accdn = HR_ACCDN)
-accidents13 <- read_csv("data/downloads/rapports-accident-2013.csv")%>%
-  mutate(NO_ROUTE = as.numeric(NO_ROUTE), SFX_NO_CIVIQ_ACCDN= as.character(SFX_NO_CIVIQ_ACCDN),
-         CD_MUNCP = as.numeric(CD_MUNCP))%>%
-   rename(heure_accdn = HR_ACCDN)
-accidents12 <- read_csv("data/downloads/rapports-accident-2012.csv")%>%
-  mutate(NO_ROUTE = as.numeric(NO_ROUTE), SFX_NO_CIVIQ_ACCDN= as.character(SFX_NO_CIVIQ_ACCDN),
-         CD_MUNCP = as.numeric(CD_MUNCP)) %>%
-   rename(heure_accdn = HR_ACCDN)
- accidents11 <- read_csv("data/downloads/rapports-accident-2011.csv")%>%
-   mutate(AN = an, NO_ROUTE = as.numeric(NO_ROUTE), SFX_NO_CIVIQ_ACCDN= as.character(SFX_NO_CIVIQ_ACCDN),
-         CD_MUNCP = as.numeric(CD_MUNCP))
-
- code_to_mun <- read_tsv("data/downloads/code_to_mun.tsv")
-
- accidents <- bind_rows(accidents11,accidents12, accidents13, 
-                  accidents14, accidents15, accidents16)  %>%
-  left_join(code_to_mun %>% select(CD_MUNCP, NAME_MUNCP), by= "CD_MUNCP") %>%
-  mutate(year = year(DT_ACCDN),  # I dont use isoyear because I dont want early 2011 to show up as 2010.
-         week = isoweek(DT_ACCDN),
-         month = month(DT_ACCDN),
-         month.abb = as.factor(base::month.abb[month]) %>%
-           fct_relevel("Jan", "Feb", "Mar", "Apr", "May", "Jun", 
-                       "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"),
-         monday = floor_date(DT_ACCDN, unit = "week") ) %>%
-  arrange(DT_ACCDN)  %>%
-  mutate(gravite = as.factor(gravite) %>% fct_relevel("Dommages matériels seulement", "Léger", "Grave", "Mortel"))  %>% 
-   mutate(heure = as.numeric(ifelse(heure_accdn == "Non précisé", NA, str_sub(heure_accdn,1,2) )),
-          region_num = as.numeric(str_sub(REG_ADM, -3, -2))) %>%
+  accidents16 <- read_csv("data/downloads/rapports-accident-2016.csv") %>%
+    mutate(NO_ROUTE = as.numeric(NO_ROUTE), 
+           SFX_NO_CIVIQ_ACCDN= as.character(SFX_NO_CIVIQ_ACCDN),
+           CD_MUNCP = as.numeric(CD_MUNCP))%>%
+    rename(heure_accdn = HR_ACCDN)
+  
+  accidents15 <- read_csv("data/downloads/rapports-accident-2015.csv")%>%
+    mutate(NO_ROUTE = as.numeric(NO_ROUTE), SFX_NO_CIVIQ_ACCDN= as.character(SFX_NO_CIVIQ_ACCDN),
+           CD_MUNCP = as.numeric(CD_MUNCP))%>%
+    rename(heure_accdn = HR_ACCDN)
+  
+  accidents14 <- read_csv("data/downloads/rapports-accident-2014.csv")%>%
+    mutate(NO_ROUTE = as.numeric(NO_ROUTE), SFX_NO_CIVIQ_ACCDN= as.character(SFX_NO_CIVIQ_ACCDN),
+           CD_MUNCP = as.numeric(CD_MUNCP))%>%
+    rename(heure_accdn = HR_ACCDN)
+  accidents13 <- read_csv("data/downloads/rapports-accident-2013.csv")%>%
+    mutate(NO_ROUTE = as.numeric(NO_ROUTE), SFX_NO_CIVIQ_ACCDN= as.character(SFX_NO_CIVIQ_ACCDN),
+           CD_MUNCP = as.numeric(CD_MUNCP))%>%
+    rename(heure_accdn = HR_ACCDN)
+  accidents12 <- read_csv("data/downloads/rapports-accident-2012.csv")%>%
+    mutate(NO_ROUTE = as.numeric(NO_ROUTE), SFX_NO_CIVIQ_ACCDN= as.character(SFX_NO_CIVIQ_ACCDN),
+           CD_MUNCP = as.numeric(CD_MUNCP)) %>%
+    rename(heure_accdn = HR_ACCDN)
+  accidents11 <- read_csv("data/downloads/rapports-accident-2011.csv")%>%
+    mutate(AN = an, NO_ROUTE = as.numeric(NO_ROUTE), SFX_NO_CIVIQ_ACCDN= as.character(SFX_NO_CIVIQ_ACCDN),
+           CD_MUNCP = as.numeric(CD_MUNCP))
+  
+  code_to_mun <- read_tsv("data/downloads/code_to_mun.tsv")
+  
+  accidents <- bind_rows(accidents11,accidents12, accidents13, 
+                         accidents14, accidents15, accidents16)  %>%
+    left_join(code_to_mun %>% select(CD_MUNCP, NAME_MUNCP), by= "CD_MUNCP") %>%
+    mutate(year = year(DT_ACCDN),  # I dont use isoyear because I dont want early 2011 to show up as 2010.
+           week = isoweek(DT_ACCDN),
+           month = month(DT_ACCDN),
+           month.abb = as.factor(base::month.abb[month]) %>%
+             fct_relevel("Jan", "Feb", "Mar", "Apr", "May", "Jun", 
+                         "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"),
+           monday = floor_date(DT_ACCDN, unit = "week") ) %>%
+    arrange(DT_ACCDN)  %>%
+    mutate(gravite = as.factor(gravite) %>% fct_relevel("Dommages matériels seulement", "Léger", "Grave", "Mortel"))  %>% 
+    mutate(heure = as.numeric(ifelse(heure_accdn == "Non précisé", NA, str_sub(heure_accdn,1,2) )),
+           region_num = as.numeric(str_sub(REG_ADM, -3, -2))) %>%
     mutate(row_num = row_number())  %>%
     mutate(CD_ENVRN_ACCDN = fct_recode(as.factor(CD_ENVRN_ACCDN) ,
-         "Scolaire"= "1", 
-         "Résidentiel" = "2", 
-         "Affaires / commercial"= "3",
-         "Industriel / Manufacturier" = "4",
-         "Rural" = "5",
-         "Forestier" = "6", 
-         "Récréatif / parc / camping" = "7",
-         "Autre"    = "9",
-         "Non précisé" = "0")) %>%
-  mutate(CD_COND_METEO =
-   fct_recode(as.factor(CD_COND_METEO),
-              "Clair" = "11",
-              "Couvert (nuageux/sombre)" = "12",
-              "Brouillard/brume "= "13",
-              "Pluie/bruine"= "14",
-              "Averse (pluie forte)" = "15",
-              "Vent fort (pas de poudrerie, pas de pluie)"= "16",
-              "Neige/grêle"= "17",
-              "Poudrerie/tempête de neige"= "18",
-              "Verglas"= "19",
-              "Autre" = "99")) %>%
-  mutate(CD_POSI_ACCDN = 
-           fct_recode(as.factor(CD_POSI_ACCDN),
-                      "Voie réservée en service"= "01",
-                      "Voie lente/voie de dépassement" = "02",
-                      "Perte/gain de voie"= "03", 
-                      "Voie de virage à gauche dans les deux sens"= "04",
-                      "Voie cyclable/chaussée désignée"= "05",
-                      "Voie de circulation "= "06",
-                      "Accotement (ou bord de la chaussée)"= "07",
-                      "Terre-plein central ou îlot"= "08",
-                      "Trottoir"= "09",
-                      "Autre" = "10"))
+                                       "Scolaire"= "1", 
+                                       "Résidentiel" = "2", 
+                                       "Affaires / commercial"= "3",
+                                       "Industriel / Manufacturier" = "4",
+                                       "Rural" = "5",
+                                       "Forestier" = "6", 
+                                       "Récréatif / parc / camping" = "7",
+                                       "Autre"    = "9",
+                                       "Non précisé" = "0")) %>%
+    mutate(CD_COND_METEO =
+             fct_recode(as.factor(CD_COND_METEO),
+                        "Clair" = "11",
+                        "Couvert (nuageux/sombre)" = "12",
+                        "Brouillard/brume "= "13",
+                        "Pluie/bruine"= "14",
+                        "Averse (pluie forte)" = "15",
+                        "Vent fort (pas de poudrerie, pas de pluie)"= "16",
+                        "Neige/grêle"= "17",
+                        "Poudrerie/tempête de neige"= "18",
+                        "Verglas"= "19",
+                        "Autre" = "99")) %>%
+    mutate(CD_POSI_ACCDN = 
+             fct_recode(as.factor(CD_POSI_ACCDN),
+                        "Voie réservée en service"= "01",
+                        "Voie lente/voie de dépassement" = "02",
+                        "Perte/gain de voie"= "03", 
+                        "Voie de virage à gauche dans les deux sens"= "04",
+                        "Voie cyclable/chaussée désignée"= "05",
+                        "Voie de circulation "= "06",
+                        "Accotement (ou bord de la chaussée)"= "07",
+                        "Terre-plein central ou îlot"= "08",
+                        "Trottoir"= "09",
+                        "Autre" = "10"))
   
- save(accidents, accidents16, file= "data/interim/accidents.rdata")
-} else load("data/interim/accidents.rdata")
+  save(accidents, accidents16, file= "data/raw/accidents.rdata")
+} else load("data/raw/accidents.rdata")
 
+
+```
+
+```{r}
 
 if (city != "province"){
   accidents <- accidents %>% filter(filter(NAME_MUNCP == city))
@@ -336,7 +341,7 @@ accidents$ACCDN_PRES_DEmod <- str_replace(accidents$ACCDN_PRES_DEmod, "\\bSORTIE
 ## create a location variable that is understandable by google maps
 
 accidents <- accidents %>%
- mutate(location =
+  mutate(location =
            case_when(
              !is.na(NO_CIVIQ_ACCDN) & !is.na(RUE_ACCDNmod) ~ 
                str_c(str_replace_na(as.numeric(NO_CIVIQ_ACCDN), ""),
@@ -371,7 +376,6 @@ accidents <- accidents %>%
 ```
 
 
-ents %>%
 Here is a snapshot of the data as it was received
 ```{r snapshot, echo= F}
 datatable(data =  accidents16 %>% slice(1:10),
@@ -402,25 +406,25 @@ create a string variable (I called it "location") that will be passed to the
 google maps API so that it can return us a latitude and a longitude.  
 
 The geographical variables are as follow.  They are never all filled.  
-  
- - "NO_CIVIQ_ACCDN" , the street civic number  
- - "SFX_NO_CIVIQ_ACCDN", a suffix to the street number  
- - "RUE_ACCDN", the road name  
- - "CD_MUNCP", the city code. Here is a dictionnary to convert city code to name.  
- - "NO_ROUTE" is the road number where the accident happened (numbered roads are typically highways). This seems to be used as a alternative to the road name RUE_ACCDN.  
- - "CD_PNT_CDRNL_ROUTE" is the direction (North, South, East, West (Ouest) ) travelled on the road/highway.  
- - "BORNE_KM_ACCDN" is the milestone number (used on highways and northern gravel roads)   
-   
+
+- "NO_CIVIQ_ACCDN" , the street civic number  
+- "SFX_NO_CIVIQ_ACCDN", a suffix to the street number  
+- "RUE_ACCDN", the road name  
+- "CD_MUNCP", the city code. Here is a dictionnary to convert city code to name.  
+- "NO_ROUTE" is the road number where the accident happened (numbered roads are typically highways). This seems to be used as a alternative to the road name RUE_ACCDN.  
+- "CD_PNT_CDRNL_ROUTE" is the direction (North, South, East, West (Ouest) ) travelled on the road/highway.  
+- "BORNE_KM_ACCDN" is the milestone number (used on highways and northern gravel roads)   
+
 They also use landmarks (road crossings, etc..) to help locate the accident:  
-  
- -  TP_REPRR_ACCDN is the type of landmark.    
-      - 1 means the intersection of two roads,  
-      - 2 " means "other landmark"  
-      - 0 means the type is not specified.  
-      
- - "ACCDN_PRES_DE" is the landmark that the type refers to. It can be the road that intersects the road named under "RUE_ACCDN", a bridge, a school name, etc.  
- - "NB_METRE_DIST_ACCD" is the distance in meters between the landmark and the accident.  
- - "CD_PNT_CDRNL_REPRR" is the direction (North,South, East, Ouest) from the landmark to the accident.
+
+-  TP_REPRR_ACCDN is the type of landmark.    
+- 1 means the intersection of two roads,  
+- 2 " means "other landmark"  
+- 0 means the type is not specified.  
+
+- "ACCDN_PRES_DE" is the landmark that the type refers to. It can be the road that intersects the road named under "RUE_ACCDN", a bridge, a school name, etc.  
+- "NB_METRE_DIST_ACCD" is the distance in meters between the landmark and the accident.  
+- "CD_PNT_CDRNL_REPRR" is the direction (North,South, East, Ouest) from the landmark to the accident.
 
 Since most crashes involving pedestrians and bikes are located in the cities, 
 the data typically contains the street civic number + street name or the name of 
@@ -447,8 +451,8 @@ geocode_this  <-geocode_this %>% filter(!is.na(location))
 #https://stackoverflow.com/questions/36175529/getting-over-query-limit-after-one-request-with-geocode
 # geocode using google maps api
 if(geocode){
-geo <-ggmap::geocode(location = geocode_this %>% pull(location), output = "latlon", source= "google")
-save(geocode_this, geo, file= paste0("data/raw/geo_",city,"_",type,".rdata"))
+  geo <-ggmap::geocode(location = geocode_this %>% pull(location), output = "latlon", source= "google")
+  save(geocode_this, geo, file= paste0("data/raw/geo_",city,"_",type,".rdata"))
 } else {load(paste0("data/raw/geo_",city,"_",type,".rdata"))}
 
 
@@ -465,9 +469,9 @@ geocode_this <- geocode_this %>% filter(!is.na(lat) | !is.na(lon))
 I used the `ggmap`package to geocode the car crashes through the google maps API.
 The free version of the API is limited to 2 500 calls per day, so I had to get a
 premium API key.  This project didnt cost me anything since I had some google credit
- from I dont know when.  
- 
- `r accidents   %>% tally() ` crashes involving  `r type` occurred in  `r citytext` between 2011 and  2016. 
+from I dont know when.  
+
+`r accidents   %>% tally() ` crashes involving  `r type` occurred in  `r citytext` between 2011 and  2016. 
 
 I didnt attempt to geocode  `r drop_no_word_location %>% tally()`  of them because I 
 wasnt able to generate a satisfying "location" string.  These crashes are listed in the appendix.  
@@ -496,7 +500,7 @@ accidents %>% ggplot(aes(x=year))+ geom_histogram(binwidth = 1)+
 ## Crashes by month of the year
 ```{r evol_mois, echo =F}
 ggplot(accidents,aes(x = month.abb)) + 
-    geom_histogram(binwidth=1, stat="count")+ 
+  geom_histogram(binwidth=1, stat="count")+ 
   ggtitle(wrapper(paste0("Crashes involving ", type, " in ", citytext, " by the month of the year"),
                   width=70))+
   facet_wrap(~ year)+
@@ -507,7 +511,7 @@ ggplot(accidents,aes(x = month.abb)) +
 ## Crashes by time of the day
 ```{r evol_heure, echo =F}
 ggplot(accidents,aes(x = heure)) + 
-    geom_bar()+ 
+  geom_bar()+ 
   ggtitle(wrapper(paste0("Crashes involving  ", type, " in ", citytext, " by time of the day"), width=70))+
   facet_wrap(~ year)+ 
   theme_bw()
@@ -520,10 +524,10 @@ ggplot(accidents,aes(x = heure)) +
 
 accidents %>% 
   mutate(CD_COND_METEO = CD_COND_METEO %>% fct_infreq() )%>%
-ggplot()+
+  ggplot()+
   geom_bar(mapping = aes(x=CD_COND_METEO))+ 
   theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1))+
-   scale_y_continuous(labels = comma)
+  scale_y_continuous(labels = comma)
 ```
 
 ## Crashes by administrative area
@@ -538,7 +542,7 @@ datatable(data =  accidents %>%
             arrange(region_num) %>%
             rename(`Région administrative` = REG_ADM) %>%
             select(-region_num),
-            
+          
           rownames = F,
           options = list(dom = 't', ordering = F, pageLength=17) ,          
           caption = paste0("Crashes involving ", type,"  in each administrative area between 2011 and 2016"))%>%
@@ -555,7 +559,7 @@ datatable(data =  accidents %>%
             count(rang, NAME_MUNCP,year) %>%
             spread(key=year, value=n) %>%
             rename(`Municipalité` = NAME_MUNCP),
-            
+          
           rownames = F,
           options = list(dom = 't', ordering = F, pageLength=10) ,          
           caption = paste0("Crashes involving ", type," by ciy, 2011 to 2016"))%>%
@@ -566,7 +570,7 @@ datatable(data =  accidents %>%
 ## Crashes by seriousness
 ```{r evol_gravite, echo =F}
 ggplot(accidents,aes(x = year, fill= gravite)) + 
-    geom_bar(position = "fill")+ 
+  geom_bar(position = "fill")+ 
   ggtitle(wrapper(paste0("Crashes involving ", type, " in ", citytext, " by seriousness, between 2011 and 2016"), width=70))
 ```
 
@@ -588,7 +592,7 @@ geocode_this <- geocode_this  %>% group_by(lat,lon) %>% mutate(accidents = n()) 
 ```
 
 ```{r table_most_dangerous_spot, echo = F}
- 
+
 worst10 <- geocode_this %>% group_by(lat,lon) %>% slice(1:1) %>% ungroup() %>% select(accidents, location, lon, lat)  %>% arrange(desc(accidents))   %>% slice(1:15)
 
 
