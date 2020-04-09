@@ -9,8 +9,8 @@ output:
 categories: ["R"]
 tags: ["bayesian", "optimization", "rstats", "mlrMBO", "caret", "mlr" ,"poisson", "rBayesianOptimization"]
 ---
-  
-  
+
+
 ```{r setup, include =F}
 # TODO : valider ceci : Chunk options must be written in one line; no line breaks are allowed inside chunk options;
 # https://yihui.name/knitr/options/
@@ -24,6 +24,8 @@ knitr::opts_chunk$set(collapse = FALSE,
                       cache = FALSE,
                       cache.lazy = FALSE) # fixes long vector not supported quand on cache des gros éléments https://stackoverflow.com/questions/39417003/long-vectors-not-supported-yet-error-in-rmd-but-not-in-r-script
 ```
+
+UPDATE 2020: skimr v2 now produces nice html in rmarkdown, so skimr::kable() has been deprecated.  https://www.r-bloggers.com/reintroducing-skimr-v2-a-year-in-the-life-of-an-open-source-r-project/
 
 # Introduction  
 
@@ -48,12 +50,13 @@ library(xgboost)
 library(insuranceData) # example dataset https://cran.r-project.org/web/packages/insuranceData/insuranceData.pdf
 library(tidyverse) # for data wrangling
 library(rBayesianOptimization) # to create cv folds and for bayesian optimisation
-library(mlrMBO)  # for bayesian optimisation
+library(mlrMBO)  # for bayesian optimisation  
 library(skimr) # for summarising databases
 library(purrr) # to evaluate the loglikelihood of each parameter set in the random grid search
 require("DiceKriging") # mlrmbo requires this
 require("rgenoud") # mlrmbo requires this
 
+switch_generate_interim_data <- TRUE
 ``` 
 
 
@@ -87,8 +90,39 @@ feature_vars <- mydb %>%
   select(-one_of(c(label_var, offset_var))) %>% 
   colnames()
 
-skimr::skim(mydb ) %>% 
-  skimr::kable()
+#skimr::skim(mydb ) %>% 
+  #skimr::kable() #
+  # update 2020 : Now, calling skim(), within an RMarkdown doc should produce something
+  # nice by default.
+  # 
+  # skim(chickwts)
+  # 
+  # Data summary Name 	chickwts
+  # Number of rows 	71
+  # Number of columns 	2
+  # _______________________ 	
+  # Column type frequency: 	
+# factor 	1
+# numeric 	1
+# ________________________ 	
+# Group variables 	None
+# 
+# Variable type: factor
+# skim_variable 	n_missing 	complete_rate 	ordered 	n_unique 	top_counts
+# feed 	0 	1 	FALSE 	6 	soy: 14, cas: 12, lin: 12, sun: 12
+# 
+# Variable type: numeric
+# skim_variable 	n_missing 	complete_rate 	mean 	sd 	p0 	p25 	p50 	p75 	p100 	hist
+# weight 	0 	1 	261.31 	78.07 	108 	204.5 	258 	323.5 	423 	▆▆▇▇▃
+# 
+# You get a nice html version of both the summary header and the skimr subtables
+# for each type of data.
+# 
+# In this context, you configure the output the same way you handle other knitr
+# code chunks.
+# 
+# This means that we’re dropping direct support for kable.skim_df() and
+# pander.skim_df(). But you can still get pretty similar results to these
 ```
 
 Insurance ratemaking often requires monotonous relationships.  In our case, we will arbitrarily force the number of claims to be non-increasing with the age of the vehicle.
@@ -182,63 +216,62 @@ list_of_param_sets <- df.params %>% nest(-rownum)
 Here are the hyperparameters that will be tested:
 
 ```{r}
-kable(df.params)
+knitr::kable(df.params)
 ```
 
 Evaluate these 21 models with 3 folds and retourn the loglikelihood of each models:  
 
 
 
-```{r, eval =F}
-start <- Sys.time()
-random_grid_results <- list_of_param_sets %>% 
-  mutate(booster = map(data, function(X){
-    message(paste0("model #",       X$rownumber,
-            " eta = ",              X$eta,
-            " max.depth = ",        X$max_depth,
-            " min_child_weigth = ", X$min_child_weight,
-            " subsample = ",        X$subsample,
-            " colsample_bytree = ", X$colsample_bytree,
-            " gamma = ",            X$gamma, 
-            " nrounds = ",          X$nrounds))
-set.seed(1234)
+```{r}
 
-cv <- xgb.cv(
-  params = list(
-    booster = "gbtree",
-    eta = X$eta,
-    max_depth = X$max_depth,
-    min_child_weight = X$min_child_weight,
-    gamma = X$gamma,
-    subsample = X$subsample,
-    colsample_bytree = X$colsample_bytree,
-    objective = 'count:poisson', 
-    eval_metric = "poisson-nloglik"),
-  data = mydb_xgbmatrix,
-  nround = X$nrounds,
-  folds=  cv_folds,
-  monotone_constraints = myConstraint$sens,
-  prediction = FALSE,
-  showsd = TRUE,
-  early_stopping_rounds = 50,
-  verbose = 0)
-
-function_return <- list(Score = cv$evaluation_log[, max(test_poisson_nloglik_mean)], # l'itération qui a la plus haute moyenne de nloglik sur toutes les cv folds
-                        Pred = 0)
-
-message(paste0("Score :", function_return$Score))
-return(function_return)})) %>%
-  mutate(Score =  pmap(list(booster), function(X){X$Score })%>% unlist())
-
-
-write_rds(random_grid_results, "temp_files/random_grid_results.rds")
-stop <- Sys.time()
-stop- start
+if (switch_generate_interim_data){
+  
+  random_grid_results <- list_of_param_sets %>% 
+    mutate(booster = map(data, function(X){
+      message(paste0("model #",       X$rownumber,
+                     " eta = ",              X$eta,
+                     " max.depth = ",        X$max_depth,
+                     " min_child_weigth = ", X$min_child_weight,
+                     " subsample = ",        X$subsample,
+                     " colsample_bytree = ", X$colsample_bytree,
+                     " gamma = ",            X$gamma, 
+                     " nrounds = ",          X$nrounds))
+      set.seed(1234)
+      
+      cv <- xgb.cv(
+        params = list(
+          booster = "gbtree",
+          eta = X$eta,
+          max_depth = X$max_depth,
+          min_child_weight = X$min_child_weight,
+          gamma = X$gamma,
+          subsample = X$subsample,
+          colsample_bytree = X$colsample_bytree,
+          objective = 'count:poisson', 
+          eval_metric = "poisson-nloglik"),
+        data = mydb_xgbmatrix,
+        nround = X$nrounds,
+        folds=  cv_folds,
+        monotone_constraints = myConstraint$sens,
+        prediction = FALSE,
+        showsd = TRUE,
+        early_stopping_rounds = 50,
+        verbose = 0)
+      
+      function_return <- list(Score = cv$evaluation_log[, max(test_poisson_nloglik_mean)], # l'itération qui a la plus haute moyenne de nloglik sur toutes les cv folds
+                              Pred = 0)
+      
+      message(paste0("Score :", function_return$Score))
+      return(function_return)})) %>%
+    mutate(Score =  pmap(list(booster), function(X){X$Score })%>% unlist())
+  
+  
+  write_rds(random_grid_results, here::here("content/post/data/interim/random_grid_results.rds"))
+} else {random_grid_results <- read_rds( here::here("content/post/data/interim/random_grid_results.rds"))}
 ```
 
 ```{r}
-random_grid_results <- read_rds( "temp_files/random_grid_results.rds")
-
 random_grid_results %>%
   mutate( hardcoded = ifelse(rownum ==1,TRUE,FALSE)) %>%
   ggplot(aes( x = rownum, y = Score, color = hardcoded)) + 
@@ -317,18 +350,23 @@ control = setMBOControlTermination(control, iters = 10)
 Run the bayesian search:  
 
 
-```{r, eval =F}
-# run this!
-run = mbo(fun = obj.fun, 
-          design = final_design,  
-          control = control, 
-          show.info = TRUE)
-write_rds( run, "temp_files/run.rds")
+```{r}
+
+
+if ( switch_generate_interim_data){
+  run = mbo(fun = obj.fun, 
+            design = final_design,  
+            control = control, 
+            show.info = TRUE)
+  write_rds( run, here::here("content/post/data/interim/run.rds"))
+} else {
+  run <- read_rds(here::here("content/post/data/interim/run.rds")) 
+}
 ```
 
 
 ```{r}
-run <- read_rds( "temp_files/run.rds")
+
 # print a summary with run
 #run
 # return  best model hyperparameters using run$x
@@ -380,7 +418,7 @@ The code that generated this document is located at
 https://github.com/SimonCoulombe/snippets/blob/master/content/post/2019-1-09-bayesian.Rmd
 
 ## mlrMBO further reading  
- 
+
 Here are some resources I used to build this post:  
 
 * [Xgboost using MLR package](http://rstudio-pubs-static.s3.amazonaws.com/336732_52d1b0e682634b5eae42cf86e1fc2a98.html)  
@@ -394,7 +432,7 @@ Here are some resources I used to build this post:
 Here I show how to do an equivalent optimization using `rBaysianOptimization`.  I do not recommend using this package because it  [recycles hyperparameters](https://github.com/yanyachen/rBayesianOptimization/issues/4) and hasnt been updated on github since 2016.
 
 First, we have to define a special function that return a list of two values that will be returned to the bayesian optimiser:  
-  - "Score" should be the metrics to be maximized ,  
+- "Score" should be the metrics to be maximized ,  
 - "Pred" should be the validation/cross-valiation prediction for ensembling / stacking.  We can set it to 0 to save on memory.
 
 This function will be named  `xgb_cv_bayes` : 
@@ -434,40 +472,38 @@ xgb_cv_bayes <-
 ```
 
 We then launch `BayesianOptimization`, specifying:    
-  - the function to optimise (xgb_cv_bayes),  
+- the function to optimise (xgb_cv_bayes),  
 - the hyperparameters (`bounds`) ,  
 - the number of iterations, `n_iter`, 
 
 
 The optimization function needs some points for initialisation.  We pass one of the two following parameters:   
-  - `init_points` , start from scratch using this number of randomly generated hyperparameter sets, or 
+- `init_points` , start from scratch using this number of randomly generated hyperparameter sets, or 
 - `init_grid_dt`  use the knowledge from a previous run.
 
 
 ##  rBayesianOptimization from scratch  
 Here is an example  "from scratch". 
 
-```{r bayes_scratch, collapse = FALSE, eval = F}
-start <- Sys.time()
-bayesian_results <- rBayesianOptimization::BayesianOptimization(
-  FUN = xgb_cv_bayes,
-  bounds = list(max_depth = c(2L, 10L),
-                colsample_bytree = c(0.3, 1),
-                subsample = c(0.3,1),
-                min_child_weight = c(1L, 10L),
-                eta = c(0.001, 0.03),
-                gamma = c(0, 5)),
-  init_grid_dt = NULL, init_points = 4, 
-  n_iter = 7,
-  acq = "ucb", kappa = 2.576, eps = 0.0,
-  verbose = TRUE)
-stop <- Sys.time()
-stop- start
-write_rds(bayesian_results, "temp_files/bayesian_results.rds")
-```
+```{r bayes_scratch, collapse = FALSE}
 
-```{r}
-bayesian_results <- read_rds( "temp_files/bayesian_results.rds")
+
+if ( switch_generate_interim_data){
+  bayesian_results <- rBayesianOptimization::BayesianOptimization(
+    FUN = xgb_cv_bayes,
+    bounds = list(max_depth = c(2L, 10L),
+                  colsample_bytree = c(0.3, 1),
+                  subsample = c(0.3,1),
+                  min_child_weight = c(1L, 10L),
+                  eta = c(0.001, 0.03),
+                  gamma = c(0, 5)),
+    init_grid_dt = NULL, init_points = 4, 
+    n_iter = 7,
+    acq = "ucb", kappa = 2.576, eps = 0.0,
+    verbose = TRUE)
+  
+  write_rds(bayesian_results, here::here("content/post/data/interim/bayesian_results.rds"))
+} else {bayesian_results <- read_rds( here::here("content/post/data/interim/bayesian_results.rds"))}
 ```
 
 
@@ -500,27 +536,30 @@ init_grid <- random_grid_results$data %>%
 kable(init_grid)
 ```
 
-```{r, eval = F}
-bayesian_results_continued_from_randomgrid <- 
-  BayesianOptimization(xgb_cv_bayes,
-                       bounds = list(max_depth = c(2L, 10L),
-                                     colsample_bytree = c(0.3, 1),
-                                     subsample = c(0.3,1),
-                                     min_child_weight = c(1L, 10L),
-                                     eta = c(0.001, 0.03),
-                                     gamma = c(0, 5)),
-                       init_grid_dt = init_grid, init_points = 0, 
-                       n_iter = 5,
-                       acq = "ucb", kappa = 2.576, eps = 0.0,
-                       verbose = TRUE)
-write_rds(bayesian_results_continued_from_randomgrid,
-          "temp_files/bayesian_results_continued_from_randomgrid.rds")
+```{r}
+if (switch_generate_interim_data){
+  bayesian_results_continued_from_randomgrid <- 
+    BayesianOptimization(xgb_cv_bayes,
+                         bounds = list(max_depth = c(2L, 10L),
+                                       colsample_bytree = c(0.3, 1),
+                                       subsample = c(0.3,1),
+                                       min_child_weight = c(1L, 10L),
+                                       eta = c(0.001, 0.03),
+                                       gamma = c(0, 5)),
+                         init_grid_dt = init_grid, init_points = 0, 
+                         n_iter = 5,
+                         acq = "ucb", kappa = 2.576, eps = 0.0,
+                         verbose = TRUE)
+  
+  write_rds(bayesian_results_continued_from_randomgrid,
+            here::here("content/post/data/interim/bayesian_results_continued_from_randomgrid.rds"))
+} else {
+  
+  bayesian_results_continued_from_randomgrid <- read_rds(
+    here::here("content/post/data/interim/bayesian_results_continued_from_randomgrid.rds"))
+}
 ```
 
-```{r}
-bayesian_results_continued_from_randomgrid <- read_rds(
-  "temp_files/bayesian_results_continued_from_randomgrid.rds")
-```
 
 
 ### ... resuming from previous rBayesianOptimization
@@ -534,26 +573,28 @@ init_grid <- bayesian_results_continued_from_randomgrid$History %>% select(-Roun
 kable(init_grid)
 ```
 
-```{r bayes_continued_bayesian, collapse= FALSE, eval=  F}
-bayesian_results_continued_from_bayesian <- 
-  BayesianOptimization(xgb_cv_bayes,
-                       bounds = list(max_depth = c(2L, 10L),
-                                     colsample_bytree = c(0.3, 1),
-                                     subsample = c(0.3,1),
-                                     min_child_weight = c(1L, 10L),
-                                     eta = c(0.001, 0.03),
-                                     gamma = c(0, 5)),
-                       init_grid_dt =init_grid , init_points = 0,
-                       n_iter = 5,
-                       acq = "ucb", kappa = 2.576, eps = 0.0,
-                       verbose = TRUE)
-write_rds(bayesian_results_continued_from_bayesian, "temp_files/bayesian_results_continued_from_bayesian.rds")
+```{r bayes_continued_bayesian, collapse= FALSE}
+
+if (switch_generate_interim_data){
+  bayesian_results_continued_from_bayesian <- 
+    BayesianOptimization(xgb_cv_bayes,
+                         bounds = list(max_depth = c(2L, 10L),
+                                       colsample_bytree = c(0.3, 1),
+                                       subsample = c(0.3,1),
+                                       min_child_weight = c(1L, 10L),
+                                       eta = c(0.001, 0.03),
+                                       gamma = c(0, 5)),
+                         init_grid_dt =init_grid , init_points = 0,
+                         n_iter = 5,
+                         acq = "ucb", kappa = 2.576, eps = 0.0,
+                         verbose = TRUE)
+  write_rds(bayesian_results_continued_from_bayesian,here::here("content/post/data/interim/bayesian_results_continued_from_bayesian.rds"))
+} else {
+  bayesian_results_continued_from_bayesian <- read_rds(
+    here::here("content/post/data/interim/bayesian_results_continued_from_bayesian.rds"))
+}  
 ```
 
-```{r}
-bayesian_results_continued_from_bayesian <- read_rds(
-  "temp_files/bayesian_results_continued_from_bayesian.rds")
-```
 
 
 ```{r results}
