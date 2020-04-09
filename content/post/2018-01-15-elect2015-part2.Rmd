@@ -40,7 +40,7 @@ Disclaimer: I am not a poticial science expert, I just like messing around with 
 
 
 ```{r load_poll_data, include= F}
-load("temp_files/poll_final.rdata") #results and geometry
+load(here::here("content/post/data/interim/poll_final.rdata")) #results and geometry
 ```
 
 ```{r libs_and_switches, include= F}
@@ -51,6 +51,8 @@ library(lwgeom) #for st_make_valid
 # remember to set options(cancensus.api_key) 
 # and options(cancensus.cache_path)
 # in ~/.Rprofile
+
+switch_use_interim_data <- FALSE
 
 colors <- c("libéral" = "#D71920", 
           "conservateur" = "#1A4782", 
@@ -261,7 +263,9 @@ Getting the census data and shapefile is pretty straightforward when done using 
 
 We download the census data at the Dissemination Area (DA) level, which is the smallest geographical level for which  Statistics Canada will release data.  Its population is between 400-700 persons.  
 
-```{r get_census_data_with_shapes, cache=T, include = F, eval=F}
+```{r get_census_data_with_shapes, cache=T, include = F, eval=T}
+
+if (switch_use_interim_data){
 parents <- c("v_CA16_5051")
 census_extract <- get_cancensus_data(parents,
                                    generation="last",
@@ -278,14 +282,6 @@ mytotal <- search_census_vectors("", "CA16") %>%
 mychildren <- mytotal %>% child_census_vectors(leaves_only =TRUE) 
 myvectorschildren <- mychildren %>% pull(vector)
 
-```
-
-Once we have the DA data, we find the intersection between the DA and the poll sections.  
-Lines that should be identical in both files are not always 100% accurate, which leads to small intersection between polygons that should not intersect.  To prevent this,
-I ignore intersections that represent less than 10% of either the DA or poll polygon.
-
-
-```{r get_AD_poll_intersection, eval=F, include = F}
 #make geometries valid to prevent error in st_intersection
 # Error in CPL_geos_op2(op, st_geometry(x), st_geometry(y)) : 
   #Evaluation error: TopologyException: Input geom 1 is invalid: Ring Self-intersection at or near point #-77.249958667496159 48.385304531338512 at -77.249958667496159 48.385304531338512.
@@ -296,7 +292,7 @@ poll_final <- poll_final %>% st_make_valid()
 intersection <- st_intersection(census_data  , 
                                 poll_final %>% 
                                   st_transform(st_crs(census_data))) 
-save(intersection,file="temp_files/intersection.rdata")
+save(intersection,file= here::here("content/post/data/interim/intersection.rdata"))
 # add in areas in m2
 attArea <-intersection %>% 
   mutate(area = st_area(.) %>% as.numeric())
@@ -320,24 +316,6 @@ attArea_filtered <- attArea %>%  as_tibble() %>%
   mutate(pct_ad = area / sum(area)) %>%
   ungroup()
 
-```
-
-We then distribute the DA population to the polls.  We make three important assumptions:
-
-  - elector population is proportional to total populattion (we should use population aged 18+ at the very least)  
-  - DA population is uniformly distributed on the whole area   
-  - Participation rate is equal among all DA that touch a poll  
-  
-To make analysis easier, we group the highest levels of schooling in three groups: 
-
-  - No high school diploma  
-  - High school, college, trade or university certificate below bachelor  
-  - University (bachelor degree or above)    
-  
-  
-  
-```{r distribute DA population, eval=F, include = F}
-
 ## distribute DA population assuming that 
 ## 1 ) elector population is proportional to total populattion (we should check for age 18+ at the very least)
 ## 2) DA population is uniformly distributed
@@ -358,9 +336,31 @@ poll_demo  <- poll_demo  %>% mutate(
 complete_data <- poll_final %>%
   inner_join(poll_demo) %>%
   mutate(PR = floor(FED_NUM / 1000))
-save(complete_data, file = "temp_files/complete_data.rdata")
+save(complete_data, file = here::here("content/post/data/interim/complete_data.rdata"))
+} else {
+  load(here::here("content/post/data/interim/complete_data.rdata"))
+  
+}
 ```
 
+Once we have the DA data, we find the intersection between the DA and the poll sections.  
+Lines that should be identical in both files are not always 100% accurate, which leads to small intersection between polygons that should not intersect.  To prevent this,
+I ignore intersections that represent less than 10% of either the DA or poll polygon.
+
+
+
+We then distribute the DA population to the polls.  We make three important assumptions:
+
+  - elector population is proportional to total populattion (we should use population aged 18+ at the very least)  
+  - DA population is uniformly distributed on the whole area   
+  - Participation rate is equal among all DA that touch a poll  
+  
+To make analysis easier, we group the highest levels of schooling in three groups: 
+
+  - No high school diploma  
+  - High school, college, trade or university certificate below bachelor  
+  - University (bachelor degree or above)    
+  
 # Results
 
 Finally, we make scatter plots showing the relationship between the level of
@@ -389,7 +389,7 @@ Results are not uniform across provinces, but I spotted the following trends out
 
 ```{r load_data, include = F}
 
-load("temp_files/complete_data.rdata")
+
 plot_data <- complete_data%>% 
   select(pollid, libéral, conservateur, npd, pct_nohs, pct_hs_college_trade, pct_uni, PR) %>%
   gather(key="parti",value="pct_vote", libéral, conservateur, npd) %>%
