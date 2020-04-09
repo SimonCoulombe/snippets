@@ -233,7 +233,8 @@ formatPercentage(c("Return_Index", "Return_List"),1) %>%
 ```
 
 Here is how I tried the stock.prices.google option when yahoo failed. It also failed.
-```{r}
+(edit 2020 : Error: Google Finance has been discontinued.)
+```{r, eval = F}
 
 Rb <- c("TSE:DH", c("TSE:CAM")) %>%   
   tq_get(get  = "stock.prices.google", 
