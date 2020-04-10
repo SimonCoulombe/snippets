@@ -76,8 +76,8 @@ as I can tell, this doesnt have an impact.</p>
 <p>They apparently decided to create a row for each of the polygons of this poll.<br />
 We can “union” all the polygons in the shapefile so that we only have 1 row per pollid.
 This can be done using the sf::aggregate function.
-<div id="htmlwidget-1" style="width:100%;height:480px;" class="widgetframe html-widget"></div>
-<script type="application/json" data-for="htmlwidget-1">{"x":{"url":"/post/2018-01-15-elect2015-part1_files/figure-html//widgets/widget_leaflet_most_polygon.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script></p>
+<div id="htmlwidget-3" style="width:100%;height:480px;" class="widgetframe html-widget"></div>
+<script type="application/json" data-for="htmlwidget-3">{"x":{"url":"/post/2018-01-15-elect2015-part1_files/figure-html//widgets/widget_leaflet_most_polygon.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script></p>
 <p>I had to do the aggregation process in two steps because I couldnt find a way to do it in
 one step without generating huge files that would break my RAM.</p>
 <p>Instead, I created an aggregated sf data.frame after dropping all variables.<br />
@@ -244,16 +244,16 @@ observations have a trailing letter in the poll name.</p>
 <li>Some polls have had their subpolls merged to multiple different polls. (ex4)<br />
 </li>
 <li>A poll doesnt have to be broken into subpools to be merged to another poll. (ex5)
-<div id="htmlwidget-2" style="width:100%;height:480px;" class="widgetframe html-widget"></div>
-<script type="application/json" data-for="htmlwidget-2">{"x":{"url":"/post/2018-01-15-elect2015-part1_files/figure-html//widgets/widget_subpools_doesnt_implymerge.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script><div id="htmlwidget-3" style="width:100%;height:480px;" class="widgetframe html-widget"></div>
-<script type="application/json" data-for="htmlwidget-3">{"x":{"url":"/post/2018-01-15-elect2015-part1_files/figure-html//widgets/widget_subpools_doesnt_implymerge.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script><div id="htmlwidget-4" style="width:100%;height:480px;" class="widgetframe html-widget"></div>
+<div id="htmlwidget-4" style="width:100%;height:480px;" class="widgetframe html-widget"></div>
 <script type="application/json" data-for="htmlwidget-4">{"x":{"url":"/post/2018-01-15-elect2015-part1_files/figure-html//widgets/widget_subpools_doesnt_implymerge.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script><div id="htmlwidget-5" style="width:100%;height:480px;" class="widgetframe html-widget"></div>
 <script type="application/json" data-for="htmlwidget-5">{"x":{"url":"/post/2018-01-15-elect2015-part1_files/figure-html//widgets/widget_subpools_doesnt_implymerge.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script><div id="htmlwidget-6" style="width:100%;height:480px;" class="widgetframe html-widget"></div>
-<script type="application/json" data-for="htmlwidget-6">{"x":{"url":"/post/2018-01-15-elect2015-part1_files/figure-html//widgets/widget_subpools_doesnt_implymerge.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script></li>
+<script type="application/json" data-for="htmlwidget-6">{"x":{"url":"/post/2018-01-15-elect2015-part1_files/figure-html//widgets/widget_subpools_doesnt_implymerge.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script><div id="htmlwidget-7" style="width:100%;height:480px;" class="widgetframe html-widget"></div>
+<script type="application/json" data-for="htmlwidget-7">{"x":{"url":"/post/2018-01-15-elect2015-part1_files/figure-html//widgets/widget_subpools_doesnt_implymerge.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script><div id="htmlwidget-8" style="width:100%;height:480px;" class="widgetframe html-widget"></div>
+<script type="application/json" data-for="htmlwidget-8">{"x":{"url":"/post/2018-01-15-elect2015-part1_files/figure-html//widgets/widget_subpools_doesnt_implymerge.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script></li>
 </ul>
 <p>Another important note mentionned before: when a poll is merged to another poll, the number of votes for each candidates and the number of rejected ballots is set to 0. This leads me to believe that they simply took the box containing the ballots and mixed it with the box from another poll before counting it.
-<div id="htmlwidget-7" style="width:100%;height:480px;" class="widgetframe html-widget"></div>
-<script type="application/json" data-for="htmlwidget-7">{"x":{"url":"/post/2018-01-15-elect2015-part1_files/figure-html//widgets/widget_merged_means_no_vote_data.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script></p>
+<div id="htmlwidget-9" style="width:100%;height:480px;" class="widgetframe html-widget"></div>
+<script type="application/json" data-for="htmlwidget-9">{"x":{"url":"/post/2018-01-15-elect2015-part1_files/figure-html//widgets/widget_merged_means_no_vote_data.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script></p>
 </div>
 <div id="cleaning-the-poll-results" class="section level3">
 <h3>Cleaning the poll results</h3>
@@ -299,10 +299,10 @@ But what are these polls for which we dont have a shape? Mostly, this is the adv
 <pre><code>## Deleting source `/home/simon/git/snippets/content/post/data/interim/poll_final.shp&#39; using driver `ESRI Shapefile&#39;
 ## Writing layer `poll_final&#39; to data source `/home/simon/git/snippets/content/post/data/interim/poll_final.shp&#39; using driver `ESRI Shapefile&#39;
 ## Writing 66335 features with 20 fields and geometry type Unknown (any).</code></pre>
-<div id="htmlwidget-8" style="width:100%;height:480px;" class="widgetframe html-widget"></div>
-<script type="application/json" data-for="htmlwidget-8">{"x":{"url":"/post/2018-01-15-elect2015-part1_files/figure-html//widgets/widget_leaflet_my_riding.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script>
+<div id="htmlwidget-10" style="width:100%;height:480px;" class="widgetframe html-widget"></div>
+<script type="application/json" data-for="htmlwidget-10">{"x":{"url":"/post/2018-01-15-elect2015-part1_files/figure-html//widgets/widget_leaflet_my_riding.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script>
 <p>Here is a leaflet of the poll results that were merged and for which the results were
 pull from the “mergee”.<br />
-<div id="htmlwidget-9" style="width:100%;height:480px;" class="widgetframe html-widget"></div>
-<script type="application/json" data-for="htmlwidget-9">{"x":{"url":"/post/2018-01-15-elect2015-part1_files/figure-html//widgets/widget_leaflet_poll_merged.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script></p>
+<div id="htmlwidget-11" style="width:100%;height:480px;" class="widgetframe html-widget"></div>
+<script type="application/json" data-for="htmlwidget-11">{"x":{"url":"/post/2018-01-15-elect2015-part1_files/figure-html//widgets/widget_leaflet_poll_merged.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script></p>
 </div>

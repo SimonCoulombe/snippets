@@ -123,8 +123,12 @@ poll_shp_bak <- sf::st_read(here::here("content/post/data/downloads/PD_A.shp"),
                          options = "ENCODING=Windows-1252")  %>%
    mutate(pollid = str_c(FED_NUM,EMRP_NAME, sep= "_")) 
 
-poll_shp_bak %>% as.data.frame %>% count(pollid) %>% filter(n > 1) %>% 
-  arrange(desc(n)) %>% slice(1:5) %>% 
+poll_shp_bak %>% 
+  st_set_geometry(NULL) %>%
+  count(pollid) %>% 
+  filter(n > 1) %>% 
+  arrange(desc(n)) %>% 
+  dplyr::slice(1:5) %>% 
   datatable(., 
             rownames = F,
             options = list(dom = 't', ordering = F, pageLength=5),
