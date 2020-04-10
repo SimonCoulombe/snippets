@@ -193,6 +193,11 @@ ggmap(mymap) +
     labs(title ="Martin Pellerin a acquis 6 lots le 10 mai 2019",
          subtitle= "Tracé officiel dévoilé le 27 juin 2019 (on jase)",
          caption = "Source: Rôle d'évaluation de Lévis") +
+  theme(axis.title.y=element_text(angle=0,vjust=1, hjust=0))+
+  ylab( "latitude")+
+  xlab( "longitude")+
+
+
   coord_sf(xlim = c(bbox_ajustee[1], bbox_ajustee[3]), ylim = c(bbox_ajustee[2],bbox_ajustee[4]))#+# google va chercher trop grand, je recouppe ici 
 
 

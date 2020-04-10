@@ -157,11 +157,11 @@ plot1
 
 
 
-```{r, echo=T, include= F}
+```{r, echo=T, include= F, eval =F}
 
 animated_mp41 <- animate(plot1, renderer = ffmpeg_renderer(),
                          nframes = 375, fps = 25, end_pause = 0, width = 1104, height = 736)
-anim_save("animated_mp41.mp4", animated_mp41)
+anim_save(here::here("content/post/data/final/animated_mp41.mp4"), animated_mp41)
 
 ```
 
@@ -190,7 +190,7 @@ plot1canada <- data  %>%
   transition_time(annee_de_naissance) +
   ease_aes('linear')
 animated_gif1_canada <- animate(plot1, nframes = 375, fps = 25, end_pause = 50, width = 1200, height = 900)
-anim_save("animated_gif1_canada.gif", animated_gif1_canada)
+anim_save(here::here("content/post/data/final/animated_gif1_canada.gif"), animated_gif1_canada)
 ```
 
 
@@ -279,22 +279,23 @@ plot2 <- graph_data %>%
 
 ```{r}
 animated_gif2 <- animate(plot2, nframes = 750, fps = 25, end_pause = 50, width = 1200, height = 900)
+anim_save(here::here("content/post/data/final/animated_gif2.gif"), animated_gif2)
 animated_gif2
 ```
 
 We can also render an mp4 video (less than 1MB) for sharing, because the gif above weighs about 20 MB.
 
-```{r, echo=T, include= F}
+```{r, echo=T, include= F, eval =F}
 
 animated_mp42 <- animate(plot2, renderer = ffmpeg_renderer(),
                          nframes = 750, fps = 25, end_pause = 0, width = 1104, height = 736)
-anim_save("animated_mp42.mp4", animated_mp42)
+anim_save(here::here("content/post/data/final/animated_mp42.mp4"), animated_mp42)
 
 ```
 
 
 Race all provinces!!
-```{r, include = F}
+```{r, include = F, eval =F}
 cum_data <-data  %>% 
   filter(annee_de_naissance  <= 1980) %>% 
   arrange(province_annee_de_naissance, province, annee_de_naissance, age) %>%
@@ -375,13 +376,7 @@ plot2canada <- graph_data %>%
 
 animated_mp42_canada <- animate(plot2canada, renderer = ffmpeg_renderer(),
                          nframes = 750, fps = 25, end_pause = 0, width = 1104, height = 736)
-anim_save("animated_mp42_canada.mp4", animated_mp42_canada)
-
-```
-
-
-```{r}
-
+anim_save(here::here("content/post/data/final/animated_mp42_canada.mp4"), animated_mp42_canada)
 
 ```
 

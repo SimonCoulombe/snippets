@@ -48,8 +48,7 @@ Data tables are displayed using the <code>DT</code> package.</p>
 </div>
 <div id="clean-data-and-prepare-for-geocoding" class="section level2">
 <h2>Clean data and prepare for geocoding</h2>
-<p>ents %&gt;%
-Here is a snapshot of the data as it was received
+<p>Here is a snapshot of the data as it was received
 <div id="htmlwidget-1" style="width:95%;height:480px;" class="widgetframe html-widget"></div>
 <script type="application/json" data-for="htmlwidget-1">{"x":{"url":"/post/2018-1-16-saaqmtq_files/figure-html//widgets/widget_snapshot.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script></p>
 <p>When preparing the car crash (“accidents”) data, we generate a factor variable
@@ -105,19 +104,18 @@ google maps API so that it can return us a latitude and a longitude.</p>
 </ul>
 <p>They also use landmarks (road crossings, etc..) to help locate the accident:</p>
 <ul>
-<li>TP_REPRR_ACCDN is the type of landmark.
-<ul>
+<li>TP_REPRR_ACCDN is the type of landmark.<br />
+</li>
 <li>1 means the intersection of two roads,<br />
 </li>
 <li>2 &quot; means “other landmark”<br />
 </li>
-<li>0 means the type is not specified.</li>
-</ul></li>
+<li><p>0 means the type is not specified.</p></li>
 <li>“ACCDN_PRES_DE” is the landmark that the type refers to. It can be the road that intersects the road named under “RUE_ACCDN”, a bridge, a school name, etc.<br />
 </li>
 <li>“NB_METRE_DIST_ACCD” is the distance in meters between the landmark and the accident.<br />
 </li>
-<li>“CD_PNT_CDRNL_REPRR” is the direction (North,South, East, Ouest) from the landmark to the accident.</li>
+<li><p>“CD_PNT_CDRNL_REPRR” is the direction (North,South, East, Ouest) from the landmark to the accident.</p></li>
 </ul>
 <p>Since most crashes involving pedestrians and bikes are located in the cities,
 the data typically contains the street civic number + street name or the name of
@@ -178,7 +176,7 @@ sane and maybe to generate additional questions for future projects.</p>
 <p><img src="/post/2018-1-16-saaqmtq_files/figure-html/evol_gravite-1.png" width="960" style="display: block; margin: auto;" /></p>
 </div>
 </div>
-<div id="results---geocoded-data" class="section level1">
+<div id="résults---geocoded-data" class="section level1">
 <h1>Résults - geocoded data</h1>
 <p>The rest of the analysis only involves the crashes that were successfully geocoded.</p>
 <div id="top-15-locations-with-the-most-crashes" class="section level2 tabset">
@@ -211,7 +209,7 @@ bikes in province de Québec between 2011 and 2016.</p>
 <!-- ``` -->
 </div>
 </div>
-<div id="results---leaflets" class="section level1">
+<div id="résults---leaflets" class="section level1">
 <h1>Résults - leaflets</h1>
 <div id="map-of-deadly-crashes" class="section level2">
 <h2>Map of deadly crashes</h2>

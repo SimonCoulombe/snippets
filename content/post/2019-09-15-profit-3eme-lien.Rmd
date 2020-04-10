@@ -70,6 +70,9 @@ library(mapview)
 library(leaflet)
 library(RColorBrewer)
 set.seed(1234)
+
+
+switch_generate_interim_data <- TRUE
 # Load shapefile secteurs municipaux enquête origine destination québec----
 sm <- st_read("data/raw/shp_eod_qc_2017/SM2017_Que_region.shp",  
               options = "ENCODING=windows-1252") %>%
@@ -86,7 +89,7 @@ tunnel_extremite_levis <- tibble(lat = 46.815 ,
 
 ```{r, echo = F}
 
-if(FALSE){
+if(switch_generate_interim_data){
    
    tictoc::tic()
    map_utilisation_predominante <- levis_anonymous %>% 

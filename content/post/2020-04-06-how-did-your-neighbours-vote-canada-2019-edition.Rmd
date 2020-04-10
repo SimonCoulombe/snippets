@@ -41,6 +41,8 @@ library(mapdeck)
 MAPBOX <- Sys.getenv("mapbox")
 library(mapview)
 library(rmapshaper)
+
+switch_generate_interim_data <- FALSE
 ```
 
 ```{r, include = F}
@@ -49,10 +51,10 @@ colors <- tibble(
   colour = c("#D71920", "#1A4782",  "#F37021", "#33B2CC", "#3D9B35","#CCCCCC" )
 )
 
-poll_results <- read_rds(here::here("content/post/data/interim/poll_results.rds"))
-poll_pop_shp <- read_rds(here::here("content/post/data/interim/poll_pop_shp.rds"))
-poll_shp_simple <- read_sf(here::here("content/post/data/interim/simple_election.shp"))
-shp_pr <- read_sf(here::here("content/post/data/interim/shp_pr.shp"))
+poll_results <- read_rds(here::here("content/post/data/interim/neighbours2019_poll_results.rds"))
+poll_pop_shp <- read_rds(here::here("content/post/data/interim/neighbours2019_poll_pop_shp.rds"))
+poll_shp_simple <- read_sf(here::here("content/post/data/interim/neighbours2019_poll_shp_simple.shp"))
+
 
 #Results map with ecoumene (drops about 400 poll stations, less than 1%)
 
@@ -97,7 +99,9 @@ widgetframe::frameWidget(mymap, height =600)
 ########################## END: EVALUATED PART FOR THE BLOG ############################################
 ```
 
-```{r, eval=  F}
+```{r}
+
+if(switch_generate_interim_data){
 ########################## BEGIN: DATA PREPARATION FOR THE BLOG, NOT EVALUATED ANYMORE ############################################
 
 
@@ -110,20 +114,19 @@ widgetframe::frameWidget(mymap, height =600)
 # 
 # I create a "pollid" variable by concatenating FED_NUM with  PD_NUM and PD_NBR_SFX.  Since I will be merging the shapefile with the election results, I want to have a single row for each pollid values.  Note that while PD_NBR_SFX is never missing, it is not added to pollid if its value is 0.  
 
-
-
 download.file("http://ftp.maps.canada.ca/pub/elections_elections/Electoral-districts_Circonscription-electorale/Elections_Canada_2019/polling_divisions_boundaries_2019.shp.zip",
               destfile =  here::here("content/post/data/downloads/", "polling_divisions_boundaries_2019.shp.zip")
 )
 utils::unzip(here::here("content/post/data/downloads/", "polling_divisions_boundaries_2019.shp.zip"),
              exdir = here::here("content/post/data/downloads/")
 )
-
+}
 ```
 
 
 
-```{r, eval=  F}
+```{r}
+if(switch_generate_interim_data){
 poll_shp_bak <- read_sf(here::here("content/post/data/downloads/","PD_CA_2019_EN.shp")) %>%
   mutate(pollid = 
            if_else(PDNUMSFX == 0, str_c(FEDNUM,PDNUM, sep= "_") , str_c(str_c(FEDNUM,PDNUM, sep= "_"), PDNUMSFX, sep= "-")))
@@ -141,8 +144,8 @@ poll_shp <- poll_shp_agg %>% select(pollid = Group.1) %>%
   st_cast( "MULTIPOLYGON") %>%
   st_cast("POLYGON") 
 
-write_rds(poll_shp, here::here("content/post/data/interim/poll_shp.rds")
-poll_shp <- read_rds(here::here("content/post/data/interim/poll_shp.rds")
+write_rds(poll_shp, here::here("content/post/data/interim/neighbours2019_poll_shp.rds"))
+poll_shp <- read_rds(here::here("content/post/data/interim/neighbours2019_poll_shp.rds"))
 
 # tictoc::tic() # code de dave cooley  https://twitter.com/vb_jens/status/1247640763648765952
 # geo <- geojsonsf::sf_geojson(poll_shp)
@@ -155,13 +158,14 @@ tictoc::tic()
 poll_shp_simple <- poll_shp %>% ms_simplify(keep_shapes = TRUE, explode = TRUE)
 tictoc::toc() # 78.836 sec elapsed
 poll_shp_simple <- poll_shp_simple %>% lwgeom::st_make_valid()
-st_write(poll_shp_simple, here::here("content/post/data/interim/simple_election.shp"), delete_dsn= TRUE)
-poll_shp_simple <- read_sf(here::here("content/post/data/interim/simple_election.shp"))
+st_write(poll_shp_simple, here::here("content/post/data/interim/neighbours2019_poll_shp_simple.shp"), delete_dsn= TRUE)
+poll_shp_simple <- read_sf(here::here("content/post/data/interim/neighbours2019_poll_shp_simple.shp"))
+}
 ```
 
-```{r, eval =F}
+```{r}
 ########################## BEGIN: 2- INTERSECT POLL BOUNDARIES WITH POPULATION ECUMENE   ############################################
-
+if(switch_generate_interim_data){
 #let's try and remove water.  first load the population ecumene and province polygons
 download.file("http://www12.statcan.gc.ca/census-recensement/2011/geo/bound-limit/files-fichiers/2016/lecu000e16a_e.zip",
               destfile =  here::here("content/post/data/downloads/", "lecu000e16a_e.zip")
@@ -181,7 +185,7 @@ shp_pr <- read_sf (here::here("content/post/data/downloads/lecu000e16a_e/",  "lp
   st_collection_extract(type  = "POLYGON")
 
 
-st_write(shp_pr, here::here("content/post/data/interim/shp_pr.shp"), delete_dsn= TRUE)
+st_write(shp_pr, here::here("content/post/data/interim/neighbours2019_shp_pr.shp"), delete_dsn= TRUE)
 
 # load population ecoumene  shapefile
 shp_pop <- read_sf (here::here("content/post/data/downloads/lecu000e16a_e/",  "lecu000e16a_e.shp"))   %>%
@@ -194,7 +198,7 @@ shp_pop <- read_sf (here::here("content/post/data/downloads/lecu000e16a_e/",  "l
 
 
 
-st_write(shp_pop, here::here("content/post/data/interim/shp_pop.shp"), delete_dsn= TRUE)
+st_write(shp_pop, here::here("content/post/data/interim/neighbours2019_shp_pop.shp"), delete_dsn= TRUE)
 # 
 # # Error in rcpp_cast_sf(sf, to, close) : Not compatible with requested type: [type=character; target=integer].
 # # erreur quand tu as des multipolygons au lieu de polygon
@@ -202,11 +206,13 @@ mapdeck(token = MAPBOX, style = mapdeck_style('light'))  %>% #  #
   add_polygon(data = shp_pop  %>% filter(ECUMENE == "1") ,
               fill_colour = "ECUMENE",
               legend = TRUE)
+}
 ```
 
-```{r, eval =F}
-#  get the intersection of poll shapes with population
 
+```{r}
+#  get the intersection of poll shapes with population
+if(switch_generate_interim_data){
 poll_pop_shp <- poll_shp_simple %>% sf::st_intersection(shp_pop)
 
 
@@ -215,16 +221,17 @@ poll_pop_shp <- poll_pop_shp %>%
     type = c("POLYGON")
   ) %>%
   st_cast("POLYGON")
-write_rds(poll_pop_shp ,here::here("content/post/data/interim/poll_pop_shp.rds"))
-poll_pop_shp <- read_rds(here::here("content/post/data/interim/poll_pop_shp.rds"))
+write_rds(poll_pop_shp ,here::here("content/post/data/interim/neighbours2019_poll_pop_shp.rds"))
+poll_pop_shp <- read_rds(here::here("content/post/data/interim/neighbours2019_poll_pop_shp.rds"))
 
-
+}
 ```
 
 
 
 
-```{r, eval = F}
+```{r}
+if(switch_generate_interim_data){
 # qui sont les perdus? (lets map them)
 pollids_apres <- extract %>% st_set_geometry(NULL) %>% distinct(pollid) %>% pull(pollid)
 pollids_avant <- poll_shp_simple %>% st_set_geometry(NULL) %>% distinct(pollid) %>% pull(pollid)
@@ -234,12 +241,12 @@ perdus <- pollids_avant[!(pollids_avant %in% pollids_apres)]
 
 poll_shp_simple %>% filter(pollid %in% perdus) %>% mapview
 
-
+}
 ```
 
-```{r, eval = F}
+```{r}
 ########################## BEGIN: 3- INTERSECT UNPOPULATED  POLL BOUNDARIES WITH LAND POLYGONS   ############################################
-
+if(switch_generate_interim_data){
 perdus_land_shp <- poll_shp_simple %>%
   filter(pollid %in% perdus)%>% 
   sf::st_intersection(shp_pr) %>% 
@@ -250,11 +257,12 @@ perdus_land_shp <- poll_shp_simple %>%
 
 # perdus et retrouvés 
 perdus_land_shp %>% mapview
+}
 ```
 
 
-```{r, eval = F}
-
+```{r}
+if(switch_generate_interim_data){
 # quels shp sont mêmep as retrouvés sur le fichier de land??  ce sont juste des iles..
 perdus_retrouves <- perdus_land_shp %>% st_set_geometry(NULL) %>% distinct(pollid) %>% pull(pollid)
 
@@ -262,14 +270,14 @@ toujours_perdus <- perdus[!(perdus %in% perdus_retrouves)]
 
 # qui sont les toujours perdus?
 poll_shp_simple %>% filter(pollid %in% toujours_perdus) %>% mapview
-
+}
 
 ```
 
 
-```{r, eval = F}
+```{r}
 ########################## BEGIN: 4-  COMBINE THREE POLYGON SOURCES (POLLS FOUND IN POPULATION ECUMENE +  POLLS FOUND IN LAND POLYGONS +  POLLS FOUND NOWHERE (typically islands) ############################################
-
+if(switch_generate_interim_data){
 cleanest_poll_shp <- sf::st_as_sf(
   data.table::rbindlist(
     list(
@@ -313,7 +321,7 @@ mymap <- mapdeck(token = MAPBOX, style = mapdeck_style('light'))  %>% #  #
 
 
 mymap
-
+}
 ```
 
 
@@ -360,8 +368,8 @@ mymap
 
 
 
-```{r, eval =F}
-
+```{r}
+if(switch_generate_interim_data){
 ########################## BEGIN: 5-  GET CIRCONSCRIPTION BOUNDARIES TO PUT AROUND POLL BOUNDARIES (not used) ############################################
 # get limites circonscriptons for map
 #https://ouvert.canada.ca/data/fr/dataset/5931f6f0-0008-4b0c-94d7-a1ff596182c5
@@ -374,6 +382,7 @@ utils::unzip(here::here("content/post/data/downloads/", "federal_electoral_distr
 )
 
 circonscriptions <- read_sf(here::here("content/post/data/downloads/", "FED_CA_2019_EN.shp"))
+}
 ```
 
 
@@ -381,8 +390,9 @@ circonscriptions <- read_sf(here::here("content/post/data/downloads/", "FED_CA_2
 
 
 
-```{r, eval = F}
+```{r}
 ########################## BEGIN: 6-  PREPARE POLL STATION RESULTS ############################################ 
+if(switch_generate_interim_data){
 # prepare polling station results   1/
 download.file("https://www.elections.ca/res/rep/off/ovr2019app/51/data_donnees/pollresults_resultatsbureauCanada.zip",
               destfile =  here::here("content/post/data/downloads/", "pollresults_resultatsbureauCanada.zip")
@@ -391,10 +401,12 @@ download.file("https://www.elections.ca/res/rep/off/ovr2019app/51/data_donnees/p
 utils::unzip(here::here("content/post/data/downloads/", "pollresults_resultatsbureauCanada.zip"),
              exdir = here::here("content/post/data/downloads/")
 )
+}
 ```
 
-```{r, eval=  F, message =F}
+```{r, message =F}
 # prepare polling station results   2/
+if(switch_generate_interim_data){
 result_files <- list.files(
   here::here("content/post/data/downloads/"),
   pattern = "pollresults*"
@@ -459,11 +471,13 @@ poll_results_bak <- z %>%
   bind_rows() %>%
   filter(poll_name != "SVR Group 1/RÉS Groupe 1",
          poll_name != "SVR Group 2/RÉS Groupe 2")
+}
 ```
 
 
 
-```{r results_for_poll_not_entirely_merged, eval=  F}
+```{r results_for_poll_not_entirely_merged}
+if(switch_generate_interim_data){
 # prepare polling station results   3/
 poll_rejects <- poll_results_bak %>% 
   filter(is.na(poll_merged_with))%>%
@@ -566,11 +580,13 @@ result_poll_parti_wide_unmerged <-
           TRUE ~ autre)))
 
 rm(poll_winner)
+}
 ```
 
 
-```{r results_for_poll_entirely_merged, eval=  F}
+```{r results_for_poll_entirely_merged}
 # prepare polling station results   4/
+if(switch_generate_interim_data){
 list_entirely_merged_polls <-  poll_results_bak  %>% select(FED_NUM, EMRP_NAME) %>%
   anti_join(poll_results_bak  %>% 
               filter(is.na(poll_merged_with)) %>%
@@ -591,12 +607,13 @@ results_entirely_merged_polls <- poll_results_bak %>%
               select(FED_NUM, 
                      poll_merged_with = EMRP_NAME,
                      everything()))
-
+}
 ```
 
 
-```{r combine_both_steps, eval= F}
+```{r combine_both_steps}
 # prepare polling station results   5/
+if(switch_generate_interim_data){
 poll_results <- bind_rows(result_poll_parti_wide_unmerged, 
                           results_entirely_merged_polls) %>%
   mutate(pollid = str_c(FED_NUM,EMRP_NAME, sep= "_"))
@@ -605,13 +622,14 @@ poll_results <- bind_rows(result_poll_parti_wide_unmerged,
 #   testthat::expect_equal(poll_results %>% count(pollid) %>% filter(n > 1) %>% count()  %>% pull(nn), 
 #                          0)})
 
-write_rds(poll_results, here::here("content/post/data/interim/poll_results.rds"))
+write_rds(poll_results, here::here("content/post/data/interim/neighbours2019_poll_results.rds"))
+}
 ```
 
-```{r, eval=  F}
+```{r}
 
 ########################## BEGIN: 7-  CREATE MAP WITH POLL STATION BOUNDARIES INSTEAD OF POPULATED AREAS BOUNDARIES (not used) ############################################ 
-
+if(switch_generate_interim_data){
 # # merge shp and results
 # 
 # 
@@ -670,5 +688,6 @@ tooltip = "my_tooltip"
 )
 
 widgetframe::frameWidget(zz, height =1000)
+}
 ```
 

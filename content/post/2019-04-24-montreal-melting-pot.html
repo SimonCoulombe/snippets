@@ -20,7 +20,134 @@ thumbnailImagePosition: left
 <p>At first glance, it appears that the immigrants in Montréal from France, Italy, China and Lebanon won’t run into each other very often. Immigrants from Haiti and Algeria and Morocco and both more likely to be found in the North of the island.</p>
 <p>For Quebec City, the pattern appears less clear. French people sure love the old city.</p>
 <p>As usual, the code is available on <a href="https://github.com/SimonCoulombe/snippets/blob/master/content/post/2019-04-24-montreal-melting-pot.Rmd">github</a></p>
+<pre class="r"><code>if (switch_generate_interim_data){
+region=search_census_regions(&quot;Montréal&quot;,&quot;CA16&quot;,level=&quot;CSD&quot;) %&gt;% as_census_region_list()
+
+variables &lt;- search_census_vectors(&quot;Total - Selected places of birth for the immigrant population in private households&quot;,&quot;CA16&quot;,&quot;Total&quot;) %&gt;% child_census_vectors(leaves_only=TRUE)
+mtl &lt;- get_census(&quot;CA16&quot;,regions=region,vectors=variables$vector,level=&quot;DA&quot;,labels=&quot;short&quot;,geo_format=&quot;sf&quot;) %&gt;% 
+  detail_labels %&gt;% 
+  clean_names()
+
+
+top10 &lt;- mtl[,13:67]
+st_geometry(top10) &lt;- NULL
+top10 %&gt;% summarise_all(sum, na.rm = TRUE) %&gt;% gather(key=key, value=value) %&gt;% arrange(-value) %&gt;% head(10)
+# 
+# # A tibble: 10 x 2
+# key                               value
+# &lt;chr&gt;                             &lt;dbl&gt;
+#   1 haiti                             75590
+# 2 other_places_of_birth_in_africa   73560
+# 3 france                            56650
+# 4 morocco                           54390
+# 5 algeria                           54345
+# 6 italy                             48830
+# 7 other_places_of_birth_in_americas 48695
+# 8 china                             43335
+# 9 other_places_of_birth_in_asia     39800
+# 10 lebanon                           35830
+
+mtl3 &lt;- mtl %&gt;% mutate(
+  oceania = oceania_and_other_places_of_birth,
+  asia=  afghanistan +                      bangladesh      +                  china      +                       hong_kong +                       
+   india       +                      iran     +                         iraq  +
+    japan  +            
+    korea_south+
+    lebanon                          +
+    pakistan        +
+    philippines +     
+    sri_lanka    +  
+    syria   +       
+    taiwan          + 
+    viet_nam   +   
+    other_places_of_birth_in_asia,
+  americas =  brazil +colombia + el_salvador + guyana +haiti+jamaica+mexico+peru+trinidad_and_tobago+united_states+other_places_of_birth_in_americas,
+  europe = bosnia_and_herzegovina +           croatia  +                        
+    france       +                     germany +                         greece   +                         hungary         +                 
+    ireland      +                     italy   +                          netherlands   +                    poland+                           
+    portugal+                          romania  +                         russian_federation    +            serbia+                           
+    ukraine  +                         united_kingdom +                   other_places_of_birth_in_europe ,
+  africa = algeria  +                        
+   egypt +                            ethiopia +                         kenya       +                      morocco  +                        
+   nigeria   +                        somalia   +                        south_africa_republic_of    +      other_places_of_birth_in_africa,
+  rest_of_americas = americas - haiti,
+  rest_of_europe = europe - france- italy,
+  rest_of_africa = africa - morocco - algeria,
+  rest_of_asia = asia - china - lebanon,
+  algeria_morocco = algeria + morocco
+  
+)
+
+categories &lt;- c(&quot;haiti&quot;, &quot;france&quot;, &quot;italy&quot;, &quot;algeria_morocco&quot;,  &quot;china&quot;, &quot;lebanon&quot; )
+
+#  cookbook check for na
+# mtl4 %&gt;% 
+#   select_if(function(x) any(is.na(x))) %&gt;% 
+#   summarise_each(funs(sum(is.na(.)))) -&gt; extra_NA
+# extra_NA
+# mtl4 %&gt;% filter(is.na(rest_of_americas))
+
+bbox=sf::st_bbox(mtl3 %&gt;% sf::st_sf())
+
+rmapzen::mz_set_tile_host_nextzen(Sys.getenv(&quot;nextzen_api_key&quot;))
+mx_box=rmapzen::mz_rect(bbox$xmin,bbox$ymin,bbox$xmax,bbox$ymax)
+vector_tiles &lt;- rmapzen::mz_vector_tiles(mx_box) 
+
+# vector tiles return all layers (roads, water, buildings, etc) in a list
+roads &lt;- rmapzen::as_sf(vector_tiles$roads) %&gt;% dplyr::filter(kind != &quot;ferry&quot;)
+water &lt;- rmapzen::as_sf(vector_tiles$water)
+
+dots &lt;- compute_dots(mtl3 %&gt;% filter(!is.na(haiti)),categories,scale=20) %&gt;%
+  rename(place_of_birth=Category)
+
+bg_color=&quot;#111111&quot;
+text_color = bg_color
+
+myplot &lt;- ggplot() + 
+  geom_sf(data = water, fill = &quot;grey&quot;, colour = NA) +
+  geom_sf(data = roads, size = .2, colour = &quot;grey&quot;) +
+  geom_sf(data=dots , aes(color=place_of_birth),alpha=0.75,size=0.05,show.legend = &quot;point&quot;) +
+  facet_wrap(~place_of_birth)+ 
+  #ggthemes::theme_map()  + 
+  map_theme + 
+  scale_color_brewer(palette = &quot;Set1&quot;) + 
+  labs(title=&quot;Population immigrante de Montréal selon le pays de naissance&quot;,subtitle=&quot;1 point = 20 personnes&quot;)+ 
+  theme(legend.position=&quot;bottom&quot;,
+        panel.background = element_rect(fill = bg_color, colour = NA),
+        plot.background = element_rect(fill=&quot;white&quot;, size=1,linetype=&quot;solid&quot;,color=text_color)
+  ) + 
+  guides(colour = guide_legend(override.aes = list(size=3))) +
+  coord_sf(datum=st_crs(mtl),
+           expand=FALSE,
+           xlim=c(bbox$xmin,bbox$xmax),
+           ylim=c(bbox$ymin,bbox$ymax))
+
+
+ggsave(filename=  here::here(&quot;static/post/2019-04-24-montreal-melting-pot_files&quot; , &quot;place_of_birth.png&quot;), plot = myplot, width=11,height=11) 
+}</code></pre>
 <p><img src="/post/2019-04-24-montreal-melting-pot_files/place_of_birth.png" /></p>
-<p><img src="/post/2019-04-24-montreal-melting-pot_files/place_of_birth_quebec.png" /></p>
+<pre class="r"><code>if (switch_generate_interim_data){
+myplot_nofacet &lt;- ggplot() + 
+  geom_sf(data = water, fill = &quot;grey&quot;, colour = NA) +
+  geom_sf(data = roads, size = .2, colour = &quot;grey&quot;) +
+  geom_sf(data=dots , aes(color=place_of_birth),alpha=0.75,size=0.05,show.legend = &quot;point&quot;) +
+  #ggthemes::theme_map()  + 
+  map_theme + 
+  scale_color_brewer(palette = &quot;Set1&quot;) + 
+  labs(title=&quot;Population immigrante de Montréal selon le pays de naissance&quot;,subtitle=&quot;1 point = 20 personnes&quot;)+ 
+  theme(legend.position=&quot;bottom&quot;,
+        panel.background = element_rect(fill = bg_color, colour = NA),
+        plot.background = element_rect(fill=&quot;white&quot;, size=1,linetype=&quot;solid&quot;,color=text_color)
+  ) + 
+  guides(colour = guide_legend(override.aes = list(size=3))) +
+  coord_sf(datum=st_crs(mtl),
+           expand=FALSE,
+           xlim=c(bbox$xmin,bbox$xmax),
+           ylim=c(bbox$ymin,bbox$ymax))
+
+
+ggsave(filename=  here::here(&quot;static/post/2019-04-24-montreal-melting-pot_files&quot; , &quot;place_of_birth_mtl_nofacet.png&quot;), plot = myplot, width=11,height=11) 
+}</code></pre>
 <p><img src="/post/2019-04-24-montreal-melting-pot_files/place_of_birth_mtl_nofacet.png" /></p>
+<p><img src="/post/2019-04-24-montreal-melting-pot_files/place_of_birth_quebec.png" /></p>
 {{% tweet "1121110189590110212" %}}

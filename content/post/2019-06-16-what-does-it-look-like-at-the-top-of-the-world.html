@@ -349,13 +349,12 @@ st_layers(gpx_file)     </code></pre>
 ## 4 route_points             Point      544     25
 ## 5 track_points             Point        0     26</code></pre>
 <pre class="r"><code>everest_gpx &lt;- st_read(gpx_file, layer = my_layer) %&gt;% st_transform(., &quot;+proj=longlat +datum=WGS84&quot;) </code></pre>
-<pre><code>## Reading layer `route_points&#39; from data source `/home/simon/git/snippets2/content/post/data/raw/killian.gpx&#39; using driver `GPX&#39;
+<pre><code>## Reading layer `route_points&#39; from data source `/home/simon/git/snippets/content/post/data/raw/killian.gpx&#39; using driver `GPX&#39;
 ## Simple feature collection with 544 features and 25 fields
 ## geometry type:  POINT
 ## dimension:      XY
 ## bbox:           xmin: 86.85482 ymin: 27.98833 xmax: 86.94487 ymax: 28.13559
-## epsg (SRID):    4326
-## proj4string:    +proj=longlat +datum=WGS84 +no_defs</code></pre>
+## CRS:            4326</code></pre>
 <pre class="r"><code>bbox &lt;- st_bbox(everest_gpx)
 bbox[&quot;xmin&quot;] &lt;- bbox$xmin - 0.1   # add buffer around path
 bbox[&quot;xmax&quot;] &lt;- bbox$xmax + 0.1

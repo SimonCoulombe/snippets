@@ -13,7 +13,7 @@ keywords:
 thumbnailImage: "/post/2019-04-30-quebec-floodable-areas-could-use-an-update_files/Screenshot_20190430_101705.png" 
 thumbnailImagePosition: left
 ---
-
+UPDATE 2020: addr.country,  n'existe plus dans les buildings de osm data.  aussi il faut faire st_collection_extract(type="POLYGON") car mes intersections ont commencé à retourner des geometry collection
 This morning I heard an annoucement from the provincial government telling me that preparing for floods is my responsibility, that I should check if my house is in a floodable area and that I should visit quebec.ca/inondations for more information.
 
 We currently have multiple major flooding events in the city of Gatineau.  I used open data about buildings (package osmdata), [floodable area](https://www.donneesquebec.ca/recherche/fr/dataset/vgat-zones-inondables-norme-v1) and [flooded areas](https://www.donneesquebec.ca/recherche/fr/dataset/cartographie-des-inondations-printemps-2019) to figure out what percentage of flooded homes actually are in a floodable area.  Turns out that more than half of the flooded homes were outside the floodable areas and had no reason to prepare.  
@@ -49,25 +49,26 @@ library(sf)
 library(leaflet) # slippy maps
 library(rmapzen) # static map  with nice tiles
 library(furrr) # multicore mapping
+plan(multiprocess, workers = availableCores()-1)
 library(jsonlite) # load json
 library(lwgeom) # st_make_valid for zone in ondable
 library(widgetframe) # add leaflets to blog
 library(tictoc) # timing of long process
 
-switch_prep_data <- FALSE
+switch_generate_interim_data <- FALSE
 ```
 
 ```{r floodable_areas, echo=F,  include = F}
 
-if(switch_prep_data){
+if(switch_generate_interim_data){
 # zones inondables  ----
 # https://www.donneesquebec.ca/recherche/fr/dataset/vgat-zones-inondables-norme-v1
 
 download.file("http://www.gatineau.ca/upload/donneesouvertes/Zones%20inondables%20norme.json",
-              destfile = "temp_files/zones_inondables_norme.json")
+              destfile = here::here("content/post/data/downloads/zones_inondables_norme.json"))
 
 
-inondable <- st_read("temp_files/zones_inondables_norme.json")  #%>% 
+inondable <- st_read(here::here("content/post/data/downloads/zones_inondables_norme.json"))  #%>% 
 # leaflet ne fonctionne plus apres st_make_valid parce que ça crée des geometrrycollections
 # c'est facile de convertir les geometrycollections to multipolygons avec st_cast
 # mais la conversion plante car certains polygons sont pas valides..   Une solution est de dropper les 2 lignes de inondables pour
@@ -84,26 +85,26 @@ inondable3_type <- inondable2 %>%  group_by(TYPE) %>% summarise(dummy= 1) %>% se
 # %>%
 #      mutate( dummy = 1 ) %>% group_by(dummy) %>% summarise(dummy2= 1)
 
-write_rds(inondable3, "temp_files/inondable3.rds")
-write_rds(inondable3_type, "temp_files/inondable3_type.rds")
+write_rds(inondable3, here::here("content/post/data/interim", "inondable3.rds"))
+write_rds(inondable3_type, here::here("content/post/data/interim/","inondable3_type.rds"))
 } else {
-  inondable3 <- read_rds("temp_files/inondable3.rds")
-  inondable3_type <- read_rds("temp_files/inondable3_type.rds")
+  inondable3 <- read_rds(here::here("content/post/data/interim/", "inondable3.rds"))
+  inondable3_type <- read_rds(here::here("content/post/data/interim/", "inondable3_type.rds"))
 }
 ```
 
 
 ```{r flooded_area, echo=F,  include = F}
 
-if(switch_prep_data){
+if(switch_generate_interim_data){
 # actual flooded area, April 29th ----
 download.file("https://www.donneesquebec.ca/recherche/fr/dataset/df99bb67-317c-435b-8f9a-50de5fa9729a/resource/53ecf495-9320-47b4-9c9f-7edb9cbba0c5/download/mspinondations2019eaulibre20190427.zip",
-              destfile= "temp_files/mspinondations2019eaulibre20190427.zip")
-utils::unzip("temp_files/mspinondations2019eaulibre20190427.zip",
-             exdir = "temp_files/")
+              destfile= here::here("content/post/data/downloads/", "mspinondations2019eaulibre20190427.zip"))
+utils::unzip(here::here("content/post/data/downloads/", "mspinondations2019eaulibre20190427.zip"),
+             exdir = here::here("content/post/data/downloads/"))
 
 # sf_inond = inondation sf data frame
-sf_inond <- sf::st_read("temp_files/msp_inondations2019_eaulibre.shp") %>%
+sf_inond <- sf::st_read(here::here("content/post/data/downloads/", "msp_inondations2019_eaulibre.shp")) %>%
   sf::st_transform( crs = 4326)
 
 # data_inond = remove geometry ( faster calculations, skim, etc.)
@@ -122,9 +123,9 @@ inond <- sf_inond %>%
 # dissolve the polygons into 1 large  multipolygon
 flooded_area <- inond %>% group_by(secteur) %>% 
   summarise(m =2 ) 
-write_rds(flooded_area, "temp_files/flooded_area.rds")
+write_rds(flooded_area, here::here("content/post/data/interim/", "flooded_area.rds"))
 } else {
-  flooded_area <- read_rds("temp_files/flooded_area.rds")
+  flooded_area <- read_rds(here::here("content/post/data/interim/", "flooded_area.rds"))
 }
 
 ```
@@ -132,23 +133,23 @@ write_rds(flooded_area, "temp_files/flooded_area.rds")
 
 ```{r buildings, , echo=F,  include = F}
 #  buildings data ----
-if(switch_prep_data){
+if(switch_generate_interim_data){
 
 bbox <- st_bbox(flooded_area)
-#   
-# buildings_list <- opq(bbox = bbox) %>%
-#    add_osm_feature(key = 'building') %>%
-#    osmdata_sf()
-# 
-# write_rds(buildings_list, "temp_files/buildings_list.rds")
-buildings_list <- read_rds( "temp_files/buildings_list.rds")
+
+buildings_list <- opq(bbox = bbox) %>%
+   add_osm_feature(key = 'building') %>%
+   osmdata_sf()
+
+write_rds(buildings_list, here::here("content/post/data/interim/", "buildings_list.rds"))
+buildings_list <- read_rds( here::here("content/post/data/interim/", "buildings_list.rds"))
 
 
 avec_adresse <- map(buildings_list[ c(4,5,6,8)],~ .x %>%   # 4 to 8 = points, lines, polygons, multilines multipolygons
                       # mais 7 = multilines = null
                       
                       filter(addr.city == "Gatineau")   %>% 
-                      select(osm_id, name, addr.city, addr.country, 
+                      select(osm_id, name, addr.city, # EDIT 2020: addr.country,  n'existe plus
                              addr.housenumber,
                              addr.postcode  , addr.source,  addr.street, source))
 
@@ -158,9 +159,9 @@ all_builds <- rbind(avec_adresse[[1]], avec_adresse[[2]], avec_adresse[[3]], ave
 
 names(st_geometry(all_builds )) = NULL
 
-write_rds(all_builds, "temp_files/all_builds.rds")
+write_rds(all_builds, here::here("content/post/data/interim/", "all_builds.rds"))
 } else {
-  all_builds <- read_rds("temp_files/all_builds.rds")
+  all_builds <- read_rds(here::here("content/post/data/interim/", "all_builds.rds"))
 }
 
 ```
@@ -168,7 +169,7 @@ write_rds(all_builds, "temp_files/all_builds.rds")
 
 ```{r flooded_buildings, echo=F,  include = F}
 # get flooded buildings ----
-if(switch_prep_data){
+if(switch_generate_interim_data){
 #chunks pour voir quels buildings sot floodés
 chunks <- tibble(osm_id = all_builds$osm_id) %>%  mutate (chunk = row_number() %% 24) %>% 
   group_by(chunk) %>% nest()
@@ -189,14 +190,14 @@ z <- chunks %>%
   
   ))
 toc()
-write_rds(z, "temp_files/z.rds")
-z <- read_rds("temp_files/z.rds")
+write_rds(z, here::here("content/post/data/interim/", "z.rds"))
+z <- read_rds(here::here("content/post/data/interim/", "z.rds"))
 
 # keep only flooded buildings
 flooded_buildings  <- all_builds %>% inner_join(bind_rows(z$newdata)%>% filter(flooded == TRUE))
-write_rds(flooded_buildings, "temp_files/flooded_buildings.rds")
+write_rds(flooded_buildings, here::here("content/post/data/interim/", "flooded_buildings.rds"))
 } else {
-  flooded_buildings <- read_rds("temp_files/flooded_buildings.rds")
+  flooded_buildings <- read_rds(here::here("content/post/data/interim/", "flooded_buildings.rds"))
 }
 
 ```
@@ -204,7 +205,7 @@ write_rds(flooded_buildings, "temp_files/flooded_buildings.rds")
 
 ```{r were_flooded_buildings_floodable, echo=F,  include = F}
 
-if(switch_prep_data){
+if(switch_generate_interim_data){
 # parmi les flooded_buildings, qui était zoné inondable? ----
 chunks2 <- tibble(osm_id = flooded_buildings$osm_id) %>%  mutate (chunk = row_number() %% 24) %>% 
   group_by(chunk) %>% nest()
@@ -229,15 +230,15 @@ flooded_floodable <- flooded_buildings %>%
   left_join(bind_rows(zz$newdata)) %>% 
   mutate(zone_inondable= ifelse(inondable, "Inondable", "Pas zoné inondable"))
 
-write_rds(flooded_floodable, "temp_files/flooded_floodable.rds")
+write_rds(flooded_floodable, here::here("content/post/data/interim/", "flooded_floodable.rds"))
 } else {
-  flooded_floodable <- read_rds("temp_files/flooded_floodable.rds")
+  flooded_floodable <- read_rds(here::here("content/post/data/interim/", "flooded_floodable.rds"))
 }
 
 ```
 
 ```{r split_flood_in_floodable_areas, echo=F, include= F}
-if(switch_prep_data){
+if(switch_generate_interim_data){
 inondation_zone20 <- st_intersection(flooded_area, inondable3_type %>% filter(TYPE == "20"))%>% 
   mutate(inondable = "20 ans")
 
@@ -250,9 +251,9 @@ inondations <- rbind(inondation_zone20 %>% select(secteur, inondable),
                      inondation_zone100 %>% select(secteur, inondable), 
                      inondation_paszone %>% select(secteur, inondable)) 
 
-write_rds(inondations, "temp_files/inondations.rds")
+write_rds(inondations, here::here("content/post/data/interim/", "inondations.rds"))
 } else {
-  inondations <- read_rds("temp_files/inondations.rds")
+  inondations <- read_rds(here::here("content/post/data/interim/", "inondations.rds"))
 }
 
 ```
@@ -270,11 +271,11 @@ pal <- colorFactor("viridis", c("Inondable", "Pas zoné inondable"), reverse = T
 pal2 <- colorFactor(c("deepskyblue", "deepskyblue2", "deepskyblue4"), c("20 ans", "100 ans","Non-inondable" ))
 
 mymap <- leaflet(flooded_floodable) %>%  addProviderTiles(providers$CartoDB.Positron) %>% 
-  addPolygons(data= inondations,color = ~pal2(inondable), 
+  addPolygons(data= inondations %>% st_collection_extract(type="POLYGON"),color = ~pal2(inondable),
               label = ~ inondable,
-              weight = 0, 
+              weight = 0,
               fillOpacity = 0.8 ) %>%
-  addPolygons(data= flooded_floodable ,
+  addPolygons(data= flooded_floodable  %>% st_collection_extract(type="POLYGON") ,
               color = ~pal(zone_inondable),
               label = ~ paste0( addr.housenumber, " ", addr.street , ",  ", zone_inondable) ) %>%
   addLegend("bottomright", data= flooded_floodable, pal = pal, values = ~zone_inondable,

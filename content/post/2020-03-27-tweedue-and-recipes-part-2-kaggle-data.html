@@ -48,6 +48,8 @@ library(vroom) # for quick reading of csv
 library(fst) # for quick saving of tables
 library(MLmetrics) # for normalized gini </code></pre>
 <pre class="r"><code># kaggle claim data from https://www.kaggle.com/c/ClaimPredictionChallenge/daatre
+
+if(FALSE){
 kaggle_train &lt;- vroom::vroom(here::here(&quot;content/post/data/downloads/train_set.csv&quot;)) %&gt;%
   select(-Row_ID, -Household_ID, -Vehicle)
 
@@ -62,21 +64,24 @@ train_1e5_split &lt;-  rsample::initial_split(train, prop = 0.01) # 1e5 obs used
 train_1e5 &lt;- rsample::training(train_1e5_split)
 
 
-fst::write_fst(train, &quot;train.fst&quot;)
-fst::write_fst(train_1e5, &quot;train_1e5.fst&quot;)
-fst::write_fst(test, &quot;test.fst&quot;)
+fst::write_fst(train, here::here(&quot;content/post/data/interim/claims_train.fst&quot;))
+fst::write_fst(train_1e5, here::here(&quot;content/post/data/interim/claims_train_1e5.fst&quot;))
+fst::write_fst(test, here::here(&quot;content/post/data/interim/claims_test.fst&quot;))
 
 
 rm(list=ls()) # clear memory of object but keep libraries.
-invisible(gc())</code></pre>
+invisible(gc())
+
+}</code></pre>
 </div>
 <div id="prepare-recipe" class="section level1">
 <h1>Prepare recipe</h1>
 <p>Here we only load the train dataset because of memory issues.</p>
 <p>step_string2factor(all_nominal()) is required because step_knnimpute() doesnt work with character columns.</p>
 <p>I used head(1e4) to “train” the recipe because otherwise it take even longer. I was concerned of doing this: what happens if a factor isnt present in the first 1e4 rows? Will it crash? I did a few tests and unknown factor levels are considered as NA and imputed using knn. It’s <strong>nice</strong>!.</p>
-<pre class="r"><code>tic()
-train &lt;- read_fst(&quot;train_1e5.fst&quot;) # , from =1, to = 1e6
+<pre class="r"><code>if(FALSE){
+tic()
+train &lt;- read_fst(here::here(&quot;content/post/data/interim/claims_train_1e5.fst&quot;)) # , from =1, to = 1e6
 
 
 rec &lt;-  recipes::recipe(Claim_Amount ~ ., 
@@ -95,47 +100,49 @@ rec &lt;-  recipes::recipe(Claim_Amount ~ .,
 # Prepare the recipe and use juice/bake to get the d2ata!
 trained_rec &lt;- prep(rec)
 
-write_rds(trained_rec, &quot;trained_rec.rds&quot;)
+write_rds(trained_rec, here::here(&quot;content/post/data/interim/claims_trained_rec.rds&quot;))
 
 rm(train_1e5)
 
 
-train &lt;- read_fst(&quot;train.fst&quot;)
+train &lt;- read_fst(here::here(&quot;content/post/data/interim/claims_train.fst&quot;))
 train &lt;- bake(trained_rec, new_data =   train )
 
-
-
-
-write_fst(train, &quot;baked_train.fst&quot;)
+write_fst(train, here::here(&quot;content/post/data/interim/claims_baked_train.fst&quot;))
 
 
 toc() # 190.161 sec elapsed for 1e6 train , 1e4prep   # 2017.908 sec elapsed sur train complet (10M) et prep 1e5
 
 rm(list=ls()) # clear memory of object but keep libraries.
-invisible(gc())</code></pre>
-<pre class="r"><code>train &lt;- read_fst(&quot;baked_train.fst&quot;)
+invisible(gc())
+}</code></pre>
+<pre class="r"><code>if(FALSE){
+train &lt;- read_fst(here::here(&quot;content/post/data/interim/claims_baked_train.fst&quot;))
 
 train_3e6_split &lt;-  rsample::initial_split(train, prop = 0.3)
 
 train_3e6 &lt;- rsample::training(train_3e6_split)
-fst::write_fst(train_3e6, &quot;baked_train_3e6.fst&quot;)
+fst::write_fst(train_3e6, here::here(&quot;content/post/data/interim/claims_baked_train_3e6.fst&quot;))
 rm(train3e6)
 rm(train3e6_split)
 train_6e6_split &lt;-  rsample::initial_split(train, prop = 0.6)
 train_6e6 &lt;- rsample::training(train_6e6_split)
 
-fst::write_fst(train_6e6, &quot;baked_train_6e6.fst&quot;)
+fst::write_fst(train_6e6, here::here(&quot;content/post/data/interim/claims_baked_train_6e6.fst&quot;))
 
 
 
 rm(list=ls()) # clear memory of object but keep libraries.
-invisible(gc())</code></pre>
+invisible(gc())
+}</code></pre>
 </div>
 <div id="train-xgboost" class="section level1">
 <h1>Train XGBoost</h1>
 <div id="find-best-number-of-iterations" class="section level2">
 <h2>find best number of iterations</h2>
-<pre class="r"><code>train &lt;- read_fst( &quot;baked_train_3e6.fst&quot;, from = 1, to = 6e6)
+<pre class="r"><code>if(FALSE){
+
+train &lt;- read_fst( here::here(&quot;content/post/data/interim/claims_baked_train_3e6.fst&quot;), from = 1, to = 6e6)
 
 xgtrain &lt;- xgb.DMatrix(as.matrix(train %&gt;% select(-Claim_Amount)),  
                        label = train$Claim_Amount
@@ -166,22 +173,22 @@ xgcv &lt;- xgb.cv(
 
 
 best_iter &lt;- xgcv$best_iteration # 310, 3 folds, 3e6 obs
-write_rds(best_iter, &quot;best_iter.rds&quot;)
+write_rds(best_iter, here::here(&quot;content/post/data/interim/claims_best_iter.rds&quot;))
 
 rm(list=ls()) # clear memory of object but keep libraries.
 invisible(gc())
-
-
-toc()</code></pre>
-<pre class="r"><code>tic()
-train &lt;- read_fst( &quot;baked_train_6e6.fst&quot;, from = 1, to = 6e6)
+toc()
+}</code></pre>
+<pre class="r"><code>if(FALSE){
+tic()
+train &lt;- read_fst( here::here(&quot;content/post/data/interim/claims_baked_train_6e6.fst&quot;), from = 1, to = 6e6)
 
 xgtrain &lt;- xgb.DMatrix(as.matrix(train %&gt;% select(-Claim_Amount)),  
                        label = train$Claim_Amount
 )
 rm(train) # save memory
 
-best_iter &lt;- read_rds(&quot;best_iter.rds&quot;)
+best_iter &lt;- read_rds(here::here(&quot;content/post/data/interim/claims_best_iter.rds&quot;))
 
 
 params &lt;-list(
@@ -206,30 +213,32 @@ xgmodel &lt;- xgboost::xgb.train(
   #nthread = parallel::detectCores() - 1
 )
 
-write_rds(xgmodel, &quot;xgmodel.rds&quot;)
+write_rds(xgmodel, here::here(&quot;content/post/data/interim/xgmodel.rds&quot;))
 
 
 rm(list=ls()) # clear memory of object but keep libraries.
 invisible(gc())
 
-toc()</code></pre>
-<pre><code>## 269.068 sec elapsed</code></pre>
+toc()
+}</code></pre>
 </div>
 </div>
 <div id="apply-recipe-to-test-data" class="section level1">
 <h1>Apply recipe to test data</h1>
-<pre class="r"><code>trained_rec &lt;- read_rds(&quot;trained_rec.rds&quot;)
-test &lt;- fst::read_fst( &quot;test.fst&quot;)
+<pre class="r"><code>if(FALSE){
+trained_rec &lt;- read_rds(here::here(&quot;content/post/data/interim/claims_trained_rec.rds&quot;))
+test &lt;- fst::read_fst( here::here(&quot;content/post/data/interim/claims_test.fst&quot;))
 test &lt;-  bake(trained_rec, new_data = test)
-write_fst(test, &quot;baked_test.fst&quot;)
+write_fst(test, here::here(&quot;content/post/data/interim/claims_baked_test.fst&quot;))
 
 rm(list=ls()) # clear memory of object but keep libraries.
-invisible(gc())</code></pre>
+invisible(gc())
+}</code></pre>
 </div>
 <div id="predict-xgboost" class="section level1">
 <h1>Predict XGBoost</h1>
-<pre class="r"><code>xgmodel &lt;- read_rds(&quot;xgmodel.rds&quot;)
-test &lt;- read_fst( &quot;baked_test.fst&quot;)
+<pre class="r"><code>xgmodel &lt;- read_rds(here::here(&quot;content/post/data/interim/claims_xgmodel.rds&quot;))
+test &lt;- read_fst( here::here(&quot;content/post/data/interim/claims_baked_test.fst&quot;))
 xgtest &lt;- xgb.DMatrix(as.matrix(test  %&gt;% select(-Claim_Amount)),  
                       label = test$Claim_Amount
 )
@@ -244,11 +253,11 @@ test_w_preds &lt;-
 
 rm(test)
 mean(test_w_preds$Claim_Amount) # 1.334191</code></pre>
-<pre><code>## [1] 1.334191</code></pre>
+<pre><code>## [1] 1.376243</code></pre>
 <pre class="r"><code>mean(test_w_preds$pred_claim_xgboost) #  1.331216</code></pre>
-<pre><code>## [1] 1.283746</code></pre>
+<pre><code>## [1] 1.29676</code></pre>
 <pre class="r"><code>MLmetrics::NormalizedGini(test_w_preds$pred_claim_xgboost, test_w_preds$Claim_Amount) # 0.127837    would have ranked 16 / 102 back in 2012.. not excellent .. but it works</code></pre>
-<pre><code>## [1] 0.1190057</code></pre>
+<pre><code>## [1] 0.1089691</code></pre>
 <pre class="r"><code>#&#39; @title add_equal_weight_group()
 #&#39;
 #&#39; @description Cette fonction crée des groupe (quantiles) avec le nombre nombre total d&#39;exposition.

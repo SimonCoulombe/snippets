@@ -25,15 +25,21 @@ thumbnailImagePosition: left
 <div id="functions" class="section level1">
 <h1>Functions</h1>
 <p>I created three functions that wrap around the <code>cancensus</code> package:</p>
-<p><code>get_cancensus_pct</code> takes a parent vector and a generation level (first or last) for the children vectors and return a dataframe showing the percentage each child vectors represents at the geographic level specified.<br />
-<code>get_cancensus_labels</code> takes a parent vector and a generation level (first or last) for the children vectors and return the labels for the parent and children vectors.<br />
-<code>get_cancensus_data</code> build on these two functions. It takes a vector of parent vectors names and a generation level and returns a list of three objectS:</p>
+<p><code>get_cancensus_pct</code> takes a parent vector and a generation level (first or last) for
+the children vectors and return a dataframe showing the percentage each child vectors represents
+at the geographic level specified.<br />
+<code>get_cancensus_labels</code> takes a parent vector and a generation level (first or last) for
+the children vectors and return the labels for the parent and children vectors.<br />
+<code>get_cancensus_data</code> build on these two functions. It takes a vector of parent
+vectors names and a generation level and returns a list of three objectS:</p>
 <ul>
 <li>a dataframe with the percentages</li>
 <li>a dictionnary showing which child are contained in each parent vector</li>
 <li>a list of the parent vectors.</li>
 </ul>
-<p>Finally, the <code>wrapper</code> function automatically adds line changes to strings after a certain length, allowing titles to fit inside ggplot. I borrowed it from the internet a while ago.</p>
+<p>Finally, the <code>wrapper</code> function automatically adds line changes to
+strings after a certain length, allowing titles to fit inside ggplot.
+I borrowed it from the internet a while ago.</p>
 </div>
 <div id="code-snippets-i-will-be-coming-back-to-this-script-for" class="section level1">
 <h1>Code snippets I will be coming back to this script for</h1>
@@ -56,7 +62,8 @@ thumbnailImagePosition: left
 <p>Getting the census data and shapefile is pretty straightforward when done using the <code>cancensus</code> package. “v_CA16_5051” is the highest level of schooling.</p>
 <p>We download the census data at the Dissemination Area (DA) level, which is the smallest geographical level for which Statistics Canada will release data. Its population is between 400-700 persons.</p>
 <p>Once we have the DA data, we find the intersection between the DA and the poll sections.<br />
-Lines that should be identical in both files are not always 100% accurate, which leads to small intersection between polygons that should not intersect. To prevent this, I ignore intersections that represent less than 10% of either the DA or poll polygon.</p>
+Lines that should be identical in both files are not always 100% accurate, which leads to small intersection between polygons that should not intersect. To prevent this,
+I ignore intersections that represent less than 10% of either the DA or poll polygon.</p>
 <p>We then distribute the DA population to the polls. We make three important assumptions:</p>
 <ul>
 <li>elector population is proportional to total populattion (we should use population aged 18+ at the very least)<br />
@@ -76,7 +83,8 @@ Lines that should be identical in both files are not always 100% accurate, which
 </div>
 <div id="results" class="section level1">
 <h1>Results</h1>
-<p>Finally, we make scatter plots showing the relationship between the level of schooling of the poll and the results of the three main parties. Each dot represents one polling station. I have broken down the poll between the 10 provinces and the 3 territories to see if the trends hold between different areas.</p>
+<p>Finally, we make scatter plots showing the relationship between the level of
+schooling of the poll and the results of the three main parties. Each dot represents one polling station. I have broken down the poll between the 10 provinces and the 3 territories to see if the trends hold between different areas.</p>
 <p>Province codes:</p>
 <ul>
 <li>10 Newfoundland and Labrador<br />

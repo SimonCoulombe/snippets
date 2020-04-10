@@ -46,6 +46,8 @@ library(tmap)
 library(widgetframe) # add leaflets to blog
 library(htmltools) # tags pour leaflet title
 library(leaflet)
+
+switch_generate_interim_data <- FALSE
 ```
 
 
@@ -65,29 +67,29 @@ En ce qui me concerne, je vais probablement revenir à ce post pour pouvoir réu
 
 ```{r, include= F}
 
-if (FALSE){
+if (switch_generate_interim_data){
   download.file(
     url = "https://www.transports.gouv.qc.ca/fr/ministere/Planification-transports/enquetes-origine-destination/quebec/2017/Documents/EnqOD_QUE2017_Matrices_SM.XLSX",
-    destfile = here::here("content/post/temp_files/", "EnqOD_QUE2017_Matrices_SM.XLSX")
+    destfile = here::here("content/post/data/downloads/", "EnqOD_QUE2017_Matrices_SM.XLSX")
   )
   download.file(
     url = "http://www12.statcan.gc.ca/census-recensement/2011/geo/bound-limit/files-fichiers/2016/lsdr000b16a_f.zip",
-    destfile = here::here("content/post/temp_files/", "lsdr000b16a_f.zip")
+    destfile = here::here("content/post/data/downloads/", "lsdr000b16a_f.zip")
   )
   
   download.file(
     url = "http://www12.statcan.gc.ca/census-recensement/2011/geo/bound-limit/files-fichiers/2016/lsr_000b16a_f.zip",
-    destfile = here::here("content/post/temp_files/", "lsr_000b16a_f.zip")
+    destfile = here::here("content/post/data/downloads/", "lsr_000b16a_f.zip")
   )
   
   utils::unzip(
-    here::here("content/post/temp_files/", "lsdr000b16a_f.zip"),
-    exdir= here::here("content/post/temp_files/")
+    here::here("content/post/data/downloads/", "lsdr000b16a_f.zip"),
+    exdir= here::here("content/post/data/downloads/")
   )
   
   utils::unzip(
-    here::here("content/post/temp_files/", "lsr_000b16a_f.zip"),
-    exdir= here::here("content/post/temp_files/")
+    here::here("content/post/data/downloads/", "lsr_000b16a_f.zip"),
+    exdir= here::here("content/post/data/downloads/")
   )
 }
 ```
@@ -402,9 +404,9 @@ En fusionnant les tables de correspondance aux shapefiles, on réussit à reprod
 J'ai créé ma définition d'est et Ouest.  Sur la Rive-Sud, j'ai ajouté à l'ouest St-Romuald Ouest (à l'Ouest de la rivière Etchemins) ainsi que St-Jean Chrysostome.  Sur la Rive-Nord, j'ai ajouté Les Saules, Duberger, et Neufchâtel.  Ça donne la carte ci-dessous et ça ne me semble pas excessif.
 
 ```{r}
-shp_sdr <- read_sf(here::here("content/post/temp_files/","lsdr000b16a_f.shp"))  %>%
+shp_sdr <- read_sf(here::here("content/post/data/downloads/","lsdr000b16a_f.shp"))  %>%
   inner_join(correspondance_sm_sdr) 
-shp_sr <- read_sf(here::here("content/post/temp_files/", "lsr_000b16a_f.shp")) %>%
+shp_sr <- read_sf(here::here("content/post/data/downloads/", "lsr_000b16a_f.shp")) %>%
   inner_join(correspondance_sm_sr) 
 
 #smnames2 <- read_csv("/home/simon/git/enquete_od/sm_names.csv")
@@ -424,7 +426,7 @@ On commence par  télécharger les [matrices de déplacement entre les secteurs 
 Ce sont donc 24 705	voitures qui traversent du sud vers le nord et 9 866 qui font le trajet inverse.  Honnêtement, je suis surpris de l'ampleur du trafic vers le sud.  9.4 \% des utilisateurs de voiture traversent un pont dans un sens ou l'autre le matin.   
 
 ```{r}
-trajets_auto_am <- read_excel(here::here("content/post/temp_files/", "EnqOD_QUE2017_Matrices_SM.XLSX"),
+trajets_auto_am <- read_excel(here::here("content/post/data/downloads/", "EnqOD_QUE2017_Matrices_SM.XLSX"),
                               sheet= "SAXAU17T", skip =12, na= "." )  %>% 
   clean_names %>%
   filter(secteurs_municipaux != "TOTAL") %>%

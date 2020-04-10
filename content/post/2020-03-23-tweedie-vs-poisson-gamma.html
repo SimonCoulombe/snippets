@@ -155,36 +155,36 @@ summary(tweedie_fit)
 ## 
 ## Deviance Residuals: 
 ##    Min      1Q  Median      3Q     Max  
-## -30.73  -15.27  -11.69   -7.48  522.10  
+## -33.25  -15.06  -11.51   -7.36  505.94  
 ## 
 ## Coefficients:
 ##                 Estimate Std. Error t value Pr(&gt;|t|)    
-## (Intercept)      6.93764    0.93968   7.383 1.57e-13 ***
-## veh_age         -0.03101    0.06872  -0.451  0.65178    
-## agecat          -0.14893    0.05180  -2.875  0.00404 ** 
-## veh_value_other -0.16847    0.73587  -0.229  0.81891    
-## veh_body_HBACK  -0.64085    0.54507  -1.176  0.23972    
-## veh_body_HDTOP  -0.48669    0.66056  -0.737  0.46126    
-## veh_body_MIBUS  -0.28068    0.80548  -0.348  0.72749    
-## veh_body_PANVN  -0.50868    0.77672  -0.655  0.51253    
-## veh_body_SEDAN  -0.73611    0.54332  -1.355  0.17548    
-## veh_body_STNWG  -0.66902    0.54715  -1.223  0.22144    
-## veh_body_TRUCK  -0.66588    0.67257  -0.990  0.32215    
-## veh_body_UTE    -1.02284    0.61274  -1.669  0.09507 .  
-## veh_body_other  -0.63826    1.21988  -0.523  0.60082    
-## gender_M         0.17536    0.14910   1.176  0.23956    
-## area_B           0.03934    0.22307   0.176  0.86000    
-## area_C           0.11221    0.19871   0.565  0.57228    
-## area_D          -0.06155    0.27269  -0.226  0.82142    
-## area_E           0.17425    0.28427   0.613  0.53990    
-## area_F           0.50916    0.29573   1.722  0.08513 .  
+## (Intercept)      6.97758    0.75304   9.266  &lt; 2e-16 ***
+## veh_age         -0.03772    0.05585  -0.675  0.49947    
+## agecat          -0.13790    0.04209  -3.277  0.00105 ** 
+## veh_value_other -0.07492    0.60543  -0.124  0.90151    
+## veh_body_HBACK  -0.80225    0.41356  -1.940  0.05240 .  
+## veh_body_HDTOP  -0.68656    0.52018  -1.320  0.18689    
+## veh_body_MIBUS  -0.87444    0.71112  -1.230  0.21883    
+## veh_body_PANVN  -0.62271    0.60152  -1.035  0.30057    
+## veh_body_SEDAN  -0.93649    0.41221  -2.272  0.02310 *  
+## veh_body_STNWG  -0.90493    0.41637  -2.173  0.02975 *  
+## veh_body_TRUCK  -0.77203    0.51819  -1.490  0.13627    
+## veh_body_UTE    -0.97021    0.46023  -2.108  0.03503 *  
+## veh_body_other  -1.01044    1.05428  -0.958  0.33786    
+## gender_M         0.15396    0.12186   1.263  0.20645    
+## area_B           0.09286    0.17961   0.517  0.60515    
+## area_C           0.10631    0.16226   0.655  0.51237    
+## area_D          -0.12412    0.22651  -0.548  0.58373    
+## area_E           0.24128    0.22645   1.065  0.28665    
+## area_F           0.41737    0.25105   1.663  0.09641 .  
 ## ---
 ## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
 ## 
-## (Dispersion parameter for Tweedie family taken to be 21321.71)
+## (Dispersion parameter for Tweedie family taken to be 13678.45)
 ## 
-##     Null deviance: 27467208  on 54284  degrees of freedom
-## Residual deviance: 27072876  on 54266  degrees of freedom
+##     Null deviance: 25990220  on 54284  degrees of freedom
+## Residual deviance: 25646806  on 54266  degrees of freedom
 ## AIC: NA
 ## 
 ## Number of Fisher Scoring iterations: 9</code></pre>
@@ -208,37 +208,37 @@ summary(poisson_fit)
 ## 
 ## Deviance Residuals: 
 ##     Min       1Q   Median       3Q      Max  
-## -0.7845  -0.4357  -0.3342  -0.2141   3.7458  
+## -0.7375  -0.4364  -0.3346  -0.2142   3.5503  
 ## 
 ## Coefficients:
-##                 Estimate Std. Error z value Pr(&gt;|z|)    
-## (Intercept)     -1.17070    0.24103  -4.857 1.19e-06 ***
-## veh_age         -0.06614    0.01583  -4.179 2.93e-05 ***
-## agecat          -0.08207    0.01190  -6.894 5.42e-12 ***
-## veh_value_other  0.05618    0.19015   0.295  0.76764    
-## veh_body_HBACK  -0.42944    0.14042  -3.058  0.00223 ** 
-## veh_body_HDTOP  -0.29780    0.16945  -1.757  0.07884 .  
-## veh_body_MIBUS  -0.35012    0.21531  -1.626  0.10393    
-## veh_body_PANVN  -0.22424    0.19193  -1.168  0.24267    
-## veh_body_SEDAN  -0.39995    0.13973  -2.862  0.00420 ** 
-## veh_body_STNWG  -0.34514    0.14075  -2.452  0.01420 *  
-## veh_body_TRUCK  -0.42734    0.17255  -2.477  0.01326 *  
-## veh_body_UTE    -0.61040    0.15493  -3.940 8.16e-05 ***
-## veh_body_other   0.17814    0.24225   0.735  0.46212    
-## gender_M        -0.01338    0.03479  -0.385  0.70051    
-## area_B           0.09313    0.04979   1.870  0.06143 .  
-## area_C           0.06341    0.04542   1.396  0.16270    
-## area_D          -0.07332    0.06175  -1.187  0.23508    
-## area_E          -0.03182    0.06849  -0.465  0.64220    
-## area_F           0.08944    0.07681   1.164  0.24423    
+##                  Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept)     -1.054539   0.235626  -4.475 7.62e-06 ***
+## veh_age         -0.076200   0.015751  -4.838 1.31e-06 ***
+## agecat          -0.085522   0.011886  -7.195 6.24e-13 ***
+## veh_value_other  0.080809   0.186824   0.433 0.665348    
+## veh_body_HBACK  -0.516787   0.135851  -3.804 0.000142 ***
+## veh_body_HDTOP  -0.284150   0.163919  -1.733 0.083012 .  
+## veh_body_MIBUS  -0.564570   0.220348  -2.562 0.010402 *  
+## veh_body_PANVN  -0.400556   0.193340  -2.072 0.038287 *  
+## veh_body_SEDAN  -0.479023   0.135038  -3.547 0.000389 ***
+## veh_body_STNWG  -0.399992   0.136005  -2.941 0.003271 ** 
+## veh_body_TRUCK  -0.509168   0.168834  -3.016 0.002563 ** 
+## veh_body_UTE    -0.669788   0.150302  -4.456 8.34e-06 ***
+## veh_body_other  -0.103584   0.254960  -0.406 0.684540    
+## gender_M        -0.003482   0.034668  -0.100 0.919994    
+## area_B           0.064939   0.049370   1.315 0.188387    
+## area_C           0.018744   0.045098   0.416 0.677686    
+## area_D          -0.122612   0.061803  -1.984 0.047266 *  
+## area_E          -0.008238   0.066679  -0.124 0.901675    
+## area_F          -0.001512   0.078559  -0.019 0.984646    
 ## ---
 ## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
 ## 
 ## (Dispersion parameter for poisson family taken to be 1)
 ## 
-##     Null deviance: 18959  on 54284  degrees of freedom
-## Residual deviance: 18850  on 54266  degrees of freedom
-## AIC: 26206
+##     Null deviance: 19004  on 54284  degrees of freedom
+## Residual deviance: 18885  on 54266  degrees of freedom
+## AIC: 26279
 ## 
 ## Number of Fisher Scoring iterations: 6</code></pre>
 </div>
@@ -259,37 +259,37 @@ summary(gamma_fit)
 ## 
 ## Deviance Residuals: 
 ##     Min       1Q   Median       3Q      Max  
-## -1.9859  -1.3684  -0.8208   0.0511   6.8822  
+## -1.9490  -1.3477  -0.7828   0.0977   6.9485  
 ## 
 ## Coefficients:
-##                 Estimate Std. Error t value Pr(&gt;|t|)    
-## (Intercept)      8.00288    0.42385  18.882  &lt; 2e-16 ***
-## veh_age          0.04901    0.02809   1.744  0.08116 .  
-## agecat          -0.06398    0.02088  -3.064  0.00220 ** 
-## veh_value_other -0.18949    0.33484  -0.566  0.57148    
-## veh_body_HBACK  -0.17503    0.24754  -0.707  0.47956    
-## veh_body_HDTOP  -0.20753    0.29798  -0.696  0.48619    
-## veh_body_MIBUS   0.08783    0.37897   0.232  0.81675    
-## veh_body_PANVN  -0.25758    0.33745  -0.763  0.44533    
-## veh_body_SEDAN  -0.30662    0.24656  -1.244  0.21374    
-## veh_body_STNWG  -0.31731    0.24821  -1.278  0.20119    
-## veh_body_TRUCK  -0.19878    0.30433  -0.653  0.51367    
-## veh_body_UTE    -0.39258    0.27305  -1.438  0.15059    
-## veh_body_other  -0.81729    0.42653  -1.916  0.05543 .  
-## gender_M         0.19268    0.06126   3.146  0.00167 ** 
-## area_B          -0.06782    0.08761  -0.774  0.43894    
-## area_C           0.05637    0.08006   0.704  0.48141    
-## area_D           0.01732    0.10891   0.159  0.87363    
-## area_E           0.18760    0.12097   1.551  0.12106    
-## area_F           0.43326    0.13583   3.190  0.00144 ** 
+##                  Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)      7.987519   0.391035  20.427  &lt; 2e-16 ***
+## veh_age          0.049425   0.026406   1.872 0.061329 .  
+## agecat          -0.052324   0.019640  -2.664 0.007752 ** 
+## veh_value_other -0.141215   0.310703  -0.455 0.649494    
+## veh_body_HBACK  -0.271797   0.225970  -1.203 0.229131    
+## veh_body_HDTOP  -0.405127   0.272327  -1.488 0.136930    
+## veh_body_MIBUS  -0.331422   0.366175  -0.905 0.365476    
+## veh_body_PANVN  -0.191639   0.321404  -0.596 0.551042    
+## veh_body_SEDAN  -0.442009   0.224734  -1.967 0.049281 *  
+## veh_body_STNWG  -0.508804   0.226379  -2.248 0.024662 *  
+## veh_body_TRUCK  -0.236181   0.281025  -0.840 0.400723    
+## veh_body_UTE    -0.290821   0.250266  -1.162 0.245291    
+## veh_body_other  -0.930757   0.423793  -2.196 0.028136 *  
+## gender_M         0.151658   0.057777   2.625 0.008704 ** 
+## area_B           0.009213   0.082098   0.112 0.910657    
+## area_C           0.086454   0.075065   1.152 0.249507    
+## area_D          -0.018480   0.103047  -0.179 0.857682    
+## area_E           0.247247   0.111179   2.224 0.026219 *  
+## area_F           0.432186   0.130822   3.304 0.000964 ***
 ## ---
 ## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
 ## 
-## (Dispersion parameter for Gamma family taken to be 3.093011)
+## (Dispersion parameter for Gamma family taken to be 2.757837)
 ## 
-##     Null deviance: 5907.8  on 3658  degrees of freedom
-## Residual deviance: 5754.2  on 3640  degrees of freedom
-## AIC: 62795
+##     Null deviance: 5705.3  on 3677  degrees of freedom
+## Residual deviance: 5556.3  on 3659  degrees of freedom
+## AIC: 62848
 ## 
 ## Number of Fisher Scoring iterations: 7</code></pre>
 </div>
@@ -335,7 +335,7 @@ xgcv_tweedie &lt;- xgb.cv(
   verbose = 0)
 
 xgcv_tweedie$best_iteration
-## [1] 324
+## [1] 319
 
 
 # xgb.cv doesnt ouput any model -- we need a model to predict test dataset
@@ -388,7 +388,7 @@ xgcv_poisson &lt;- xgb.cv(
   verbose = 0)
 
 xgcv_poisson$best_iteration
-## [1] 204
+## [1] 212
 
 
 # xgb.cv doesnt ouput any model -- we need a model to predict test dataset
@@ -432,7 +432,7 @@ xgcv_gamma &lt;- xgb.cv(
   verbose = 0)
 
 xgcv_gamma$best_iteration
-## [1] 239
+## [1] 222
 
 
 # xgb.cv doesnt ouput any model -- we need a model to predict test dataset
@@ -764,13 +764,13 @@ test_w_preds %&gt;%
 <td align="left">claimcst0</td>
 <td align="right">0</td>
 <td align="right">1</td>
-<td align="right">140.151</td>
-<td align="right">957.834</td>
+<td align="right">161.098</td>
+<td align="right">1283.589</td>
 <td align="right">0.000</td>
 <td align="right">0.000</td>
 <td align="right">0.000</td>
 <td align="right">0.000</td>
-<td align="right">23722.430</td>
+<td align="right">55922.130</td>
 <td align="left">▇▁▁▁▁</td>
 </tr>
 <tr class="even">
@@ -778,41 +778,41 @@ test_w_preds %&gt;%
 <td align="left">pred_loss_glm</td>
 <td align="right">0</td>
 <td align="right">1</td>
-<td align="right">136.031</td>
-<td align="right">97.982</td>
-<td align="right">0.413</td>
-<td align="right">58.817</td>
-<td align="right">120.776</td>
-<td align="right">194.181</td>
-<td align="right">705.105</td>
-<td align="left">▇▅▁▁▁</td>
+<td align="right">131.153</td>
+<td align="right">94.004</td>
+<td align="right">0.382</td>
+<td align="right">56.520</td>
+<td align="right">117.134</td>
+<td align="right">187.708</td>
+<td align="right">786.876</td>
+<td align="left">▇▃▁▁▁</td>
 </tr>
 <tr class="odd">
 <td align="left">numeric</td>
 <td align="left">pred_frequency_severity_glm</td>
 <td align="right">0</td>
 <td align="right">1</td>
-<td align="right">136.036</td>
-<td align="right">97.671</td>
-<td align="right">0.417</td>
-<td align="right">58.876</td>
-<td align="right">120.862</td>
-<td align="right">194.512</td>
-<td align="right">704.338</td>
-<td align="left">▇▅▁▁▁</td>
+<td align="right">131.292</td>
+<td align="right">94.274</td>
+<td align="right">0.379</td>
+<td align="right">56.559</td>
+<td align="right">117.243</td>
+<td align="right">187.708</td>
+<td align="right">770.042</td>
+<td align="left">▇▃▁▁▁</td>
 </tr>
 <tr class="even">
 <td align="left">numeric</td>
 <td align="left">pred_loss_xgboost</td>
 <td align="right">0</td>
 <td align="right">1</td>
-<td align="right">125.613</td>
-<td align="right">122.959</td>
-<td align="right">0.352</td>
-<td align="right">53.090</td>
-<td align="right">108.917</td>
-<td align="right">177.029</td>
-<td align="right">6830.249</td>
+<td align="right">120.634</td>
+<td align="right">98.135</td>
+<td align="right">0.278</td>
+<td align="right">51.604</td>
+<td align="right">106.094</td>
+<td align="right">171.248</td>
+<td align="right">3875.319</td>
 <td align="left">▇▁▁▁▁</td>
 </tr>
 <tr class="odd">
@@ -820,22 +820,22 @@ test_w_preds %&gt;%
 <td align="left">pred_frequency_severity_xgboost</td>
 <td align="right">0</td>
 <td align="right">1</td>
-<td align="right">140.075</td>
-<td align="right">43.468</td>
-<td align="right">48.720</td>
-<td align="right">114.607</td>
-<td align="right">138.654</td>
-<td align="right">156.335</td>
-<td align="right">945.439</td>
-<td align="left">▇▁▁▁▁</td>
+<td align="right">130.627</td>
+<td align="right">34.040</td>
+<td align="right">43.804</td>
+<td align="right">108.232</td>
+<td align="right">128.887</td>
+<td align="right">145.492</td>
+<td align="right">520.413</td>
+<td align="left">▇▃▁▁▁</td>
 </tr>
 <tr class="even">
 <td align="left">numeric</td>
 <td align="left">clm</td>
 <td align="right">0</td>
 <td align="right">1</td>
-<td align="right">0.071</td>
-<td align="right">0.257</td>
+<td align="right">0.070</td>
+<td align="right">0.255</td>
 <td align="right">0.000</td>
 <td align="right">0.000</td>
 <td align="right">0.000</td>
@@ -851,11 +851,11 @@ test_w_preds %&gt;%
 <td align="right">0.067</td>
 <td align="right">0.044</td>
 <td align="right">0.000</td>
-<td align="right">0.031</td>
-<td align="right">0.062</td>
+<td align="right">0.030</td>
+<td align="right">0.063</td>
 <td align="right">0.100</td>
-<td align="right">0.334</td>
-<td align="left">▇▆▁▁▁</td>
+<td align="right">0.286</td>
+<td align="left">▇▆▃▁▁</td>
 </tr>
 <tr class="even">
 <td align="left">numeric</td>
@@ -864,12 +864,12 @@ test_w_preds %&gt;%
 <td align="right">1</td>
 <td align="right">0.075</td>
 <td align="right">0.013</td>
-<td align="right">0.040</td>
-<td align="right">0.067</td>
+<td align="right">0.036</td>
+<td align="right">0.066</td>
 <td align="right">0.075</td>
 <td align="right">0.082</td>
-<td align="right">0.188</td>
-<td align="left">▃▇▁▁▁</td>
+<td align="right">0.165</td>
+<td align="left">▂▇▂▁▁</td>
 </tr>
 </tbody>
 </table>
@@ -904,27 +904,27 @@ tibble(Poisson_GLM,
 <tbody>
 <tr class="odd">
 <td align="left">Poisson_GLM</td>
-<td align="right">0.028</td>
+<td align="right">0.036</td>
 </tr>
 <tr class="even">
 <td align="left">Poisson_XGB</td>
-<td align="right">0.011</td>
+<td align="right">0.018</td>
 </tr>
 <tr class="odd">
 <td align="left">Tweedie_GLM</td>
-<td align="right">0.032</td>
+<td align="right">0.041</td>
 </tr>
 <tr class="even">
 <td align="left">Tweedie_XGB</td>
-<td align="right">0.038</td>
+<td align="right">0.042</td>
 </tr>
 <tr class="odd">
 <td align="left">FreqSev_GLM</td>
-<td align="right">0.032</td>
+<td align="right">0.041</td>
 </tr>
 <tr class="even">
 <td align="left">FreqSev_XGB</td>
-<td align="right">0.008</td>
+<td align="right">0.026</td>
 </tr>
 </tbody>
 </table>

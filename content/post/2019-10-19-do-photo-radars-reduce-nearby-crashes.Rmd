@@ -40,11 +40,13 @@ library(mapview)
 library(tidyverse)
 library(lubridate)
 library(purrr)
-
+switch_generate_interim_data <- FALSE
 
 ```
 
-```{r, eval= F, include= F}
+```{r, include= F}
+
+if (switch_generate_interim_data){
 download.file("http://donnees.ville.montreal.qc.ca/dataset/cd722e22-376b-4b89-9bc2-7c7ab317ef6b/resource/5a81f6c5-e3e7-4c0e-9ccf-a4ba2cab77ba/download/accidents_2012_2018.zip",
               destfile =  here::here("content/post/data/downloads/accidents_2012_2018.zip")
 )
@@ -54,14 +56,15 @@ download.file("https://ws.mapserver.transports.gouv.qc.ca/swtq?service=wfs&versi
 )
 
 
-utils::unzip(here::here("content/post/data/downloads/accidents_2012_2018.zip"), exdir = here::here("content/post/data/interim"))
+utils::unzip(here::here("content/post/data/downloads/accidents_2012_2018.zip"), exdir = here::here("content/post/data/downloads"))
 
-utils::unzip(here::here("content/post/data/downloads/resultat_TQ.zip"),  exdir = here::here("content/post/data/interim"))
+utils::unzip(here::here("content/post/data/downloads/resultat_TQ.zip"),  exdir = here::here("content/post/data/downloads"))
+}
 ```
 
 ```{r, include = F}
 
-accidents <- read_sf(here::here("content/post/data/interim/accidents_2012_2018/accidents_2012_2018.shp")) %>%
+accidents <- read_sf(here::here("content/post/data/downloads/accidents_2012_2018/accidents_2012_2018.shp")) %>%
   sf::st_transform( crs = 4326) %>% # convert to a projection that works with leaflet 
   filter(!is.na(LOC_LONG)) %>%  # drop crashes with no latitude / longitude
   mutate(year = lubridate::year(DT_ACCDN),  # create  month, quarter and year of crashevariables
@@ -70,7 +73,7 @@ accidents <- read_sf(here::here("content/post/data/interim/accidents_2012_2018/a
   )
 
 
-radars <- read_sf(here::here("content/post/data/interim/radars_photos.shp")) %>% 
+radars <- read_sf(here::here("content/post/data/downloads/radars_photos.shp")) %>% 
   mutate(date_debut = as_date(lubridate::ymd_hm(dateDebutS)), #  as_date is required to convert POSIXct to date format (plays nicer with ggplot)
          month_debut = lubridate::floor_date(date_debut, unit = "month"),
          quarter_debut = lubridate::floor_date(date_debut, unit = "quarter"),

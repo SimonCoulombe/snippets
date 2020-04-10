@@ -56,7 +56,7 @@ library(purrr) # to evaluate the loglikelihood of each parameter set in the rand
 require("DiceKriging") # mlrmbo requires this
 require("rgenoud") # mlrmbo requires this
 
-switch_generate_interim_data <- TRUE
+switch_generate_interim_data <- FALSE
 ``` 
 
 
@@ -409,7 +409,7 @@ best_mlrMBO <- run$opt.path$env$path  %>%
 hardcoded %>% 
   bind_rows(best_random) %>% 
   bind_rows(best_mlrMBO) %>%
-  select(type,loglikelihood, max_depth, colsample_bytree, subsample,min_child_weight,eta, gamma) %>% kable
+  select(type,loglikelihood, max_depth, colsample_bytree, subsample,min_child_weight,eta, gamma) %>% knitr::kable()
 ```
 
 # Code
@@ -509,7 +509,7 @@ if ( switch_generate_interim_data){
 
 
 ```{r}
-kable(bayesian_results$History)
+knitr::kable(bayesian_results$History)
 bayesian_results$History  %>% 
   mutate(type = case_when(
     Round<= 4  ~ "1- init_points",
@@ -533,7 +533,7 @@ init_grid <- random_grid_results$data %>%
   bind_rows() %>% 
   add_column(Value = random_grid_results$Score)   %>% 
   select(max_depth, colsample_bytree, subsample, min_child_weight, eta, gamma, Value)
-kable(init_grid)
+knitr::kable(init_grid)
 ```
 
 ```{r}
@@ -570,7 +570,7 @@ We can also resume from a brevious rBayesianOptimization run using the `$History
 
 ```{r, collapse = FALSE}
 init_grid <- bayesian_results_continued_from_randomgrid$History %>% select(-Round)
-kable(init_grid)
+knitr::kable(init_grid)
 ```
 
 ```{r bayes_continued_bayesian, collapse= FALSE}
@@ -644,5 +644,5 @@ hardcoded %>%
   bind_rows(best_random) %>% 
   bind_rows(best_mlrMBO) %>%
   bind_rows(best_rBayesianOptimization) %>%
-  select(type,loglikelihood, max_depth, colsample_bytree, subsample,min_child_weight,eta, gamma) %>% kable
+  select(type,loglikelihood, max_depth, colsample_bytree, subsample,min_child_weight,eta, gamma) %>% knitr::kable()
 ```

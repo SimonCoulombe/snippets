@@ -191,6 +191,7 @@ poll_shp <- poll_shp_agg %>% rename(pollid = Group.1) %>%
 
 
 dir.create(file.path(here::here("content/post/data/"), "interim"), showWarnings = FALSE)
+dir.create(file.path(here::here("content/post/data/"), "final"), showWarnings = FALSE)
 save(poll_shp, file=here::here("content/post/data/interim/poll_shp.rdata"))
 } else {load(here::here("content/post/data/interim/poll_shp.rdata"))}
 ```

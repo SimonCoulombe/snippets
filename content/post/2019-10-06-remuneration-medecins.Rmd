@@ -71,6 +71,7 @@ download.file("https://www.cihi.ca/sites/default/files/document/bdnm-tableaux-de
               destfile = here::here("content/post/data/downloads/bdnm-tableaux-de-donnees-2018-fr.zip")
 )
 
+## unzip manually because of utf8 issues
 
 mysheet <- here::here("content/post/data/downloads", "BDNM-paiements-données-historiques-2018.xlsx")
 #excel_sheets(mysheet)

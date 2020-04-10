@@ -75,13 +75,16 @@ library(recipes)
 library(vroom) # for quick reading of csv
 library(fst) # for quick saving of tables
 library(MLmetrics) # for normalized gini 
+
 ```
 
 
 
 
-```{r, eval=F}
+```{r}
 # kaggle claim data from https://www.kaggle.com/c/ClaimPredictionChallenge/daatre
+
+if(FALSE){
 kaggle_train <- vroom::vroom(here::here("content/post/data/downloads/train_set.csv")) %>%
   select(-Row_ID, -Household_ID, -Vehicle)
 
@@ -96,13 +99,15 @@ train_1e5_split <-  rsample::initial_split(train, prop = 0.01) # 1e5 obs used fo
 train_1e5 <- rsample::training(train_1e5_split)
 
 
-fst::write_fst(train, "train.fst")
-fst::write_fst(train_1e5, "train_1e5.fst")
-fst::write_fst(test, "test.fst")
+fst::write_fst(train, here::here("content/post/data/interim/claims_train.fst"))
+fst::write_fst(train_1e5, here::here("content/post/data/interim/claims_train_1e5.fst"))
+fst::write_fst(test, here::here("content/post/data/interim/claims_test.fst"))
 
 
 rm(list=ls()) # clear memory of object but keep libraries.
 invisible(gc())
+
+}
 
 ```
 # Prepare recipe   
@@ -115,9 +120,11 @@ I used head(1e4) to "train" the recipe because otherwise it take even longer.   
 
 
 
-```{r, eval= F}
+```{r}
+
+if(FALSE){
 tic()
-train <- read_fst("train_1e5.fst") # , from =1, to = 1e6
+train <- read_fst(here::here("content/post/data/interim/claims_train_1e5.fst")) # , from =1, to = 1e6
 
 
 rec <-  recipes::recipe(Claim_Amount ~ ., 
@@ -136,58 +143,55 @@ rec <-  recipes::recipe(Claim_Amount ~ .,
 # Prepare the recipe and use juice/bake to get the d2ata!
 trained_rec <- prep(rec)
 
-write_rds(trained_rec, "trained_rec.rds")
+write_rds(trained_rec, here::here("content/post/data/interim/claims_trained_rec.rds"))
 
 rm(train_1e5)
 
 
-train <- read_fst("train.fst")
+train <- read_fst(here::here("content/post/data/interim/claims_train.fst"))
 train <- bake(trained_rec, new_data =   train )
 
-
-
-
-write_fst(train, "baked_train.fst")
+write_fst(train, here::here("content/post/data/interim/claims_baked_train.fst"))
 
 
 toc() # 190.161 sec elapsed for 1e6 train , 1e4prep   # 2017.908 sec elapsed sur train complet (10M) et prep 1e5
 
 rm(list=ls()) # clear memory of object but keep libraries.
 invisible(gc())
-
+}
 ```
 
 
-```{r, eval = F}
-
-train <- read_fst("baked_train.fst")
+```{r}
+if(FALSE){
+train <- read_fst(here::here("content/post/data/interim/claims_baked_train.fst"))
 
 train_3e6_split <-  rsample::initial_split(train, prop = 0.3)
 
 train_3e6 <- rsample::training(train_3e6_split)
-fst::write_fst(train_3e6, "baked_train_3e6.fst")
+fst::write_fst(train_3e6, here::here("content/post/data/interim/claims_baked_train_3e6.fst"))
 rm(train3e6)
 rm(train3e6_split)
 train_6e6_split <-  rsample::initial_split(train, prop = 0.6)
 train_6e6 <- rsample::training(train_6e6_split)
 
-fst::write_fst(train_6e6, "baked_train_6e6.fst")
+fst::write_fst(train_6e6, here::here("content/post/data/interim/claims_baked_train_6e6.fst"))
 
 
 
 rm(list=ls()) # clear memory of object but keep libraries.
 invisible(gc())
-  
+}
 ```
 
 # Train  XGBoost  
 
 ## find best number of iterations
-```{r, eval = F}
+```{r}
 
+if(FALSE){
 
-
-train <- read_fst( "baked_train_3e6.fst", from = 1, to = 6e6)
+train <- read_fst( here::here("content/post/data/interim/claims_baked_train_3e6.fst"), from = 1, to = 6e6)
 
 xgtrain <- xgb.DMatrix(as.matrix(train %>% select(-Claim_Amount)),  
                        label = train$Claim_Amount
@@ -218,26 +222,25 @@ xgcv <- xgb.cv(
 
 
 best_iter <- xgcv$best_iteration # 310, 3 folds, 3e6 obs
-write_rds(best_iter, "best_iter.rds")
+write_rds(best_iter, here::here("content/post/data/interim/claims_best_iter.rds"))
 
 rm(list=ls()) # clear memory of object but keep libraries.
 invisible(gc())
-
-
 toc()
+}
 ```
 
 ```{r}
-
+if(FALSE){
 tic()
-train <- read_fst( "baked_train_6e6.fst", from = 1, to = 6e6)
+train <- read_fst( here::here("content/post/data/interim/claims_baked_train_6e6.fst"), from = 1, to = 6e6)
 
 xgtrain <- xgb.DMatrix(as.matrix(train %>% select(-Claim_Amount)),  
                        label = train$Claim_Amount
 )
 rm(train) # save memory
 
-best_iter <- read_rds("best_iter.rds")
+best_iter <- read_rds(here::here("content/post/data/interim/claims_best_iter.rds"))
 
 
 params <-list(
@@ -262,34 +265,37 @@ xgmodel <- xgboost::xgb.train(
   #nthread = parallel::detectCores() - 1
 )
 
-write_rds(xgmodel, "xgmodel.rds")
+write_rds(xgmodel, here::here("content/post/data/interim/xgmodel.rds"))
 
 
 rm(list=ls()) # clear memory of object but keep libraries.
 invisible(gc())
 
 toc()
+}
 ```
 
 
 # Apply recipe to test data 
 
 ```{r}
-trained_rec <- read_rds("trained_rec.rds")
-test <- fst::read_fst( "test.fst")
+if(FALSE){
+trained_rec <- read_rds(here::here("content/post/data/interim/claims_trained_rec.rds"))
+test <- fst::read_fst( here::here("content/post/data/interim/claims_test.fst"))
 test <-  bake(trained_rec, new_data = test)
-write_fst(test, "baked_test.fst")
+write_fst(test, here::here("content/post/data/interim/claims_baked_test.fst"))
 
 rm(list=ls()) # clear memory of object but keep libraries.
 invisible(gc())
+}
 ```
 
 # Predict  XGBoost
 
 ```{r}
 
-xgmodel <- read_rds("xgmodel.rds")
-test <- read_fst( "baked_test.fst")
+xgmodel <- read_rds(here::here("content/post/data/interim/claims_xgmodel.rds"))
+test <- read_fst( here::here("content/post/data/interim/claims_baked_test.fst"))
 xgtest <- xgb.DMatrix(as.matrix(test  %>% select(-Claim_Amount)),  
                       label = test$Claim_Amount
 )

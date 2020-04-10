@@ -52,7 +52,7 @@ library(lwgeom) #for st_make_valid
 # and options(cancensus.cache_path)
 # in ~/.Rprofile
 
-switch_use_interim_data <- FALSE
+switch_generate_interim_data <- FALSE
 
 colors <- c("libéral" = "#D71920", 
           "conservateur" = "#1A4782", 

@@ -18,10 +18,7 @@ thumbnailImagePosition: left
 
 <p>Dans ce projet-jouet, j’ai utilisé les données ouvertes de l’application Mon Trajet et le package python <code>osmnx</code> pour estimer l’impact de la construction d’un troisième lien sur le trafic de la ville de Québec.</p>
 <p>Le scénario retenu est le <a href="https://www.journaldequebec.com/2018/08/14/cinq-corridors-potentiels-seront-etudies-pour-un-troisieme-lien-quebeclevis">cinquième des scénarios proposés</a>, soit celui reliant l’intersection de l’autoroute Dufferin-Montmorency et de l’autoroute Félix-Leclerc au nord à l’autoroute 20 à la hauteur de la route l’Allemand au sud.</p>
-<div class="figure">
-<img src="/post/2019-03-20-impact-du-troisieme-lien-sur-le-trafic_files/scenario.jpg" />
-
-</div>
+<p><img src="/post/2019-03-20-impact-du-troisieme-lien-sur-le-trafic_files/scenario.jpg" /></p>
 <p>Exceptionnellement, j’utilise le langage <code>Python</code> car le package <code>osmnx</code> à lui seul permet d’effectuer toutes les étapes du projet, soit:</p>
 <ul>
 <li>télécharger le réseau routier,<br />
@@ -31,8 +28,9 @@ thumbnailImagePosition: left
 <li>déterminer l’itinéraire optimal pour chacun des 16 000 trajets avec et sans le pont.</li>
 </ul>
 <p>Les trajets ont été préalablement manipulés en R avec le package <code>sf</code> afin d’extraire les coordonnées géographiques d’origine et de destination du trajet.</p>
-<p>En ayant en main les itinéraires optimaux de tous les trajets, nous avons pu déterminer quel sera l’impact d’ajouter le pont sur le réseau routier. ## Méthode</p>
-<div id="telecharger-le-reseau-routier" class="section level3">
+<p>En ayant en main les itinéraires optimaux de tous les trajets, nous avons pu déterminer quel sera l’impact d’ajouter le pont sur le réseau routier.
+## Méthode</p>
+<div id="télécharger-le-réseau-routier" class="section level3">
 <h3>Télécharger le réseau routier</h3>
 <p>Le package <code>osmnx</code> rend très facile le téléchargement du réseau routier de la région de Québec-Lévis et des 10 kilomètres aux alentours:</p>
 <p>`place = [‘wendake,canada’,<br />
@@ -46,13 +44,13 @@ buffer_dist = 10000)<br />
 ox.save_graph_shapefile(G, filename=‘original-network-shape’)</p>
 <p>`</p>
 </div>
-<div id="ajouter-le-pont-au-reseau-router" class="section level3">
+<div id="ajouter-le-pont-au-réseau-router" class="section level3">
 <h3>Ajouter le pont au réseau router</h3>
 <p>J’utilise QGIS pour identifier l’endroit où je souhaite ajouter le pont, et ensuie j’ajoute les routes au réseau à l’aide de <code>osmnx</code>:</p>
 <p><code>G_bridge.add_node(999999999999999999999, x= -71.153, y= 46.866)   G_bridge.add_edge(999999999999999999999, 180699309, key=0,  highway = &quot;motorway&quot;, oneway = False, length = 841)   G_bridge.add_edge(999999999999999999999, 130153234, key=0,  highway = &quot;motorway&quot;, oneway = False, length = 875)   G_bridge.add_edge(999999999999999999999, 130152949, key=0,  highway = &quot;motorway&quot;, oneway = False, length = 1069)   G_bridge.add_edge(180672314,999999999999999999999,  key=0,  highway = &quot;motorway&quot;, oneway = False, length = 778)   G_bridge.add_edge(180688633,999999999999999999999,  key=0,  highway = &quot;motorway&quot;, oneway = False, length = 1060)   G_bridge.add_edge(269683680,999999999999999999999,  key=0,  highway = &quot;motorway&quot;, oneway = False, length = 1196)   G_bridge.add_node(88888888888888888888, x= -71.1024, y= 46.8173)   G_bridge.add_edge(88888888888888888888, 5728701577, key=0,  highway = &quot;motorway&quot;, oneway = False, length = 624)   G_bridge.add_edge(88888888888888888888, 486128981,  key=0,  highway = &quot;motorway&quot;, oneway = False, length = 1077)   G_bridge.add_edge(486135896, 88888888888888888888 ,  key=0,  highway = &quot;motorway&quot;, oneway = False, length = 1050)   G_bridge.add_edge(281651410, 88888888888888888888 ,  key=0,  highway = &quot;motorway&quot;, oneway = False, length = 782)   G_bridge.add_edge(88888888888888888888, 999999999999999999999, key=0, highway = &quot;motorway&quot;, oneway = False, length = 6648)   G_bridge.add_edge(999999999999999999999, 88888888888888888888, key=0, highway = &quot;motorway&quot;, oneway = False, length = 6648)</code><br />
 <img src="/post/2019-03-20-impact-du-troisieme-lien-sur-le-trafic_files/avant_apres.png" /></p>
 </div>
-<div id="calculer-les-itineraires-optimaux" class="section level3">
+<div id="calculer-les-itinéraires-optimaux" class="section level3">
 <h3>Calculer les itinéraires optimaux</h3>
 <p>Pour déterminer l’itinéraire optimal de chacun des trajets, il faut tout d’abord calculer le temps nécessaire pour traverser chacun des segments de route. Nous disposons de la longueur des segments et nous allons utiliser le type de route afin de déterminer la limite de vitesse.</p>
 <p>J’ai utilisé une limite de vitesse de 100 km/h sur les autoroutes et de 50 km/h partout ailleurs. Il s’agit d’une piste d’amélioration.</p>
@@ -66,7 +64,7 @@ data[‘time_minute’] = data[‘length’] / 1000 * 60 / data[‘speed_limit_k
 <p>Ensuite on utilise le package <code>osmnx</code> pour calculer l’itinéraire optimal de chacun des trajets.</p>
 <p><code>nx.shortest_path(G,closest_node_to_origine, closest_node_to_destination, weight = &quot;time_minute&quot;)</code></p>
 </div>
-<div id="resultats-et-pistes-dameliorations" class="section level2">
+<div id="résultats-et-pistes-daméliorations" class="section level2">
 <h2>Résultats et pistes d’améliorations:</h2>
 <p>Voici tout d’avord la distribution du trafic sur le réseau routier sans et avec le pont. Je sais, ça prend une légende mais jen ’ai pas eu le temps de découvrir comment le faire dans matplotlib…</p>
 <p>Voici un tableau présentant le pourcentage des trajets qui utilisent chacun des ponts, avec et sans le 3e lien. J’ai séparé pierre-laporte en Nord et Sud car c’était plus facile.</p>
@@ -94,7 +92,7 @@ Total: 22.4%</p>
 <p>différence de trafic, en nombre de trajets:<br />
 <img src="/post/2019-03-20-impact-du-troisieme-lien-sur-le-trafic_files/trafic_delta.png" /></p>
 </div>
-<div id="conclusion-et-pistes-damelioration" class="section level2">
+<div id="conclusion-et-pistes-damélioration" class="section level2">
 <h2>Conclusion et pistes d’amélioration</h2>
 <p>Les cartes que nous regardons montre que seulement 10% du trafic des ponts actuels serait détourné vers un troisième pont à l’Est.<br />
 Ce trafic aurait tout de même un impact important sur la circulation total des autoroutes Dufferin-Montmorency et de la Capitale.</p>
@@ -112,7 +110,8 @@ Ce trafic aurait tout de même un impact important sur la circulation total des 
 <p>Pour utiliser le package <code>osmnx</code>, j’ai suivi les instructions suivantes pour me faciliter la vie.</p>
 <ul>
 <li><a href="https://docs.docker.com/docker-for-windows/install/">Installer Docker</a></li>
-<li>Démarrer un terminal en mode administrateur, naviguer vers le répertoire où je souhaite que les notebooks soient sauvegardés et y exécuter la commande suivante pour démarrer le serveur jupyter avec tout l’environnement géospatial: “docker run –rm -it –name osmnx -p 8888:8888 -v %cd%:/home/jovyan/work gboeing/osmnx” <img src="/post/2019-03-20-impact-du-troisieme-lien-sur-le-trafic_files/launch_server.png" /><br />
+<li>Démarrer un terminal en mode administrateur, naviguer vers le répertoire où je souhaite que les notebooks soient sauvegardés et y exécuter la commande suivante pour démarrer le serveur jupyter avec tout l’environnement géospatial: “docker run –rm -it –name osmnx -p 8888:8888 -v %cd%:/home/jovyan/work gboeing/osmnx”
+<img src="/post/2019-03-20-impact-du-troisieme-lien-sur-le-trafic_files/launch_server.png" /><br />
 </li>
 <li>Démarrer un autre terminal en mode administrateur, se connecter à la machine virtuelle par SSH avec la commande “docker exec -it osmnx /bin/bash” et y installer le package python scikit-lean avec la commande “conda install scikit-learn”<br />
 <img src="/post/2019-03-20-impact-du-troisieme-lien-sur-le-trafic_files/ssh%20into%20docker%20then%20install%20conda.png" /><br />

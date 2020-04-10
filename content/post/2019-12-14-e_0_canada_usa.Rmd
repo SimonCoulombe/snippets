@@ -43,10 +43,13 @@ key <- Sys.getenv("mapbox_token_esperance_de_vie_canada_usa")
 
 library(furrr)
 plan(multiprocess, workers = availableCores()-1)
+
+switch_generate_interim_data <- FALSE
 ```
 
 
-```{r, eval = F}
+```{r}
+if(switch_generate_interim_data){
 # https://www150.statcan.gc.ca/n1/pub/82-402-x/2018001/hrbf-flrs-eng.htm
 download.file("https://www150.statcan.gc.ca/n1/en/pub/82-402-x/2018001/data-donnees/boundary-limites/arcinfo/HR_000a18a-eng.zip?st=-yCcI4RR",
               destfile = here::here("content/post/data/downloads/HR_000a18a-eng.zip")
@@ -54,7 +57,7 @@ download.file("https://www150.statcan.gc.ca/n1/en/pub/82-402-x/2018001/data-donn
 utils::unzip(here::here("content/post/data/downloads/HR_000a18a-eng.zip"),
              exdir = here::here("content/post/data/downloads/")
 )
-
+}
 ```
 
 ```{r CANADA, include = F}
