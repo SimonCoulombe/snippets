@@ -1,7 +1,7 @@
 ---
 title: How far are cyclists willing to go to use a cycling path? Part 1 - Graphhopper  
 author: simon
-date: '2020-01-28'
+date: '2020-04-13'
 slug: map-matching-bike
 categories:
   - R
@@ -55,6 +55,11 @@ library(colorblindr)
 library(pgirmess ) # export to gpx
 plan(multiprocess, workers = availableCores()-1)
 switch_generate_interim_data <- FALSE
+
+bind_rows_sf <- function(list_sf){
+  sf::st_as_sf(data.table::rbindlist(list_sf))  
+}
+
 ```
 
 ```{r}
@@ -161,7 +166,8 @@ Graphhopper ([github](https://github.com/graphhopper/graphhopper) is an "open so
 
 
 
-## Map matching tool installation and use   
+## Map matching tool installation and use    
+
 
 We will follow the [installation instructions](https://github.com/graphhopper/map-matching) on the git repository, with a few changes:  
 * We download the "recent_core" branch instead of master because it is required for the "vehicle=bike" option to work,
@@ -169,16 +175,16 @@ We will follow the [installation instructions](https://github.com/graphhopper/ma
 
 Note:  Java 8 and Maven >=3.3 are required.  
 
-```{r, echo = TRUE, eval = F, include = F, results = "hide"}
-system(
-  paste("cd ~/git/",
-        "git clone https://github.com/graphhopper/map-matching.git --branch 'recent_core'",
-        "cd map-matching",
-        "mvn package -DskipTests",
-        "wget http://download.geofabrik.de/north-america/canada/quebec-latest.osm.pbf --quiet",
-        "java -jar matching-web/target/graphhopper-map-matching-web-1.0-SNAPSHOT.jar import quebec-latest.osm.pbf --vehicle='bike'",
-        sep = " && ")
-)
+
+```
+cd ~
+mkdir git
+cd git
+git clone https://github.com/graphhopper/map-matching.git --branch 'recent_core'
+cd map-matching
+mvn package -DskipTests
+wget http://download.geofabrik.de/north-america/canada/quebec-latest.osm.pbf --quiet
+java -jar matching-web/target/graphhopper-map-matching-web-1.0-SNAPSHOT.jar import quebec-latest.osm.pbf --vehicle='bike'
 ```
 
 Once the quebec map has been imported into the mapmatching tool, we can invoke it from the command line  and ask it to map-match all the we put GPXs in the folder.  This takes about 10 minutes on my computer.  
@@ -214,31 +220,28 @@ Let's import these matched trips GPX back into R, and see how the map-matching d
 ```{r import_mapmatchedtrips}
 
 if (switch_generate_interim_data){
-# list trips ids that have been matched
-matched_liste <- tibble(filename =
-                          list.files(path = here::here("content/post/data/interim/bikegps/"),
-                                     pattern = "*.gpx.res.gpx")
-) %>%
-  mutate(id = str_extract(filename, "\\d+")) # 4859 matched trips
-
-bind_rows_sf <- function(list_sf){
-  sf::st_as_sf(data.table::rbindlist(list_sf))  
-}
-
-matched <- matched_liste %>% select(id) %>%
-  mutate(matched = future_map(id, ~{
-    st_read(here::here("content/post/data/interim/bikegps/",paste0("id_", .x, ".gpx.res.gpx"))
-            , layer = "track_points", quiet = TRUE)%>%
-      mutate(group = .x) %>%
-      group_by(group)%>%
-      summarize(., do_union = FALSE) %>%
-      st_cast("LINESTRING")
-  }, progress = TRUE))
-
-matched_trips <- bind_rows_sf(matched$matched)
-
-qsave(matched_trips, here::here("content/post/data/interim/bikegps/", "matched_trips.qs"))
-
+  # list trips ids that have been matched
+  matched_liste <- tibble(filename =
+                            list.files(path = here::here("content/post/data/interim/bikegps/"),
+                                       pattern = "*.gpx.res.gpx")
+  ) %>%
+    mutate(id = str_extract(filename, "\\d+")) # 4859 matched trips
+  
+  
+  matched <- matched_liste %>% select(id) %>%
+    mutate(matched = future_map(id, ~{
+      st_read(here::here("content/post/data/interim/bikegps/",paste0("id_", .x, ".gpx.res.gpx"))
+              , layer = "track_points", quiet = TRUE)%>%
+        mutate(group = .x) %>%
+        group_by(group)%>%
+        summarize(., do_union = FALSE) %>%
+        st_cast("LINESTRING")
+    }, progress = TRUE))
+  
+  matched_trips <- bind_rows_sf(matched$matched)
+  
+  qsave(matched_trips, here::here("content/post/data/interim/bikegps/", "matched_trips.qs"))
+  
 } else {matched_trips <- qread(here::here("content/post/data/interim/bikegps/", "matched_trips.qs"))
 }
 
@@ -255,8 +258,6 @@ original_and_matched <-
     )
   )
 
-
-
 mapview(original_and_matched %>% filter(group %in% c("10044", "10044_matched")),
         layer.name= c("Origial trip vs  map-matched"),
         zcol = "group")
@@ -266,106 +267,56 @@ mapview(original_and_matched %>% filter(group %in% c("10044", "10044_matched")),
 Its working fine!    As you can see, the 10044_matched trip  is matched to the  cycling lane on Rachel instead of the road.
 
 
-
-
-
-## Routing tool installation and use 
+## Routing tool installation  
 
 Alright, now let's try to find what was the shortest route between the first and the last point.
 
-### Install graphhopper routing engine
+The routing engine is not a command line tool like the map-matching tool, but a web server that can be called using an API.
+
+I describe 3 ways to get it running below.  The easiest by far is you already have a docker hub account is to pull my image: morglum/graphhopper_quebec  .  
 
 The graphhopper routing engine is located at https://github.com/graphhopper/graphhopper
 
-We install it following the quickstart guide for developpers (https://github.com/graphhopper/graphhopper/blob/0.13/docs/core/quickstart-from-source.md), because the quickstart guide using a *.jar file (https://github.com/graphhopper/graphhopper/blob/0.13/docs/web/quickstart.md) returns an error when using the bike vehicle.
+We install it following [the quickstart guide for developpers](https://github.com/graphhopper/graphhopper/blob/0.13/docs/core/quickstart-from-source.md), because the quickstart guide using a *.jar file (https://github.com/graphhopper/graphhopper/blob/0.13/docs/web/quickstart.md) returns an error when using the bike vehicle.
 
-ça ça marche, mais ça fige la machine..
+We replaced the including "config-example.yml" with my own [config-bike.yml](https://gist.githubusercontent.com/SimonCoulombe/c4e4bb3af45ba6b4ccdd48aab561b2dc/raw/config-bike.yml), shared as a gist.  The differences are as follow:  
+* replace `graph.flag_encoders: car`  with `graph.flag_encoders: bike, car`  , 
+* add   
+`    - name: bike
+vehicle: bike
+weighting: fastest` under
+
+`profiles:
+- name: car
+vehicle: car
+weighting: fastest`    
+* add   `- profile: bike `  under   
+`profiles_ch:
+- profile: car`  
 
 
-```{r, include = F}
-system(
-  paste("cd ~/git/",
-        "git clone git://github.com/graphhopper/graphhopper.git",
-        "cd graphhopper",
-        "cd web/src/main/resources/ && ZFILE=/tmp/gh.jar && wget -O $ZFILE 'https://repository.sonatype.org/service/local/artifact/maven/redirect?r=central-proxy&g=com.graphhopper&a=graphhopper-web&v=LATEST' && unzip $ZFILE assets/js/main.js && rm $ZFILE && cd ../../../..",
-        "rm config-example.yml",
-        "wget https://gist.githubusercontent.com/SimonCoulombe/c4e4bb3af45ba6b4ccdd48aab561b2dc/raw/config-bike.yml",
-        "cp ~/git/map-matching/quebec-latest.osm.pbf ~/git/graphhopper",
-        "./graphhopper.sh -a web -i quebec-latest.osm.pbf  -c config-bike.yml" ,
-        sep = " && ")
-)
+NOTE/QUESTION  :  I wasted a lot of time trying to get it with bike as the only available vehicle, to no avail.  It appears you can only add vehicles to "car", not replace car with another vehicle.   
+
+### Installation (non-docker)
+
+
+```
+cd ~/git/
+git clone git://github.com/graphhopper/graphhopper.git
+cd graphhopper
+cd web/src/main/resources/ && ZFILE=/tmp/gh.jar && wget -O $ZFILE 'https://repository.sonatype.org/service/local/artifact/maven/redirect?r=central-proxy&g=com.graphhopper&a=graphhopper-web&v=LATEST' && unzip $ZFILE assets/js/main.js && rm $ZFILE && cd ../../../..
+rm config-example.yml
+wget https://gist.githubusercontent.com/SimonCoulombe/c4e4bb3af45ba6b4ccdd48aab561b2dc/raw/config-bike.yml
+wget http://download.geofabrik.de/north-america/canada/quebec-latest.osm.pbf --quiet
+./graphhopper.sh -a web -i quebec-latest.osm.pbf  -c config-bike.yml
 ```
 
 
-## Some code I couldnt get to work but saved for posterity
 
-<!-- git clone https://github.com/graphhopper/graphhopper.git -->
-<!-- cd graphhopper -->
-<!-- docker build -t graphhopper:master . -->
-<!-- docker run -d --name graphhopper -v ~/git/osm_data/data:/data -p 8989:8989 graphhopper:master -->
-
-
-<!-- https://discuss.graphhopper.com/t/getting-graphhopper-to-work/3386/5 -->
-
-<!-- Aug '18 -->
-
-<!-- Once you have java installed, you should just be able to run commands similar to the following in the command prompt to get it to work locally. -->
-
-<!-- cd ‘C:~directory with graphhopper files’ -->
-<!-- start chrome http://localhost:8989/ 1 -->
-<!-- java -jar *.jar jetty.resourcebase=webapp config=config-example.properties osmreader.osm=berlin-latest.osm.pbf -->
-
-<!-- ‘*’ = filename e.g. graphhopper-web-0.5.0-with-dep.jar -->
-
-<!-- Finally got it working on Windows (thanks maxo16): -->
-<!-- C:\GraphHopper>java -jar graphhopper-web-0.10.0-with-dep.jar jetty.resourcebase=webapp config=config-example.properties datareader.file=berlin-latest.osm.pbf -->
-<!-- BTW, would be really nice if someone could please post this into the quick start doc: -->
-<!-- https://github.com/graphhopper/graphhopper/blob/master/docs/web/quickstart.md 14 -->
-<!-- The link http://localhost:8989/ 5 brought up map of Berlin for me, everything seems to be fine. -->
-
-
-<!-- java -jar *.jar jetty.resourcebase=webapp config=config-example.properties osmreader.osm=quebec-latest.osm.pbf -->
-
-<!-- ### gmmm non -->
-<!-- on va essayer  le quickstart guide  à https://github.com/graphhopper/graphhopper/blob/0.13/docs/web/quickstart.md -->
-
-<!-- mkdir graphhopper -->
-<!-- cd graphhopper -->
-<!-- wget https://raw.githubusercontent.com/graphhopper/graphhopper/0.13/config-example.yml -->
-<!-- cat config-example.yml | sed s/"graph.flag_encoders: car"/"graph.flag_encoders: bike"/ > config-bike.yml -->
-<!-- wget https://graphhopper.com/public/releases/graphhopper-web-0.13.0.jar -->
-<!-- wget http://download.geofabrik.de/europe/germany/berlin-latest.osm.pbf -->
-<!-- java -Dgraphhopper.datareader.file=berlin-latest.osm.pbf -jar *.jar server config-bike.yml -->
-
-
-<!-- ça marche pas pour les bikes. -->
-
-<!-- # on va essayer le quick start guide for developpers  -->
-<!-- https://github.com/graphhopper/graphhopper/blob/0.13/docs/core/quickstart-from-source.md -->
-
-
-<!-- git clone git://github.com/graphhopper/graphhopper.git -->
-<!-- cd graphhopper; -->
-<!-- cd web/src/main/resources/ && ZFILE=/tmp/gh.jar && wget -O $ZFILE "https://repository.sonatype.org/service/local/artifact/maven/redirect?r=central-proxy&g=com.graphhopper&a=graphhopper-web&v=LATEST" && unzip $ZFILE assets/js/main.js && rm $ZFILE && cd ../../../.. -->
-<!-- wget https://raw.githubusercontent.com/graphhopper/graphhopper/0.13/config-example.yml -->
-<!-- cat config-example.yml | sed s/"car"/"bike"/ > config-bike.yml -->
-<!-- ./graphhopper.sh -a web -i europe_germany_berlin.pbf # -c config-bike.yml -p bike  -->
-
-<!-- holy shit ça marche on recommence avec quebec pour tester la piste cyclable des outaouais.. -->
-
-<!-- git clone git://github.com/graphhopper/graphhopper.git -->
-<!-- cd graphhopper; -->
-<!-- cd web/src/main/resources/ && ZFILE=/tmp/gh.jar && wget -O $ZFILE "https://repository.sonatype.org/service/local/artifact/maven/redirect?r=central-proxy&g=com.graphhopper&a=graphhopper-web&v=LATEST" && unzip $ZFILE assets/js/main.js && rm $ZFILE && cd ../../../.. -->
-<!-- #wget https://raw.githubusercontent.com/graphhopper/graphhopper/0.13/config-example.yml -->
-<!-- #cat config-example.yml | sed s/"car"/"bike"/ > config-bike.yml -->
-<!-- wget http://download.geofabrik.de/north-america/canada/quebec-latest.osm.pbf -->
-<!-- ./graphhopper.sh -a web -i quebec-latest.osm.pbf  -c config-example.yml ## le secret c'est de pas mettre -p bike...   # à la place je modifie manuellement config-example pour avoir car, bike -->
-
-<!-- ## voici mon config example gossé avec amour  : wget https://gist.githubusercontent.com/SimonCoulombe/c4e4bb3af45ba6b4ccdd48aab561b2dc/raw/config-example.yml -->
-
-
-# docker code that works
-
+### Installation (create your own docker image)
+This takes a while because it  needs to download osm data for quebec and build a cache for the network.  
+```
+cd ~/git/
 git clone git://github.com/graphhopper/graphhopper.git
 cd graphhopper
 rm config-example.yml
@@ -373,30 +324,42 @@ wget https://gist.githubusercontent.com/SimonCoulombe/c4e4bb3af45ba6b4ccdd48aab5
 mv config-bike.yml config-example.yml
 rm Dockerfile
 wget https://gist.githubusercontent.com/SimonCoulombe/ac4acfffdc5a4ac9a1a262703bfc5911/raw/Dockerfile # mon dockerfile utilise mon config et le québec
-docker build -t graphhopper:simon .
+docker build -t morglum/graphhopper_quebec .
 cd ~
 mkdir docker_volumes
 cd docker_volumes
 mkdir graphhopper
-docker run -d --name graphhopper -v ~/docker_volumes/graphhopper/data:/data -p 8989:8989 --restart unless-stopped graphhopper:simon
-## attendre un moment parce que  il va 1) downloader le osm pour le québec et 2) se créer une cache.
-#  docker logs graphhopper
-# ## using java 1.8.0_242 (64bit) from /usr/local/openjdk-8
-# ./graphhopper.sh: line 138: mvn: command not found
-# File not found '/data/north-america_canada_quebec.pbf'. Press ENTER to get it from: http://download.geofabrik.de/north-america/canada/quebec-latest.osm.pbf
-# Press CTRL+C if you do not have enough disc space or you don't want to download several MB.
-# ## now downloading OSM file from http://download.geofabrik.de/north-america/canada/quebec-latest.osm.pbf and extracting to /data/north-america_canada_quebec.pbf
+docker run -d --name graphhopper -v ~/docker_volumes/graphhopper/data:/data -p 8989:8989 --restart unless-stopped graphhopper_quebec
+```
+
+### Installation (pull my docker image)
+```
+docker pull morglum/graphhopper_quebec
+mkdir -p ~/docker_volumes/graphhopper/data
+docker run -d --name graphhopper -v ~/docker_volumes/graphhopper/data:/data -p 8989:8989 --restart unless-stopped morglum/graphhopper_quebec
+```
+
+Once running, visit http://127.0.0.1:8989
+
+![](/post/2020-01-28-how-far-are-cyclists-willing-to-go-to-use-a-cycling-path_files/graphhopper.png)
 
 
+## Routing tool API usage  
 
-# ok on essaie l'API basé sur mon service docker
+The documentation for the routing engine web api is found at https://github.com/graphhopper/graphhopper/blob/0.13/docs/web/api-doc.md  .  
 
-documentation du web api du routing engine :
-https://github.com/graphhopper/graphhopper/blob/0.13/docs/web/api-doc.md
+
+Here is the JSON returned for a short route between two points near park in gatineau.  
+
+
 
 ```{r}
-
 api_results <- fromJSON("http://localhost:8989/route?point=45.381271%2C-75.809054&point=45.380759%2C-75.82253&vehicle=bike&details=road_class&points_encoded=false")
+api_results %>% str
+```
+
+
+```{r}
 api_results$paths$instructions %>% .[[1]] %>% select(distance)#%>% head(-1) # distances sur chacun des 3 segments
 api_results$paths$instructions %>% .[[1]] %>% select(interval) #%>% head(-1) # distances sur chacun des 3 segments
 api_results$paths$details$road_class[[1]][,3] # type de route correspondant aux distances
@@ -411,29 +374,44 @@ api_results$paths$points$coordinates[[1]] %>%
   mapview() # extraire les points du chemin le plus court
 ```
 
+I find the following useful for my use case:
 
-# Route the map-matched points to get the actual road class travelled.
-
-http://localhost:8989/route?point=45.381271%2C-75.809054&point=45.380759%2C-75.82253
+1 ) The "coordinates" columns gives us all the points in the path. There are 31 points.
 ```{r}
-matched$geometry[[1]] %>% st_coordinates %>% as_tibble() %>% mutate(texte = paste0("point=", Y, "%2C", X))  %>% pull(texte) %>% paste(., collapse="&")
+api_results$paths$points$coordinates[[1]]
 ```
-nice.. on va faire ça sur tout le modne
 
+2)  "Instructions"  contains the text instruction your GPS would normally give you,  but also a "distance" travelled column (in meters) and an "interval" column telling us which points fit with which instructions.  
+```{r}
+api_results$path$instructions[[1]]
+```
 
-quand les URL sont trops long, la fonction fromJSON pense que je lui ai donné le texte du json au lieu de l'url du json.
-pour éviter ça, on metre fromJSON(url(filesURL))  , tel qu'expliqué ici:
-https://github.com/jeroen/jsonlite/issues/230
+In our example, the interval column indicates that the first instruction (continue onto Rue Lamoureux) is illustrated by the points 0 to 7, the second instruction (Keep right onto Sentier des Voyageurs Pathway) is illustrated by point 7-25 ... etc..
 
+It appears we will need to add 1 to these numbers, as the intervals refer from 0 to 30 while we know we have 31 points.  
+```{r}
+api_results$path$instructions[[1]]$interval
+```
 
-il y aquand même des trajets trops long même pour firefox (error URI too long) pour id 1015 qui a genre 400 points matchés
-test: 275 ça marche, 300 ça marche pas ..
-on va garder entre 250 et 252 points au hasard.. incluantl e premier et le dernier
-
+Finally, the "road class" column tells us that the points 0 to 7 are on a "residential" road, while points 7 to 25 are on a "cycleway".
 
 ```{r}
-generate_api_call <- function(geometry, origin_destination_only = FALSE){
+api_results$paths$details$road_class[[1]]
+```
 
+
+
+
+
+# Let's get some work done!  
+
+
+## API functions   
+First, I create some function to call the API from R  and wrangle the output  :  
+
+```{r, echo = TRUE}
+generate_api_call <- function(geometry, origin_destination_only = FALSE){
+  
   if(origin_destination_only == FALSE){
     paste0(
       "http://localhost:8989/route?",
@@ -465,7 +443,7 @@ generate_api_call <- function(geometry, origin_destination_only = FALSE){
         )  %>% pull(texte) %>% paste(., collapse="&"),
       "&vehicle=bike&details=road_class&points_encoded=false"
     )
-
+    
   }
 }
 
@@ -477,31 +455,7 @@ get_api_results <- function(geometry, origin_destination_only = FALSE){
     )
   )
 }
-```
 
-```{r}
-tic()
-matched_routed <- matched %>%
-  mutate(length_matched = st_length(geometry) %>% as.numeric(.)) %>%
-  mutate(
-    api_results = future_map(geometry,
-                             ~ get_api_results(geometry = .x,
-                                               origin_destination_only = FALSE),
-                             progress = TRUE)
-  )
-toc()
-write_rds(matched_routed, here::here("content/post/data/interim/", "matched_routed.rds"))
-```
-
-
-## ok on va jouer avec les api results
-
-```{r}
-matched_routed <- read_rds(here::here("content/post/data/interim/", "matched_routed.rds"))
-```
-
-
-```{r}
 get_routed_linestring <- function(api_results){
   api_results$paths$points$coordinates[[1]] %>%
     as_tibble() %>%
@@ -510,32 +464,7 @@ get_routed_linestring <- function(api_results){
     summarize(., do_union = FALSE) %>%
     st_cast("LINESTRING")
 }
-```
 
-```{r}
-matched_routed_linestrings <-
-  future_map(matched_routed$api_results, ~ get_routed_linestring(.x)) %>%
-  bind_rows_sf() %>%
-  add_column(group = matched_routed$group,
-             api_results = matched_routed$api_results,
-             length_matched = matched_routed$length_matched)  %>%
-  mutate(length_routed_matched = st_length(geometry) %>% as.numeric()  )%>%
-  select(group, everything())   ## remettre group avant geometry  11s
-```
-
-##comparer la routé-mapmatché à la mapmatché
-```{r}
-bind_rows_sf(
-  list(
-    matched_routed_linestrings[28,] %>% mutate(group = paste0("matched_routed_", group)) %>% select(group),
-    matched[28,] %>% mutate(group = paste0("matched_", group)) %>% select(group)
-  )
-) %>% mapview()
-```
-
-# sortir les distances par type de route pour la matché-routé  pour une personne
-
-```{r}
 get_distances_from_api_results <- function(api_results){
   tibble(
     distance = api_results$paths$instructions[[1]] %>% pull(distance),
@@ -566,164 +495,210 @@ get_each_point_road_class_from_road_classes <- function(road_classes){
     select(-from, -to)
 }
 
+
+```
+
+## Find the shortest paths  between origin and destination (and the distance travelled by road class.)
+
+The code chunk below returns a table with a linestring showing the shortest route, a distance_by_road_class list_column with tibbles showing the distance in each road class for the tripp
+
+TODO :. what about loops where origin = destination? length = 0... let's ditch them.
+but all loops should be dropped as people obviously didnt take the shortest path..
+
+
+```{r}
+if (switch_generate_interim_data){
+  ## graph origin and destination of all trips and ask the api for the shortest route.  
+  shortest_route_temp <- matched_trips %>%
+    mutate(
+      api_results = future_map(geometry,
+                               ~ get_api_results(geometry = .x,
+                                                 origin_destination_only = TRUE), ## we  only pass the origin and destination to the api
+                               progress = TRUE)
+    )
+  
+  # - take all the points for the shortest route  and create a linestring, then re-add the api_results
+  shortest_route_temp_linestrings <-
+    future_map(shortest_route_temp$api_results, ~ get_routed_linestring(.x)) %>%
+    bind_rows_sf() %>%
+    add_column(group = shortest_route_temp$group,
+               api_results = shortest_route_temp$api_results)  %>%
+    mutate(length_routed = st_length(geometry) %>% as.numeric()  )%>%
+    select(group, everything())   ## remettre group avant geometry  11s
+  
+  shortest_route <- shortest_route_temp_linestrings %>%
+    filter(length_routed >0)  %>%
+    mutate( distances = future_map(api_results, ~get_distances_from_api_results(.x)),
+            road_classes = future_map(api_results, ~ get_road_classes_from_api_results(.x) ),
+            road_classes_points = future_map(road_classes, ~ get_each_point_road_class_from_road_classes(.x)),
+            distance_by_road_class = future_pmap(
+              list(distances, road_classes_points),
+              function(distances, road_classes_points){
+                distances %>%
+                  left_join(road_classes_points) %>%
+                  group_by(road_class) %>%
+                  summarise(distance = sum(distance)) %>%
+                  filter(!is.na(road_class))
+                
+              }
+            )
+    )
+  qsave(shortest_route, here::here("content/post/data/interim/bikegps/", "shortest_route.qs"))
+} else {shortest_route <- qread(here::here("content/post/data/interim/bikegps/", "shortest_route.qs"))
+} 
+
+mapview(shortest_route %>% filter(group == "10044") , zcol = "group")
+```
+
+```{r}
+shortest_route %>% filter(group == "10044") %>% glimpse
 ```
 
 
 ```{r}
-tic()
-matched_routed2 <- matched_routed_linestrings %>%
-  mutate( ratio = length_matched / length_routed_matched,
-          distances = future_map(api_results, ~get_distances_from_api_results(.x)),
-          road_classes = future_map(api_results, ~ get_road_classes_from_api_results(.x) ),
-          road_classes_points = future_map(road_classes, ~ get_each_point_road_class_from_road_classes(.x)),
-          distance_by_road_class = future_pmap(
-            list(distances, road_classes_points, ratio),
-            function(distances, road_classes_points, ratio){
-              distances %>%
-                left_join(road_classes_points) %>%
-                group_by(road_class) %>%
-                summarise(distance = sum(distance)) %>%
-                mutate(corrected_distance = distance * ratio) %>%  ## correct for distance inflation when routing does funny loops
-                filter(!is.na(road_class))
-            })
-  )
-toc()
-write_rds(matched_routed2, here::here("content/post/data/interim/", "matched_routed2.rds"))
+
+shortest_route %>% filter(group == "10044") %>% pull(distance_by_road_class)
+
 ```
 
-
-
-
-
-Ok, so we know what cycled distance was *actually* spent on each road type.  Now we must find out how much *would have been had they chosen the shortest path*.
-
-# Finding 5000 shortest paths  between origin and destination
-
-.. fuck.. what about origin = destination (a stroll that comes back home?  ) let's ditch them...
+Let's map the actual gps data, the map matched route and the shortest route together: 
 
 ```{r}
-matched_shortest_route <- matched %>%
-  mutate(length_matched = st_length(geometry) %>% as.numeric(.)) %>%
-  mutate(
-    api_results = future_map(geometry,
-                             ~ get_api_results(geometry = .x,
-                                               origin_destination_only = TRUE),
-                             progress = TRUE)
+
+
+original_and_matched_and_shortest <-
+  bind_rows_sf(
+    list(
+      matched_trips %>%
+        mutate(group = paste0(group, "_matched")) %>% select(group),
+      shortest_route %>%
+        mutate(group = paste0(group, "_shortest"))%>% select(group),
+      trips %>% select(group = id)%>% select(group)
+    )
   )
 
+mapview(original_and_matched_and_shortest %>% filter(group %in% c("56", "56_matched", "56_shortest")),
+        layer.name= c("Origial trip vs  map-matched vs shortest (trip id = 56)"),
+        zcol = "group")
 
-matched_shortest_route_linestrings <-
-  future_map(matched_shortest_route$api_results, ~ get_routed_linestring(.x)) %>%
-  bind_rows_sf() %>%
-  add_column(group = matched_shortest_route$group,
-             api_results = matched_shortest_route$api_results,
-             length_matched = matched_shortest_route$length_matched)  %>%
-  mutate(length_routed_matched = st_length(geometry) %>% as.numeric()  )%>%
-  select(group, everything())   ## remettre group avant geometry  11s
 
-matched_shortest_route2 <- matched_shortest_route_linestrings %>%
-  #filter(length_routed_matched >0) %>% # didnt return to origin
-  filter(length_routed_matched > 500) %>% # travelled at least 500 meters
-  mutate( ratio = length_matched / length_routed_matched,
-          distances = future_map(api_results, ~get_distances_from_api_results(.x)),
-          road_classes = future_map(api_results, ~ get_road_classes_from_api_results(.x) ),
-          road_classes_points = future_map(road_classes, ~ get_each_point_road_class_from_road_classes(.x)),
-          distance_by_road_class = future_pmap(
-            list(distances, road_classes_points, ratio),
-            function(distances, road_classes_points, ratio){
-              distances %>%
-                left_join(road_classes_points) %>%
-                group_by(road_class) %>%
-                summarise(distance = sum(distance)) %>%
-                mutate(corrected_distance = distance * ratio) %>%  ## correct for distance inflation when routing does funny loops
-                filter(!is.na(road_class))
 
-            }
-          )
-  )
 ```
+
+## .. but we also need the actual distance travelled by road class !  
+
+Here's something that kinda sucks : the map matching program returns a bunch of points, but it doesnt tell us the road class that was actually travelled.
+
+Here is what we are going to do.  We are going to take  as many points as possible from the map-matched route and feed it to the routing API.  This will give us a distance travelled by road class and hopefully it wont be too borked.  
+
+Some issues I got :  
+
+- the fromJSON function falsely interprets long URLs as actual text return by an API.  To prevent this from happening, we can use the url() function inside the fromJSON function like this:   fromJSON(url(filesURL))  .  This idea was found [h]ere on github](https://github.com/jeroen/jsonlite/issues/230).    
+- Firefox crashes when I give it URLs that are too long (error: URI too long), such as for id = 1015 which has around 400 matched points.  The cutoff appears to be somewhere around 275 points.  My fix is to keep a maximum of 250 random points (including origin and destination).  
 
 
 ```{r}
-matched_shortest_route2 %>% st_set_geometry(NULL) %>% pull(distance_by_road_class) %>% bind_rows() %>%
+if (switch_generate_interim_data){
+  tic()
+  routed_matched_trips_temp <- matched_trips %>%
+    mutate(length_matched = st_length(geometry) %>% as.numeric(.)) %>% ## the length of the matched route will be used to correct the routed-matched distance travelled as explained later
+    mutate(
+      api_results = future_map(geometry,
+                               ~ get_api_results(geometry = .x,
+                                                 origin_destination_only = FALSE), # keep as many points as possible
+                               progress = TRUE)
+    )
+  toc() # 3 minutes
+  
+  routed_matched_trips_linestrings <-
+    future_map(routed_matched_trips_temp$api_results, ~ get_routed_linestring(.x)) %>%
+    bind_rows_sf() %>%
+    add_column(group = routed_matched_trips_temp$group,
+               api_results = routed_matched_trips_temp$api_results,
+               length_matched = routed_matched_trips_temp$length_matched)  %>%
+    mutate(length_routed_matched = st_length(geometry) %>% as.numeric()  )%>%
+    select(group, everything()) 
+  
+  
+  routed_matched_trips <- routed_matched_trips_linestrings %>%
+    filter(length_routed_matched >0)  %>%
+    mutate( distances = future_map(api_results, ~get_distances_from_api_results(.x)),
+            road_classes = future_map(api_results, ~ get_road_classes_from_api_results(.x) ),
+            road_classes_points = future_map(road_classes, ~ get_each_point_road_class_from_road_classes(.x)),
+            length_ratio = length_matched / length_routed_matched,
+            distance_by_road_class = future_pmap(
+              list(distances, road_classes_points, length_ratio),
+              function(distances, road_classes_points,length_ratio){
+                distances %>%
+                  left_join(road_classes_points) %>%
+                  group_by(road_class) %>%
+                  summarise(distance = sum(distance)) %>%
+                  mutate(corrected_distance = distance * length_ratio)  %>%
+                  filter(!is.na(road_class))
+                
+              }
+            )
+    )
+  qsave(routed_matched_trips, here::here("content/post/data/interim/bikegps/", "routed_matched_trips.qs"))
+} else {routed_matched_trips <- qread(here::here("content/post/data/interim/bikegps/", "routed_matched_trips.qs"))
+} 
+
+```
+
+
+It ... kinda works... but there are some random hiccups.  Look at our old friend 56 below
+```{r}
+
+
+original_and_matched_and_shortest_and_routed_matched <-
+  bind_rows_sf(
+    list(
+      matched_trips %>%
+        mutate(group = paste0(group, "_matched")) %>% select(group),
+      shortest_route %>%
+        mutate(group = paste0(group, "_shortest"))%>% select(group),
+      routed_matched_trips %>%
+        mutate(group = paste0(group, "_routed_matched"))%>% select(group),
+      trips %>% select(group = id)%>% select(group)
+    )
+  )
+
+mapview(original_and_matched_and_shortest_and_routed_matched %>% filter(group %in% c("56_matched",  "56_routed_matched")),
+        layer.name= c("map matched vs routed-map-matched (trip id = 56)"),
+        zcol = "group")
+
+
+```
+
+To compensate for these extra meters, we will apply the ratio between length(matched) and length(routed_matched) to the distance travelled in each road class.
+
+
+
+# So .. the results  !  
+
+Yeah.. there is some thinking to do here.  The travelled distance is much longer than the shortest possible distance because a lot of the trips are "loops".  This means that the travelled distance is longer than the shortest distance for all road classes and that we can't calculate a trade-off
+
+Ah well, at least I learned to use graphhopper and got to publish my first docker image along the way.
+
+
+
+
+```{r}
+
+
+shortest_route%>% st_set_geometry(NULL)  %>% pull(distance_by_road_class) %>% bind_rows() %>% 
   group_by(road_class) %>%
-  summarise(distance = sum(distance),
-            corrected_distance = sum(corrected_distance)) %>%
-  ungroup() %>%
-  mutate(pct = 100 * corrected_distance / sum(corrected_distance)) %>%
-  arrange(-corrected_distance) %>%
-  knitr::kable()
-```
-
-
-```{r}
-
-matched_shortest_route2 %>% st_set_geometry(NULL) %>% pull(distance_by_road_class) %>% bind_rows() %>%
-
-  summarise(distance = sum(distance),
-            corrected_distance = sum(corrected_distance)) %>%
-
-  mutate(pct = 100 * corrected_distance / sum(corrected_distance)) %>%
-  arrange(-corrected_distance) %>%
-  knitr::kable()
-
-```
-
-.. ok let's summarise that shit.
-```{r}
-matched_routed2 %>%  st_set_geometry(NULL) %>%
-  inner_join(matched_shortest_route2 %>% st_set_geometry(NULL) %>% select(group)) %>%
-  pull(distance_by_road_class) %>% bind_rows() %>%
-  group_by(road_class) %>%
-  summarise(distance = sum(distance),
-            corrected_distance = sum(corrected_distance)) %>%
-  ungroup() %>%
-  mutate(pct = 100 * corrected_distance / sum(corrected_distance)) %>%
-  arrange(-corrected_distance) %>%
-  knitr::kable()
-```
-```{r}
-matched_routed2 %>%  st_set_geometry(NULL) %>%
-  inner_join(matched_shortest_route2 %>% st_set_geometry(NULL) %>% select(group)) %>%
-  pull(distance_by_road_class) %>% bind_rows() %>%
-    summarise(distance = sum(distance),
-            corrected_distance = sum(corrected_distance)) %>%
-
-  mutate(pct = 100 * corrected_distance / sum(corrected_distance)) %>%
-  arrange(-corrected_distance) %>%
-  knitr::kable()
+  summarise(shortest_distance =sum(distance)) %>%
+  left_join(
+    routed_matched_trips %>% st_set_geometry(NULL)  %>% pull(distance_by_road_class) %>% bind_rows() %>% 
+      group_by(road_class) %>%
+      summarise(travelled_distance =sum(corrected_distance))
+  ) %>% 
+  mutate(diff = travelled_distance - shortest_distance) %>% 
+  arrange(-travelled_distance) %>%
+  knitr::kable( digits = 0L)
 
 ```
 
 
-
-
-# ah shit TODO: identify remove trips that loop  back
-
-
-# Compare shortest route to map-matched route  and map-matched-routed
-
-```{r}
-
-#%>% ungroup() %>% select(group) %>% inner_join(matched_shortest_route2 %>% st_set_geometry(NULL) %>% select(group))
-
-testtest <- bind_rows_sf(
-  list(
-    matched  %>% select(group) %>% mutate(type = "matched"),
-    matched_routed  %>%  select(group) %>%  mutate(type = "matched_routed"),
-    matched_shortest_route2 %>% select(group) %>% mutate(type = "shortest_route")
-  )
-)
-```
-
-
-```{r}
-testtest %>% filter(group == "1049") %>% mapview(zcol = "type")
-testtest %>% filter(group == "1000") %>% mapview(zcol = "type")
-testtest %>% filter(group == "1004") %>% mapview(zcol = "type", alpha = 0.3)
-testtest %>% filter(group == "10044") %>% mapview(zcol = "type", alpha = 0.3)
-testtest %>% filter(group == "2010") %>% mapview(zcol = "type", alpha = 0.3)
-testtest %>% filter(group == "2500") %>% mapview(zcol = "type", alpha = 0.3)
-
-```
 

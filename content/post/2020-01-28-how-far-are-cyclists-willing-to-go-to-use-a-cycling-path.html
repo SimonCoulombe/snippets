@@ -1,0 +1,525 @@
+---
+title: How far are cyclists willing to go to use a cycling path? Part 1 - Graphhopper  
+author: simon
+date: '2020-04-13'
+slug: map-matching-bike
+categories:
+  - R
+  - bike
+  - map-maptching
+tags: []
+keywords:
+  - tech
+---
+
+<script src="/rmarkdown-libs/htmlwidgets/htmlwidgets.js"></script>
+<script src="/rmarkdown-libs/jquery/jquery.min.js"></script>
+<link href="/rmarkdown-libs/leaflet/leaflet.css" rel="stylesheet" />
+<script src="/rmarkdown-libs/leaflet/leaflet.js"></script>
+<link href="/rmarkdown-libs/leafletfix/leafletfix.css" rel="stylesheet" />
+<script src="/rmarkdown-libs/Proj4Leaflet/proj4-compressed.js"></script>
+<script src="/rmarkdown-libs/Proj4Leaflet/proj4leaflet.js"></script>
+<link href="/rmarkdown-libs/rstudio_leaflet/rstudio_leaflet.css" rel="stylesheet" />
+<script src="/rmarkdown-libs/leaflet-binding/leaflet.js"></script>
+<script src="/rmarkdown-libs/leaflet-providers/leaflet-providers_1.9.0.js"></script>
+<script src="/rmarkdown-libs/leaflet-providers-plugin/leaflet-providers-plugin.js"></script>
+<link href="/rmarkdown-libs/HomeButton/home-button.css" rel="stylesheet" />
+<script src="/rmarkdown-libs/HomeButton/home-button.js"></script>
+<script src="/rmarkdown-libs/HomeButton/easy-button-src.min.js"></script>
+<script src="/rmarkdown-libs/clipboard/setClipboardText.js"></script>
+<link href="/rmarkdown-libs/PopupTable/popup.css" rel="stylesheet" />
+
+
+<p>I made a twitter survey a couple weeks before the apocalypse to help me pick my next blog post topic and the crowd overwhelmingly agreed that I should use bike gps data and graphhopper to find out how far cyclists are willing to go to use safer infrastructure. :)</p>
+<p>This is awesome, because I have been looking for a use for <a href="http://donnees.ville.montreal.qc.ca/dataset/trajets-individuels-velo-enregistre-mon-resovelo">this open data that contains GPS data for ~ 5000 bike trips in Montreal</a> for a while.</p>
+{{% tweet "1232450391398207488" %}}
+<p>I came up with the following methodology:</p>
+<ul>
+<li>Find out how many kilometers are spent on each road class for the <em>shortest path possible </em> between the origin and destination (eg: 10 kilometers on residential roads).<br />
+</li>
+<li>Find out how many kilometers are <em>actually spent on each road class</em> (eg: 7 kilometers on residential roads, 6 kilometers on cycling pathways).</li>
+<li>The ratio between the kilometers increase in cycling pathway and the kilometer decrease in less-safe roads defines how much cycling pathways are preferred over less-safe roads.</li>
+</ul>
+<p>In my example, the ratio is 2.0, as the 6 kilometers on cycling pathways are used to reduce the distance on roads by 2x.</p>
+<p>This turned out to be quite an undertaking. I have hit many snags, and I don’t have an answer yet. Hopefully putting this in the open will help someone and maybe increase my odds of finishing the project. <strong>This blog post will focus on how I get graphhopper running and how I used it.</strong></p>
+<div id="data" class="section level1">
+<h1>Data</h1>
+<div id="bike-trip-data" class="section level2">
+<h2>Bike trip data</h2>
+<p>We use <a href="http://donnees.ville.montreal.qc.ca/dataset/trajets-individuels-velo-enregistre-mon-resovelo">open data recorded</a> by the “Mon RésoVélo” app of the city of Montréal. The JSON file includes around 5000 trips (4881 to be precise).</p>
+<p>It includes the following columns, a linestring geometry depicting the path travelled and a column named “liste_segments_jsonb” giving the IDs of the segments travelled. (looks like the city did some mapmatching too)..</p>
+<pre><code>## Rows: 5
+## Columns: 9
+## $ stop                 &lt;dttm&gt; 2013-06-25 17:34:16, 2013-07-25 15:40:06, 2013-…
+## $ id_origine           &lt;int&gt; 52, 2325, 2326, 53, 56
+## $ start                &lt;dttm&gt; 2013-06-25 17:21:21, 2013-07-25 15:37:42, 2013-…
+## $ length               &lt;int&gt; 3163, 1066, 5619, 3115, 5376
+## $ purpose              &lt;chr&gt; &quot;Commute&quot;, &quot;Courses&quot;, &quot;Courses&quot;, &quot;Commute&quot;, &quot;Dom…
+## $ n_coord              &lt;int&gt; 511, 196, 1036, 1403, 1004
+## $ id                   &lt;int&gt; 52, 2325, 2326, 53, 56
+## $ liste_segments_jsonb &lt;list&gt; [&lt;&quot;{ \&quot;source\&quot;: \&quot;GEOBASE\&quot;, \&quot;id\&quot;: 1260962 }…
+## $ geometry             &lt;LINESTRING [°]&gt; LINESTRING (-73.57748 45.50..., LINES…</code></pre>
+<div id="htmlwidget-1" style="width:960px;height:480px;" class="leaflet html-widget"></div>
+<script type="application/json" data-for="htmlwidget-1">{"x":{"options":{"minZoom":1,"maxZoom":52,"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}},"preferCanvas":false,"bounceAtZoomLimits":false,"maxBounds":[[[-90,-370]],[[90,370]]]},"calls":[{"method":"addProviderTiles","args":["CartoDB.Positron",1,"CartoDB.Positron",{"errorTileUrl":"","noWrap":false,"detectRetina":false}]},{"method":"addProviderTiles","args":["CartoDB.DarkMatter",2,"CartoDB.DarkMatter",{"errorTileUrl":"","noWrap":false,"detectRetina":false}]},{"method":"addProviderTiles","args":["OpenStreetMap",3,"OpenStreetMap",{"errorTileUrl":"","noWrap":false,"detectRetina":false}]},{"method":"addProviderTiles","args":["Esri.WorldImagery",4,"Esri.WorldImagery",{"errorTileUrl":"","noWrap":false,"detectRetina":false}]},{"method":"addProviderTiles","args":["OpenTopoMap",5,"OpenTopoMap",{"errorTileUrl":"","noWrap":false,"detectRetina":false}]},{"method":"createMapPane","args":["line",430]},{"method":"addPolylines","args":[[[[{"lng":[-73.570705075208,-73.569418831873,-73.56934,-73.569203,-73.569039,-73.568886,-73.568815,-73.568725,-73.568654,-73.568493,-73.568432,-73.568362,-73.568165,-73.567971,-73.567897,-73.567819,-73.567665,-73.567588,-73.567433,-73.567339,-73.567254,-73.567164,-73.567017,-73.566925,-73.566739,-73.566669,-73.566599,-73.566518,-73.566437,-73.566353,-73.566219,-73.566297,-73.566453,-73.566517,-73.566524,-73.56662,-73.566647,-73.566689,-73.566782,-73.566885,-73.566937,-73.567063,-73.567181,-73.567219,-73.567324,-73.56737,-73.567467,-73.567592,-73.567692,-73.567737,-73.567794,-73.567895,-73.567931,-73.567998,-73.568007,-73.568005,-73.568034,-73.568021,-73.567888,-73.567799,-73.567717,-73.567585,-73.567451,-73.567395,-73.567313,-73.567127,-73.56707,-73.566927,-73.566761,-73.56663,-73.566545,-73.566485,-73.566333,-73.566263,-73.566172,-73.56599,-73.565937,-73.56586,-73.5658138378039,-73.5632785126596],"lat":[45.5369982427393,45.5356635303752,45.5356090000019,45.5355240000019,45.5354560000019,45.5354210000019,45.5353890000019,45.5353570000019,45.5353250000019,45.5352390000019,45.5352070000019,45.5351710000019,45.5350530000019,45.5349520000019,45.5349330000019,45.5349000000019,45.5348400000019,45.5348140000019,45.5347430000019,45.5347040000019,45.5346610000019,45.5346410000019,45.5345430000019,45.5344920000019,45.5344400000019,45.5344040000019,45.5343670000019,45.5343360000019,45.5342980000019,45.5342790000019,45.5342230000019,45.5341230000019,45.5340670000019,45.5340090000019,45.5339640000019,45.5339190000019,45.5337550000019,45.5337120000019,45.5336190000019,45.5335280000019,45.5334710000019,45.5333740000019,45.5332780000019,45.5332170000019,45.5330950000019,45.5330370000019,45.5329150000019,45.5328180000019,45.5327200000019,45.5326610000019,45.5326150000019,45.5325120000019,45.5324650000019,45.5323870000019,45.5323600000019,45.5323370000019,45.5323110000019,45.5322800000019,45.5322190000019,45.5321440000019,45.5320830000019,45.5320160000019,45.5319510000019,45.5319570000019,45.5319430000019,45.5318490000019,45.5318170000019,45.5317430000019,45.5316750000019,45.5316310000019,45.5315870000019,45.5315410000019,45.5314590000019,45.5314150000019,45.5313700000019,45.5313210000019,45.5312730000019,45.5312520000019,45.5312234570085,45.5300061488686]}]]],null,". - id",{"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}},"pane":"line","stroke":true,"color":"#E69F00","weight":2,"opacity":0.9,"fill":false,"fillColor":"#6666FF","fillOpacity":1,"smoothFactor":1,"noClip":false},"<html><head><link rel=\"stylesheet\" type=\"text/css\" href=\"lib/popup/popup.css\"><\/head><body><div class=\"scrollableContainer\"><table class=\"popup scrollable\" id=\"popup\"><tr class='coord'><td><\/td><td><b>Feature ID<\/b><\/td><td align='right'>1&emsp;<\/td><\/tr><tr class='alt'><td>1<\/td><td><b>stop&emsp;<\/b><\/td><td align='right'>2013-11-16 12:01:40&emsp;<\/td><\/tr><tr><td>2<\/td><td><b>id_origine&emsp;<\/b><\/td><td align='right'>10044&emsp;<\/td><\/tr><tr class='alt'><td>3<\/td><td><b>start&emsp;<\/b><\/td><td align='right'>2013-11-16 11:59:44&emsp;<\/td><\/tr><tr><td>4<\/td><td><b>length&emsp;<\/b><\/td><td align='right'>1196&emsp;<\/td><\/tr><tr class='alt'><td>5<\/td><td><b>purpose&emsp;<\/b><\/td><td align='right'>Social&emsp;<\/td><\/tr><tr><td>6<\/td><td><b>n_coord&emsp;<\/b><\/td><td align='right'>153&emsp;<\/td><\/tr><tr class='alt'><td>7<\/td><td><b>id&emsp;<\/b><\/td><td align='right'>10044&emsp;<\/td><\/tr><tr><td>8<\/td><td><b>liste_segments_jsonb&emsp;<\/b><\/td><td align='right'>list&emsp;<\/td><\/tr><tr class='alt'><td>9<\/td><td><b>geometry&emsp;<\/b><\/td><td align='right'>sfc_LINESTRING&emsp;<\/td><\/tr><\/table><\/div><\/body><\/html>",{"maxWidth":800,"minWidth":50,"autoPan":true,"keepInView":false,"closeButton":true,"closeOnClick":true,"className":""},"10044",{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},{"stroke":true,"weight":3,"opacity":1,"fill":false,"fillOpacity":0,"bringToFront":false,"sendToBack":false}]},{"method":"addScaleBar","args":[{"maxWidth":100,"metric":true,"imperial":true,"updateWhenIdle":true,"position":"bottomleft"}]},{"method":"addHomeButton","args":[-73.570705075208,45.5300061488686,-73.5632785126596,45.5369982427393,". - id","Zoom to . - id","<strong> . - id <\/strong>","bottomright"]},{"method":"addLayersControl","args":[["CartoDB.Positron","CartoDB.DarkMatter","OpenStreetMap","Esri.WorldImagery","OpenTopoMap"],". - id",{"collapsed":true,"autoZIndex":true,"position":"topleft"}]},{"method":"addLegend","args":[{"colors":["#E69F00"],"labels":["10044"],"na_color":null,"na_label":"NA","opacity":1,"position":"topright","type":"factor","title":"","extra":null,"layerId":null,"className":"info legend","group":". - id"}]}],"limits":{"lat":[45.5300061488686,45.5369982427393],"lng":[-73.570705075208,-73.5632785126596]}},"evals":[],"jsHooks":{"render":[{"code":"function(el, x, data) {\n  return (\n      function(el, x, data) {\n      // get the leaflet map\n      var map = this; //HTMLWidgets.find('#' + el.id);\n      // we need a new div element because we have to handle\n      // the mouseover output separately\n      // debugger;\n      function addElement () {\n      // generate new div Element\n      var newDiv = $(document.createElement('div'));\n      // append at end of leaflet htmlwidget container\n      $(el).append(newDiv);\n      //provide ID and style\n      newDiv.addClass('lnlt');\n      newDiv.css({\n      'position': 'relative',\n      'bottomleft':  '0px',\n      'background-color': 'rgba(255, 255, 255, 0.7)',\n      'box-shadow': '0 0 2px #bbb',\n      'background-clip': 'padding-box',\n      'margin': '0',\n      'padding-left': '5px',\n      'color': '#333',\n      'font': '9px/1.5 \"Helvetica Neue\", Arial, Helvetica, sans-serif',\n      'z-index': '700',\n      });\n      return newDiv;\n      }\n\n\n      // check for already existing lnlt class to not duplicate\n      var lnlt = $(el).find('.lnlt');\n\n      if(!lnlt.length) {\n      lnlt = addElement();\n\n      // grab the special div we generated in the beginning\n      // and put the mousmove output there\n\n      map.on('mousemove', function (e) {\n      if (e.originalEvent.ctrlKey) {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                           ' lon: ' + (e.latlng.lng).toFixed(5) +\n                           ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                           ' | zoom: ' + map.getZoom() +\n                           ' | x: ' + L.CRS.EPSG3857.project(e.latlng).x.toFixed(0) +\n                           ' | y: ' + L.CRS.EPSG3857.project(e.latlng).y.toFixed(0) +\n                           ' | epsg: 3857 ' +\n                           ' | proj4: +proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +no_defs ');\n      } else {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                      ' lon: ' + (e.latlng.lng).toFixed(5) +\n                      ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                      ' | zoom: ' + map.getZoom() + ' ');\n      }\n      });\n\n      // remove the lnlt div when mouse leaves map\n      map.on('mouseout', function (e) {\n      var strip = document.querySelector('.lnlt');\n      strip.remove();\n      });\n\n      };\n\n      //$(el).keypress(67, function(e) {\n      map.on('preclick', function(e) {\n      if (e.originalEvent.ctrlKey) {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                      ' lon: ' + (e.latlng.lng).toFixed(5) +\n                      ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                      ' | zoom: ' + map.getZoom() + ' ');\n      var txt = document.querySelector('.lnlt').textContent;\n      console.log(txt);\n      //txt.innerText.focus();\n      //txt.select();\n      setClipboardText('\"' + txt + '\"');\n      }\n      });\n\n      }\n      ).call(this.getMap(), el, x, data);\n}","data":null}]}}</script>
+<p><img src="/post/2019-04-24-montreal-melting-pot_files/original_bike_path.png" /></p>
+<p>Since the map matching tool requires GPX files as input, we convert the linestring to multipoint, then export each trip to a gpx file name id_NNN.gps using the <code>pgirmess</code> package.</p>
+</div>
+<div id="openstreetmap-data-road-layout" class="section level2">
+<h2>OpenStreetMap data (road layout)</h2>
+<p>We download the latest openstreetmap data for the province of Quebec from <a href="https://download.geofabrik.de/north-america/canada/quebec.html">GeoFabrik</a>.</p>
+</div>
+</div>
+<div id="a-special-tool-graphhopper" class="section level1">
+<h1>A special tool : Graphhopper</h1>
+<p>Graphhopper (<a href="https://github.com/graphhopper/graphhopper">github</a> is an “open source routing engine”. It includes many tools/servers, and we will use the following two for this project:</p>
+<ul>
+<li>The <a href="https://github.com/graphhopper/map-matching">map matching program</a> is a command-line tool that takes a GPS path and returns a list of points “snapped” to the road.<br />
+</li>
+<li>The <a href="https://github.com/graphhopper/graphhopper">routing engine</a> is a web service that returns the shortest path (with instruction) between two points. It can be called using an API.</li>
+</ul>
+<div id="map-matching-tool-installation-and-use" class="section level2">
+<h2>Map matching tool installation and use</h2>
+<p>We will follow the <a href="https://github.com/graphhopper/map-matching">installation instructions</a> on the git repository, with a few changes:<br />
+* We download the “recent_core” branch instead of master because it is required for the “vehicle=bike” option to work,
+* We import the road network for the province of Quebec instead of the city of Berlin.</p>
+<p>Note: Java 8 and Maven &gt;=3.3 are required.</p>
+<pre><code>cd ~
+mkdir git
+cd git
+git clone https://github.com/graphhopper/map-matching.git --branch &#39;recent_core&#39;
+cd map-matching
+mvn package -DskipTests
+wget http://download.geofabrik.de/north-america/canada/quebec-latest.osm.pbf --quiet
+java -jar matching-web/target/graphhopper-map-matching-web-1.0-SNAPSHOT.jar import quebec-latest.osm.pbf --vehicle=&#39;bike&#39;</code></pre>
+<p>Once the quebec map has been imported into the mapmatching tool, we can invoke it from the command line and ask it to map-match all the we put GPXs in the folder. This takes about 10 minutes on my computer.</p>
+<p>The resulting file is a bunch of files named id_NNN.gpx.res.gpx and the here is a comparison of the original trip with the map-matched trip.</p>
+<p>We matched 4858 / 4881 (99.5%) of the trips. When this happened, we got an error that looked like this :</p>
+<p><code>Problem with file /home/simon/git/snippets/content/post/data/interim/bikegps/id_1035.gpx java.lang.IllegalArgumentException: Sequence is broken for submitted track at time step 136 (2387 points). Too long distance to previous measurement? 6182m, observation:Observation{point=45.4757,-73.49115,0.0}, 6 candidates: [distance: 1.2748924992141155 to 45.4756918283334,-73.49116146917257,NaN, distance: 18.8576048599668 to 45.47556516846043,-73.49129669721343,NaN, distance: 1.179455381764211 to 45.47569018147931,-73.49115572348161,NaN, distance: 1.179455381764211 to 45.47569018147931,-73.49115572348161,NaN, distance: 1.143030762846551 to 45.475696624844865,-73.49116384693039,NaN, distance: 1.143030762846551 to 45.475696624844865,-73.49116384693039,NaN]. If a match is expected consider increasing max_visited_nodes. at com.graphhopper.matching.MapMatching.computeViterbiSequence(MapMatching.java:386) at com.graphhopper.matching.MapMatching.doWork(MapMatching.java:184) at com.graphhopper.matching.cli.MatchCommand.run(MatchCommand.java:102) at io.dropwizard.cli.Cli.run(Cli.java:78) at io.dropwizard.Application.run(Application.java:93) at com.graphhopper.matching.http.MapMatchingApplication.main(MapMatchingApplication.java:16)</code></p>
+<p>Let’s import these matched trips GPX back into R, and see how the map-matching did with our trip #10044</p>
+<div id="htmlwidget-2" style="width:960px;height:480px;" class="leaflet html-widget"></div>
+<script type="application/json" data-for="htmlwidget-2">{"x":{"options":{"minZoom":1,"maxZoom":52,"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}},"preferCanvas":false,"bounceAtZoomLimits":false,"maxBounds":[[[-90,-370]],[[90,370]]]},"calls":[{"method":"addProviderTiles","args":["CartoDB.Positron",1,"CartoDB.Positron",{"errorTileUrl":"","noWrap":false,"detectRetina":false}]},{"method":"addProviderTiles","args":["CartoDB.DarkMatter",2,"CartoDB.DarkMatter",{"errorTileUrl":"","noWrap":false,"detectRetina":false}]},{"method":"addProviderTiles","args":["OpenStreetMap",3,"OpenStreetMap",{"errorTileUrl":"","noWrap":false,"detectRetina":false}]},{"method":"addProviderTiles","args":["Esri.WorldImagery",4,"Esri.WorldImagery",{"errorTileUrl":"","noWrap":false,"detectRetina":false}]},{"method":"addProviderTiles","args":["OpenTopoMap",5,"OpenTopoMap",{"errorTileUrl":"","noWrap":false,"detectRetina":false}]},{"method":"createMapPane","args":["line",430]},{"method":"addPolylines","args":[[[[{"lng":[-73.570791,-73.571181,-73.568476,-73.566162,-73.568026,-73.565855,-73.56329],"lat":[45.536911,45.536494,45.535189,45.534137,45.532191,45.531174,45.529999]}]],[[{"lng":[-73.570705075208,-73.569418831873,-73.56934,-73.569203,-73.569039,-73.568886,-73.568815,-73.568725,-73.568654,-73.568493,-73.568432,-73.568362,-73.568165,-73.567971,-73.567897,-73.567819,-73.567665,-73.567588,-73.567433,-73.567339,-73.567254,-73.567164,-73.567017,-73.566925,-73.566739,-73.566669,-73.566599,-73.566518,-73.566437,-73.566353,-73.566219,-73.566297,-73.566453,-73.566517,-73.566524,-73.56662,-73.566647,-73.566689,-73.566782,-73.566885,-73.566937,-73.567063,-73.567181,-73.567219,-73.567324,-73.56737,-73.567467,-73.567592,-73.567692,-73.567737,-73.567794,-73.567895,-73.567931,-73.567998,-73.568007,-73.568005,-73.568034,-73.568021,-73.567888,-73.567799,-73.567717,-73.567585,-73.567451,-73.567395,-73.567313,-73.567127,-73.56707,-73.566927,-73.566761,-73.56663,-73.566545,-73.566485,-73.566333,-73.566263,-73.566172,-73.56599,-73.565937,-73.56586,-73.5658138378039,-73.5632785126596],"lat":[45.5369982427393,45.5356635303752,45.5356090000019,45.5355240000019,45.5354560000019,45.5354210000019,45.5353890000019,45.5353570000019,45.5353250000019,45.5352390000019,45.5352070000019,45.5351710000019,45.5350530000019,45.5349520000019,45.5349330000019,45.5349000000019,45.5348400000019,45.5348140000019,45.5347430000019,45.5347040000019,45.5346610000019,45.5346410000019,45.5345430000019,45.5344920000019,45.5344400000019,45.5344040000019,45.5343670000019,45.5343360000019,45.5342980000019,45.5342790000019,45.5342230000019,45.5341230000019,45.5340670000019,45.5340090000019,45.5339640000019,45.5339190000019,45.5337550000019,45.5337120000019,45.5336190000019,45.5335280000019,45.5334710000019,45.5333740000019,45.5332780000019,45.5332170000019,45.5330950000019,45.5330370000019,45.5329150000019,45.5328180000019,45.5327200000019,45.5326610000019,45.5326150000019,45.5325120000019,45.5324650000019,45.5323870000019,45.5323600000019,45.5323370000019,45.5323110000019,45.5322800000019,45.5322190000019,45.5321440000019,45.5320830000019,45.5320160000019,45.5319510000019,45.5319570000019,45.5319430000019,45.5318490000019,45.5318170000019,45.5317430000019,45.5316750000019,45.5316310000019,45.5315870000019,45.5315410000019,45.5314590000019,45.5314150000019,45.5313700000019,45.5313210000019,45.5312730000019,45.5312520000019,45.5312234570085,45.5300061488686]}]]],null,"Origial trip vs  map-matched",{"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}},"pane":"line","stroke":true,"color":["#FDE725","#440154"],"weight":2,"opacity":[0.9,0.9],"fill":false,"fillColor":["#FDE725","#440154"],"fillOpacity":[1,1],"smoothFactor":1,"noClip":false},["<html><head><link rel=\"stylesheet\" type=\"text/css\" href=\"lib/popup/popup.css\"><\/head><body><div class=\"scrollableContainer\"><table class=\"popup scrollable\" id=\"popup\"><tr class='coord'><td><\/td><td><b>Feature ID<\/b><\/td><td align='right'>1&emsp;<\/td><\/tr><tr class='alt'><td>1<\/td><td><b>group&emsp;<\/b><\/td><td align='right'>10044_matched&emsp;<\/td><\/tr><tr><td>2<\/td><td><b>geometry&emsp;<\/b><\/td><td align='right'>sfc_LINESTRING&emsp;<\/td><\/tr><\/table><\/div><\/body><\/html>","<html><head><link rel=\"stylesheet\" type=\"text/css\" href=\"lib/popup/popup.css\"><\/head><body><div class=\"scrollableContainer\"><table class=\"popup scrollable\" id=\"popup\"><tr class='coord'><td><\/td><td><b>Feature ID<\/b><\/td><td align='right'>2&emsp;<\/td><\/tr><tr class='alt'><td>1<\/td><td><b>group&emsp;<\/b><\/td><td align='right'>10044&emsp;<\/td><\/tr><tr><td>2<\/td><td><b>geometry&emsp;<\/b><\/td><td align='right'>sfc_LINESTRING&emsp;<\/td><\/tr><\/table><\/div><\/body><\/html>"],{"maxWidth":800,"minWidth":50,"autoPan":true,"keepInView":false,"closeButton":true,"closeOnClick":true,"className":""},["10044_matched","10044"],{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},{"stroke":true,"weight":3,"opacity":1,"fill":false,"fillOpacity":0,"bringToFront":false,"sendToBack":false}]},{"method":"addScaleBar","args":[{"maxWidth":100,"metric":true,"imperial":true,"updateWhenIdle":true,"position":"bottomleft"}]},{"method":"addHomeButton","args":[-73.571181,45.529999,-73.5632785126596,45.5369982427393,"Origial trip vs  map-matched","Zoom to Origial trip vs  map-matched","<strong> Origial trip vs  map-matched <\/strong>","bottomright"]},{"method":"addLayersControl","args":[["CartoDB.Positron","CartoDB.DarkMatter","OpenStreetMap","Esri.WorldImagery","OpenTopoMap"],"Origial trip vs  map-matched",{"collapsed":true,"autoZIndex":true,"position":"topleft"}]},{"method":"addLegend","args":[{"colors":["#440154","#FDE725"],"labels":["10044","10044_matched"],"na_color":null,"na_label":"NA","opacity":1,"position":"topright","type":"factor","title":"Origial trip vs  map-matched","extra":null,"layerId":null,"className":"info legend","group":"Origial trip vs  map-matched"}]}],"limits":{"lat":[45.529999,45.5369982427393],"lng":[-73.571181,-73.5632785126596]}},"evals":[],"jsHooks":{"render":[{"code":"function(el, x, data) {\n  return (\n      function(el, x, data) {\n      // get the leaflet map\n      var map = this; //HTMLWidgets.find('#' + el.id);\n      // we need a new div element because we have to handle\n      // the mouseover output separately\n      // debugger;\n      function addElement () {\n      // generate new div Element\n      var newDiv = $(document.createElement('div'));\n      // append at end of leaflet htmlwidget container\n      $(el).append(newDiv);\n      //provide ID and style\n      newDiv.addClass('lnlt');\n      newDiv.css({\n      'position': 'relative',\n      'bottomleft':  '0px',\n      'background-color': 'rgba(255, 255, 255, 0.7)',\n      'box-shadow': '0 0 2px #bbb',\n      'background-clip': 'padding-box',\n      'margin': '0',\n      'padding-left': '5px',\n      'color': '#333',\n      'font': '9px/1.5 \"Helvetica Neue\", Arial, Helvetica, sans-serif',\n      'z-index': '700',\n      });\n      return newDiv;\n      }\n\n\n      // check for already existing lnlt class to not duplicate\n      var lnlt = $(el).find('.lnlt');\n\n      if(!lnlt.length) {\n      lnlt = addElement();\n\n      // grab the special div we generated in the beginning\n      // and put the mousmove output there\n\n      map.on('mousemove', function (e) {\n      if (e.originalEvent.ctrlKey) {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                           ' lon: ' + (e.latlng.lng).toFixed(5) +\n                           ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                           ' | zoom: ' + map.getZoom() +\n                           ' | x: ' + L.CRS.EPSG3857.project(e.latlng).x.toFixed(0) +\n                           ' | y: ' + L.CRS.EPSG3857.project(e.latlng).y.toFixed(0) +\n                           ' | epsg: 3857 ' +\n                           ' | proj4: +proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +no_defs ');\n      } else {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                      ' lon: ' + (e.latlng.lng).toFixed(5) +\n                      ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                      ' | zoom: ' + map.getZoom() + ' ');\n      }\n      });\n\n      // remove the lnlt div when mouse leaves map\n      map.on('mouseout', function (e) {\n      var strip = document.querySelector('.lnlt');\n      strip.remove();\n      });\n\n      };\n\n      //$(el).keypress(67, function(e) {\n      map.on('preclick', function(e) {\n      if (e.originalEvent.ctrlKey) {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                      ' lon: ' + (e.latlng.lng).toFixed(5) +\n                      ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                      ' | zoom: ' + map.getZoom() + ' ');\n      var txt = document.querySelector('.lnlt').textContent;\n      console.log(txt);\n      //txt.innerText.focus();\n      //txt.select();\n      setClipboardText('\"' + txt + '\"');\n      }\n      });\n\n      }\n      ).call(this.getMap(), el, x, data);\n}","data":null}]}}</script>
+<p>Its working fine! As you can see, the 10044_matched trip is matched to the cycling lane on Rachel instead of the road.</p>
+</div>
+<div id="routing-tool-installation" class="section level2">
+<h2>Routing tool installation</h2>
+<p>Alright, now let’s try to find what was the shortest route between the first and the last point.</p>
+<p>The routing engine is not a command line tool like the map-matching tool, but a web server that can be called using an API.</p>
+<p>I describe 3 ways to get it running below. The easiest by far is you already have a docker hub account is to pull my image: morglum/graphhopper_quebec .</p>
+<p>The graphhopper routing engine is located at <a href="https://github.com/graphhopper/graphhopper" class="uri">https://github.com/graphhopper/graphhopper</a></p>
+<p>We install it following <a href="https://github.com/graphhopper/graphhopper/blob/0.13/docs/core/quickstart-from-source.md">the quickstart guide for developpers</a>, because the quickstart guide using a *.jar file (<a href="https://github.com/graphhopper/graphhopper/blob/0.13/docs/web/quickstart.md" class="uri">https://github.com/graphhopper/graphhopper/blob/0.13/docs/web/quickstart.md</a>) returns an error when using the bike vehicle.</p>
+<p>We replaced the including “config-example.yml” with my own <a href="https://gist.githubusercontent.com/SimonCoulombe/c4e4bb3af45ba6b4ccdd48aab561b2dc/raw/config-bike.yml">config-bike.yml</a>, shared as a gist. The differences are as follow:<br />
+* replace <code>graph.flag_encoders: car</code> with <code>graph.flag_encoders: bike, car</code> ,
+* add<br />
+<code>- name: bike vehicle: bike weighting: fastest</code> under</p>
+<p><code>profiles: - name: car vehicle: car weighting: fastest</code><br />
+* add <code>- profile: bike</code> under<br />
+<code>profiles_ch: - profile: car</code></p>
+<p>NOTE/QUESTION : I wasted a lot of time trying to get it with bike as the only available vehicle, to no avail. It appears you can only add vehicles to “car”, not replace car with another vehicle.</p>
+<div id="installation-non-docker" class="section level3">
+<h3>Installation (non-docker)</h3>
+<pre><code>cd ~/git/
+git clone git://github.com/graphhopper/graphhopper.git
+cd graphhopper
+cd web/src/main/resources/ &amp;&amp; ZFILE=/tmp/gh.jar &amp;&amp; wget -O $ZFILE &#39;https://repository.sonatype.org/service/local/artifact/maven/redirect?r=central-proxy&amp;g=com.graphhopper&amp;a=graphhopper-web&amp;v=LATEST&#39; &amp;&amp; unzip $ZFILE assets/js/main.js &amp;&amp; rm $ZFILE &amp;&amp; cd ../../../..
+rm config-example.yml
+wget https://gist.githubusercontent.com/SimonCoulombe/c4e4bb3af45ba6b4ccdd48aab561b2dc/raw/config-bike.yml
+wget http://download.geofabrik.de/north-america/canada/quebec-latest.osm.pbf --quiet
+./graphhopper.sh -a web -i quebec-latest.osm.pbf  -c config-bike.yml</code></pre>
+</div>
+<div id="installation-create-your-own-docker-image" class="section level3">
+<h3>Installation (create your own docker image)</h3>
+<p>This takes a while because it needs to download osm data for quebec and build a cache for the network.</p>
+<pre><code>cd ~/git/
+git clone git://github.com/graphhopper/graphhopper.git
+cd graphhopper
+rm config-example.yml
+wget https://gist.githubusercontent.com/SimonCoulombe/c4e4bb3af45ba6b4ccdd48aab561b2dc/raw/config-bike.yml
+mv config-bike.yml config-example.yml
+rm Dockerfile
+wget https://gist.githubusercontent.com/SimonCoulombe/ac4acfffdc5a4ac9a1a262703bfc5911/raw/Dockerfile # mon dockerfile utilise mon config et le québec
+docker build -t morglum/graphhopper_quebec .
+cd ~
+mkdir docker_volumes
+cd docker_volumes
+mkdir graphhopper
+docker run -d --name graphhopper -v ~/docker_volumes/graphhopper/data:/data -p 8989:8989 --restart unless-stopped graphhopper_quebec</code></pre>
+</div>
+<div id="installation-pull-my-docker-image" class="section level3">
+<h3>Installation (pull my docker image)</h3>
+<pre><code>docker pull morglum/graphhopper_quebec
+mkdir -p ~/docker_volumes/graphhopper/data
+docker run -d --name graphhopper -v ~/docker_volumes/graphhopper/data:/data -p 8989:8989 --restart unless-stopped morglum/graphhopper_quebec</code></pre>
+<p>Once running, visit <a href="http://127.0.0.1:8989" class="uri">http://127.0.0.1:8989</a></p>
+<p><img src="/post/2020-01-28-how-far-are-cyclists-willing-to-go-to-use-a-cycling-path_files/graphhopper.png" /></p>
+</div>
+</div>
+<div id="routing-tool-api-usage" class="section level2">
+<h2>Routing tool API usage</h2>
+<p>The documentation for the routing engine web api is found at <a href="https://github.com/graphhopper/graphhopper/blob/0.13/docs/web/api-doc.md" class="uri">https://github.com/graphhopper/graphhopper/blob/0.13/docs/web/api-doc.md</a> .</p>
+<p>Here is the JSON returned for a short route between two points near park in gatineau.</p>
+<pre><code>## List of 3
+##  $ hints:List of 2
+##   ..$ visited_nodes.average: num 32
+##   ..$ visited_nodes.sum    : int 32
+##  $ info :List of 2
+##   ..$ copyrights: chr [1:2] &quot;GraphHopper&quot; &quot;OpenStreetMap contributors&quot;
+##   ..$ took      : int 2
+##  $ paths:&#39;data.frame&#39;:   1 obs. of  13 variables:
+##   ..$ distance         : num 1642
+##   ..$ weight           : num 247
+##   ..$ time             : int 328378
+##   ..$ transfers        : int 0
+##   ..$ points_encoded   : logi FALSE
+##   ..$ bbox             :List of 1
+##   .. ..$ : num [1:4] -75.8 45.4 -75.8 45.4
+##   ..$ points           :&#39;data.frame&#39;:    1 obs. of  2 variables:
+##   .. ..$ type       : chr &quot;LineString&quot;
+##   .. ..$ coordinates:List of 1
+##   .. .. ..$ : num [1:31, 1:2] -75.8 -75.8 -75.8 -75.8 -75.8 ...
+##   ..$ instructions     :List of 1
+##   .. ..$ :&#39;data.frame&#39;:  4 obs. of  10 variables:
+##   .. .. ..$ distance             : num [1:4] 469 741 431 0
+##   .. .. ..$ heading              : num [1:4] 269 NA NA NA
+##   .. .. ..$ sign                 : int [1:4] 0 7 -3 4
+##   .. .. ..$ interval             :List of 4
+##   .. .. .. ..$ : int [1:2] 0 7
+##   .. .. .. ..$ : int [1:2] 7 25
+##   .. .. .. ..$ : int [1:2] 25 30
+##   .. .. .. ..$ : int [1:2] 30 30
+##   .. .. ..$ text                 : chr [1:4] &quot;Continue onto Rue Lamoureux&quot; &quot;Keep right onto Sentier des Voyageurs Pathway&quot; &quot;Turn sharp left onto Chemin Fraser&quot; &quot;Arrive at destination&quot;
+##   .. .. ..$ time                 : int [1:4] 93885 148205 86288 0
+##   .. .. ..$ street_name          : chr [1:4] &quot;Rue Lamoureux&quot; &quot;Sentier des Voyageurs Pathway&quot; &quot;Chemin Fraser&quot; &quot;&quot;
+##   .. .. ..$ annotation_text      : chr [1:4] NA &quot;cycleway&quot; NA NA
+##   .. .. ..$ annotation_importance: int [1:4] NA 0 NA NA
+##   .. .. ..$ last_heading         : num [1:4] NA NA NA 241
+##   ..$ legs             :List of 1
+##   .. ..$ : list()
+##   ..$ details          :&#39;data.frame&#39;:    1 obs. of  1 variable:
+##   .. ..$ road_class:List of 1
+##   .. .. ..$ : chr [1:3, 1:3] &quot;0&quot; &quot;7&quot; &quot;25&quot; &quot;7&quot; ...
+##   ..$ ascend           : num 0
+##   ..$ descend          : num 0
+##   ..$ snapped_waypoints:&#39;data.frame&#39;:    1 obs. of  2 variables:
+##   .. ..$ type       : chr &quot;LineString&quot;
+##   .. ..$ coordinates:List of 1
+##   .. .. ..$ : num [1:2, 1:2] -75.8 -75.8 45.4 45.4</code></pre>
+<pre><code>##   distance
+## 1  469.434
+## 2  741.037
+## 3  431.449
+## 4    0.000</code></pre>
+<pre><code>##   interval
+## 1     0, 7
+## 2    7, 25
+## 3   25, 30
+## 4   30, 30</code></pre>
+<pre><code>## [1] &quot;residential&quot; &quot;cycleway&quot;    &quot;residential&quot;</code></pre>
+<div id="htmlwidget-3" style="width:960px;height:480px;" class="leaflet html-widget"></div>
+<script type="application/json" data-for="htmlwidget-3">{"x":{"options":{"minZoom":1,"maxZoom":52,"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}},"preferCanvas":false,"bounceAtZoomLimits":false,"maxBounds":[[[-90,-370]],[[90,370]]]},"calls":[{"method":"addProviderTiles","args":["CartoDB.Positron",1,"CartoDB.Positron",{"errorTileUrl":"","noWrap":false,"detectRetina":false}]},{"method":"addProviderTiles","args":["CartoDB.DarkMatter",2,"CartoDB.DarkMatter",{"errorTileUrl":"","noWrap":false,"detectRetina":false}]},{"method":"addProviderTiles","args":["OpenStreetMap",3,"OpenStreetMap",{"errorTileUrl":"","noWrap":false,"detectRetina":false}]},{"method":"addProviderTiles","args":["Esri.WorldImagery",4,"Esri.WorldImagery",{"errorTileUrl":"","noWrap":false,"detectRetina":false}]},{"method":"addProviderTiles","args":["OpenTopoMap",5,"OpenTopoMap",{"errorTileUrl":"","noWrap":false,"detectRetina":false}]},{"method":"createMapPane","args":["line",430]},{"method":"addPolylines","args":[[[[{"lng":[-75.809053,-75.811159,-75.811504,-75.811828,-75.812498,-75.813096,-75.813805,-75.814673,-75.814714,-75.814797,-75.815087,-75.815278,-75.816236,-75.816369,-75.816439,-75.816461,-75.816494,-75.816682,-75.816742,-75.816904,-75.81709,-75.818358,-75.819087,-75.820441,-75.821307,-75.822656,-75.822205,-75.822212,-75.822246,-75.822352,-75.822476],"lat":[45.381244,45.381244,45.381276,45.381373,45.381665,45.38196,45.382217,45.382346,45.382385,45.382425,45.382495,45.382567,45.383134,45.383241,45.383365,45.383588,45.383674,45.383969,45.38417,45.384219,45.384247,45.384221,45.384222,45.384265,45.384323,45.384467,45.380986,45.380883,45.380804,45.380737,45.380689]}]]],null,".",{"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}},"pane":"line","stroke":true,"color":"#6666FF","weight":2,"opacity":0.9,"fill":false,"fillColor":"#6666FF","fillOpacity":1,"smoothFactor":1,"noClip":false},"<html><head><link rel=\"stylesheet\" type=\"text/css\" href=\"lib/popup/popup.css\"><\/head><body><div class=\"scrollableContainer\"><table class=\"popup scrollable\" id=\"popup\"><tr class='coord'><td><\/td><td><b>Feature ID<\/b><\/td><td align='right'>1&emsp;<\/td><\/tr><tr class='alt'><td>1<\/td><td><b>group&emsp;<\/b><\/td><td align='right'>groupe&emsp;<\/td><\/tr><tr><td>2<\/td><td><b>geometry&emsp;<\/b><\/td><td align='right'>sfc_LINESTRING&emsp;<\/td><\/tr><\/table><\/div><\/body><\/html>",{"maxWidth":800,"minWidth":50,"autoPan":true,"keepInView":false,"closeButton":true,"closeOnClick":true,"className":""},"groupe",{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},{"stroke":true,"weight":3,"opacity":1,"fill":false,"fillOpacity":0,"bringToFront":false,"sendToBack":false}]},{"method":"addScaleBar","args":[{"maxWidth":100,"metric":true,"imperial":true,"updateWhenIdle":true,"position":"bottomleft"}]},{"method":"addHomeButton","args":[-75.822656,45.380689,-75.809053,45.384467,".","Zoom to .","<strong> . <\/strong>","bottomright"]},{"method":"addLayersControl","args":[["CartoDB.Positron","CartoDB.DarkMatter","OpenStreetMap","Esri.WorldImagery","OpenTopoMap"],".",{"collapsed":true,"autoZIndex":true,"position":"topleft"}]},{"method":"addLegend","args":[{"colors":["#6666FF"],"labels":["groupe"],"na_color":null,"na_label":"NA","opacity":1,"position":"topright","type":"factor","title":"","extra":null,"layerId":null,"className":"info legend","group":"."}]}],"limits":{"lat":[45.380689,45.384467],"lng":[-75.822656,-75.809053]}},"evals":[],"jsHooks":{"render":[{"code":"function(el, x, data) {\n  return (\n      function(el, x, data) {\n      // get the leaflet map\n      var map = this; //HTMLWidgets.find('#' + el.id);\n      // we need a new div element because we have to handle\n      // the mouseover output separately\n      // debugger;\n      function addElement () {\n      // generate new div Element\n      var newDiv = $(document.createElement('div'));\n      // append at end of leaflet htmlwidget container\n      $(el).append(newDiv);\n      //provide ID and style\n      newDiv.addClass('lnlt');\n      newDiv.css({\n      'position': 'relative',\n      'bottomleft':  '0px',\n      'background-color': 'rgba(255, 255, 255, 0.7)',\n      'box-shadow': '0 0 2px #bbb',\n      'background-clip': 'padding-box',\n      'margin': '0',\n      'padding-left': '5px',\n      'color': '#333',\n      'font': '9px/1.5 \"Helvetica Neue\", Arial, Helvetica, sans-serif',\n      'z-index': '700',\n      });\n      return newDiv;\n      }\n\n\n      // check for already existing lnlt class to not duplicate\n      var lnlt = $(el).find('.lnlt');\n\n      if(!lnlt.length) {\n      lnlt = addElement();\n\n      // grab the special div we generated in the beginning\n      // and put the mousmove output there\n\n      map.on('mousemove', function (e) {\n      if (e.originalEvent.ctrlKey) {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                           ' lon: ' + (e.latlng.lng).toFixed(5) +\n                           ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                           ' | zoom: ' + map.getZoom() +\n                           ' | x: ' + L.CRS.EPSG3857.project(e.latlng).x.toFixed(0) +\n                           ' | y: ' + L.CRS.EPSG3857.project(e.latlng).y.toFixed(0) +\n                           ' | epsg: 3857 ' +\n                           ' | proj4: +proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +no_defs ');\n      } else {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                      ' lon: ' + (e.latlng.lng).toFixed(5) +\n                      ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                      ' | zoom: ' + map.getZoom() + ' ');\n      }\n      });\n\n      // remove the lnlt div when mouse leaves map\n      map.on('mouseout', function (e) {\n      var strip = document.querySelector('.lnlt');\n      strip.remove();\n      });\n\n      };\n\n      //$(el).keypress(67, function(e) {\n      map.on('preclick', function(e) {\n      if (e.originalEvent.ctrlKey) {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                      ' lon: ' + (e.latlng.lng).toFixed(5) +\n                      ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                      ' | zoom: ' + map.getZoom() + ' ');\n      var txt = document.querySelector('.lnlt').textContent;\n      console.log(txt);\n      //txt.innerText.focus();\n      //txt.select();\n      setClipboardText('\"' + txt + '\"');\n      }\n      });\n\n      }\n      ).call(this.getMap(), el, x, data);\n}","data":null}]}}</script>
+<p>I find the following useful for my use case:</p>
+<p>1 ) The “coordinates” columns gives us all the points in the path. There are 31 points.</p>
+<pre><code>##            [,1]     [,2]
+##  [1,] -75.80905 45.38124
+##  [2,] -75.81116 45.38124
+##  [3,] -75.81150 45.38128
+##  [4,] -75.81183 45.38137
+##  [5,] -75.81250 45.38166
+##  [6,] -75.81310 45.38196
+##  [7,] -75.81381 45.38222
+##  [8,] -75.81467 45.38235
+##  [9,] -75.81471 45.38238
+## [10,] -75.81480 45.38242
+## [11,] -75.81509 45.38249
+## [12,] -75.81528 45.38257
+## [13,] -75.81624 45.38313
+## [14,] -75.81637 45.38324
+## [15,] -75.81644 45.38336
+## [16,] -75.81646 45.38359
+## [17,] -75.81649 45.38367
+## [18,] -75.81668 45.38397
+## [19,] -75.81674 45.38417
+## [20,] -75.81690 45.38422
+## [21,] -75.81709 45.38425
+## [22,] -75.81836 45.38422
+## [23,] -75.81909 45.38422
+## [24,] -75.82044 45.38426
+## [25,] -75.82131 45.38432
+## [26,] -75.82266 45.38447
+## [27,] -75.82220 45.38099
+## [28,] -75.82221 45.38088
+## [29,] -75.82225 45.38080
+## [30,] -75.82235 45.38074
+## [31,] -75.82248 45.38069</code></pre>
+<ol start="2" style="list-style-type: decimal">
+<li>“Instructions” contains the text instruction your GPS would normally give you, but also a “distance” travelled column (in meters) and an “interval” column telling us which points fit with which instructions.</li>
+</ol>
+<pre><code>##   distance heading sign interval                                          text
+## 1  469.434   269.1    0     0, 7                   Continue onto Rue Lamoureux
+## 2  741.037      NA    7    7, 25 Keep right onto Sentier des Voyageurs Pathway
+## 3  431.449      NA   -3   25, 30            Turn sharp left onto Chemin Fraser
+## 4    0.000      NA    4   30, 30                         Arrive at destination
+##     time                   street_name annotation_text annotation_importance
+## 1  93885                 Rue Lamoureux            &lt;NA&gt;                    NA
+## 2 148205 Sentier des Voyageurs Pathway        cycleway                     0
+## 3  86288                 Chemin Fraser            &lt;NA&gt;                    NA
+## 4      0                                          &lt;NA&gt;                    NA
+##   last_heading
+## 1           NA
+## 2           NA
+## 3           NA
+## 4     241.4043</code></pre>
+<p>In our example, the interval column indicates that the first instruction (continue onto Rue Lamoureux) is illustrated by the points 0 to 7, the second instruction (Keep right onto Sentier des Voyageurs Pathway) is illustrated by point 7-25 … etc..</p>
+<p>It appears we will need to add 1 to these numbers, as the intervals refer from 0 to 30 while we know we have 31 points.</p>
+<pre><code>## [[1]]
+## [1] 0 7
+## 
+## [[2]]
+## [1]  7 25
+## 
+## [[3]]
+## [1] 25 30
+## 
+## [[4]]
+## [1] 30 30</code></pre>
+<p>Finally, the “road class” column tells us that the points 0 to 7 are on a “residential” road, while points 7 to 25 are on a “cycleway”.</p>
+<pre><code>##      [,1] [,2] [,3]         
+## [1,] &quot;0&quot;  &quot;7&quot;  &quot;residential&quot;
+## [2,] &quot;7&quot;  &quot;25&quot; &quot;cycleway&quot;   
+## [3,] &quot;25&quot; &quot;30&quot; &quot;residential&quot;</code></pre>
+</div>
+</div>
+<div id="lets-get-some-work-done" class="section level1">
+<h1>Let’s get some work done!</h1>
+<div id="api-functions" class="section level2">
+<h2>API functions</h2>
+<p>First, I create some function to call the API from R and wrangle the output :</p>
+<pre class="r"><code>generate_api_call &lt;- function(geometry, origin_destination_only = FALSE){
+  
+  if(origin_destination_only == FALSE){
+    paste0(
+      &quot;http://localhost:8989/route?&quot;,
+      st_coordinates(geometry) %&gt;%
+        as_tibble() %&gt;%
+        mutate(rownum = row_number(),
+               random = runif(nrow(.)),
+               rank = rank(random)) %&gt;%
+        filter(rownum == 1 | rownum == nrow(.) | rank &lt; 250) %&gt;%
+        mutate(
+          texte = paste0(
+            &quot;point=&quot;, Y, &quot;%2C&quot;, X)
+        )  %&gt;% pull(texte) %&gt;% paste(., collapse=&quot;&amp;&quot;),
+      &quot;&amp;vehicle=bike&amp;details=road_class&amp;points_encoded=false&quot;
+    )
+  } else if(origin_destination_only == TRUE){
+    paste0(
+      &quot;http://localhost:8989/route?&quot;,
+      st_coordinates(geometry) %&gt;%
+        as_tibble() %&gt;%
+        slice(1, n()) %&gt;% # keep first and last coordinates
+        mutate(rownum = row_number(),
+               random = runif(nrow(.)),
+               rank = rank(random)) %&gt;%
+        filter(rownum == 1 | rownum == nrow(.) | rank &lt; 250) %&gt;%
+        mutate(
+          texte = paste0(
+            &quot;point=&quot;, Y, &quot;%2C&quot;, X)
+        )  %&gt;% pull(texte) %&gt;% paste(., collapse=&quot;&amp;&quot;),
+      &quot;&amp;vehicle=bike&amp;details=road_class&amp;points_encoded=false&quot;
+    )
+    
+  }
+}
+
+get_api_results &lt;- function(geometry, origin_destination_only = FALSE){
+  fromJSON(
+    url(
+      generate_api_call(geometry = geometry,
+                        origin_destination_only = origin_destination_only)
+    )
+  )
+}
+
+get_routed_linestring &lt;- function(api_results){
+  api_results$paths$points$coordinates[[1]] %&gt;%
+    as_tibble() %&gt;%
+    rename(lon = V1, lat= V2) %&gt;%
+    st_as_sf(coords = c(&quot;lon&quot;, &quot;lat&quot;), crs = 4326) %&gt;%
+    summarize(., do_union = FALSE) %&gt;%
+    st_cast(&quot;LINESTRING&quot;)
+}
+
+get_distances_from_api_results &lt;- function(api_results){
+  tibble(
+    distance = api_results$paths$instructions[[1]] %&gt;% pull(distance),
+    point_from = map(api_results$paths$instructions[[1]]$interval, ~ .x[1]) %&gt;% unlist(),
+    point_to   = map(api_results$paths$instructions[[1]]$interval, ~ .x[2]) %&gt;% unlist(),
+  )
+}
+
+get_road_classes_from_api_results &lt;- function(api_results){
+  tibble(
+    from       = api_results$paths$details$road_class[[1]][,1], # from point
+    to         = api_results$paths$details$road_class[[1]][,2], # to point
+    road_class = api_results$paths$details$road_class[[1]][,3]  # type de route
+  )
+}
+
+get_each_point_road_class_from_road_classes &lt;- function(road_classes){
+  road_classes %&gt;%
+    mutate(data = map2(as.numeric(from), as.numeric(to), ~ {
+      data_frame(
+        point_from =
+          seq(
+            from= .x,
+            to = .y-1 ,
+            by = 1
+          ))
+    })) %&gt;% unnest(data) %&gt;%
+    select(-from, -to)
+}</code></pre>
+</div>
+<div id="find-the-shortest-paths-between-origin-and-destination-and-the-distance-travelled-by-road-class." class="section level2">
+<h2>Find the shortest paths between origin and destination (and the distance travelled by road class.)</h2>
+<p>The code chunk below returns a table with a linestring showing the shortest route, a distance_by_road_class list_column with tibbles showing the distance in each road class for the tripp</p>
+<p>TODO :. what about loops where origin = destination? length = 0… let’s ditch them.
+but all loops should be dropped as people obviously didnt take the shortest path..</p>
+<div id="htmlwidget-4" style="width:960px;height:480px;" class="leaflet html-widget"></div>
+<script type="application/json" data-for="htmlwidget-4">{"x":{"options":{"minZoom":1,"maxZoom":52,"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}},"preferCanvas":false,"bounceAtZoomLimits":false,"maxBounds":[[[-90,-370]],[[90,370]]]},"calls":[{"method":"addProviderTiles","args":["CartoDB.Positron",1,"CartoDB.Positron",{"errorTileUrl":"","noWrap":false,"detectRetina":false}]},{"method":"addProviderTiles","args":["CartoDB.DarkMatter",2,"CartoDB.DarkMatter",{"errorTileUrl":"","noWrap":false,"detectRetina":false}]},{"method":"addProviderTiles","args":["OpenStreetMap",3,"OpenStreetMap",{"errorTileUrl":"","noWrap":false,"detectRetina":false}]},{"method":"addProviderTiles","args":["Esri.WorldImagery",4,"Esri.WorldImagery",{"errorTileUrl":"","noWrap":false,"detectRetina":false}]},{"method":"addProviderTiles","args":["OpenTopoMap",5,"OpenTopoMap",{"errorTileUrl":"","noWrap":false,"detectRetina":false}]},{"method":"createMapPane","args":["line",430]},{"method":"addPolylines","args":[[[[{"lng":[-73.570791,-73.571181,-73.568476,-73.566162,-73.568026,-73.565855,-73.56329],"lat":[45.536911,45.536494,45.535189,45.534137,45.532191,45.531174,45.529999]}]]],null,"shortest_route %>% filter(group == \"10044\") - group",{"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}},"pane":"line","stroke":true,"color":"#6666FF","weight":2,"opacity":0.9,"fill":false,"fillColor":"#6666FF","fillOpacity":1,"smoothFactor":1,"noClip":false},"<html><head><link rel=\"stylesheet\" type=\"text/css\" href=\"lib/popup/popup.css\"><\/head><body><div class=\"scrollableContainer\"><table class=\"popup scrollable\" id=\"popup\"><tr class='coord'><td><\/td><td><b>Feature ID<\/b><\/td><td align='right'>1&emsp;<\/td><\/tr><tr class='alt'><td>1<\/td><td><b>group&emsp;<\/b><\/td><td align='right'>10044&emsp;<\/td><\/tr><tr><td>2<\/td><td><b>api_results&emsp;<\/b><\/td><td align='right'>list&emsp;<\/td><\/tr><tr class='alt'><td>3<\/td><td><b>length_routed&emsp;<\/b><\/td><td align='right'>1230.7&emsp;<\/td><\/tr><tr><td>4<\/td><td><b>geometry&emsp;<\/b><\/td><td align='right'>sfc_LINESTRING&emsp;<\/td><\/tr><tr class='alt'><td>5<\/td><td><b>distances&emsp;<\/b><\/td><td align='right'>list&emsp;<\/td><\/tr><tr><td>6<\/td><td><b>road_classes&emsp;<\/b><\/td><td align='right'>list&emsp;<\/td><\/tr><tr class='alt'><td>7<\/td><td><b>road_classes_points&emsp;<\/b><\/td><td align='right'>list&emsp;<\/td><\/tr><tr><td>8<\/td><td><b>distance_by_road_class&emsp;<\/b><\/td><td align='right'>list&emsp;<\/td><\/tr><\/table><\/div><\/body><\/html>",{"maxWidth":800,"minWidth":50,"autoPan":true,"keepInView":false,"closeButton":true,"closeOnClick":true,"className":""},"10044",{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},{"stroke":true,"weight":3,"opacity":1,"fill":false,"fillOpacity":0,"bringToFront":false,"sendToBack":false}]},{"method":"addScaleBar","args":[{"maxWidth":100,"metric":true,"imperial":true,"updateWhenIdle":true,"position":"bottomleft"}]},{"method":"addHomeButton","args":[-73.571181,45.529999,-73.56329,45.536911,"shortest_route %>% filter(group == \"10044\") - group","Zoom to shortest_route %>% filter(group == \"10044\") - group","<strong> shortest_route %>% filter(group == \"10044\") - group <\/strong>","bottomright"]},{"method":"addLayersControl","args":[["CartoDB.Positron","CartoDB.DarkMatter","OpenStreetMap","Esri.WorldImagery","OpenTopoMap"],"shortest_route %>% filter(group == \"10044\") - group",{"collapsed":true,"autoZIndex":true,"position":"topleft"}]},{"method":"addLegend","args":[{"colors":["#6666FF"],"labels":["10044"],"na_color":null,"na_label":"NA","opacity":1,"position":"topright","type":"factor","title":"","extra":null,"layerId":null,"className":"info legend","group":"shortest_route %>% filter(group == \"10044\") - group"}]}],"limits":{"lat":[45.529999,45.536911],"lng":[-73.571181,-73.56329]}},"evals":[],"jsHooks":{"render":[{"code":"function(el, x, data) {\n  return (\n      function(el, x, data) {\n      // get the leaflet map\n      var map = this; //HTMLWidgets.find('#' + el.id);\n      // we need a new div element because we have to handle\n      // the mouseover output separately\n      // debugger;\n      function addElement () {\n      // generate new div Element\n      var newDiv = $(document.createElement('div'));\n      // append at end of leaflet htmlwidget container\n      $(el).append(newDiv);\n      //provide ID and style\n      newDiv.addClass('lnlt');\n      newDiv.css({\n      'position': 'relative',\n      'bottomleft':  '0px',\n      'background-color': 'rgba(255, 255, 255, 0.7)',\n      'box-shadow': '0 0 2px #bbb',\n      'background-clip': 'padding-box',\n      'margin': '0',\n      'padding-left': '5px',\n      'color': '#333',\n      'font': '9px/1.5 \"Helvetica Neue\", Arial, Helvetica, sans-serif',\n      'z-index': '700',\n      });\n      return newDiv;\n      }\n\n\n      // check for already existing lnlt class to not duplicate\n      var lnlt = $(el).find('.lnlt');\n\n      if(!lnlt.length) {\n      lnlt = addElement();\n\n      // grab the special div we generated in the beginning\n      // and put the mousmove output there\n\n      map.on('mousemove', function (e) {\n      if (e.originalEvent.ctrlKey) {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                           ' lon: ' + (e.latlng.lng).toFixed(5) +\n                           ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                           ' | zoom: ' + map.getZoom() +\n                           ' | x: ' + L.CRS.EPSG3857.project(e.latlng).x.toFixed(0) +\n                           ' | y: ' + L.CRS.EPSG3857.project(e.latlng).y.toFixed(0) +\n                           ' | epsg: 3857 ' +\n                           ' | proj4: +proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +no_defs ');\n      } else {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                      ' lon: ' + (e.latlng.lng).toFixed(5) +\n                      ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                      ' | zoom: ' + map.getZoom() + ' ');\n      }\n      });\n\n      // remove the lnlt div when mouse leaves map\n      map.on('mouseout', function (e) {\n      var strip = document.querySelector('.lnlt');\n      strip.remove();\n      });\n\n      };\n\n      //$(el).keypress(67, function(e) {\n      map.on('preclick', function(e) {\n      if (e.originalEvent.ctrlKey) {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                      ' lon: ' + (e.latlng.lng).toFixed(5) +\n                      ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                      ' | zoom: ' + map.getZoom() + ' ');\n      var txt = document.querySelector('.lnlt').textContent;\n      console.log(txt);\n      //txt.innerText.focus();\n      //txt.select();\n      setClipboardText('\"' + txt + '\"');\n      }\n      });\n\n      }\n      ).call(this.getMap(), el, x, data);\n}","data":null}]}}</script>
+<pre><code>## Rows: 1
+## Columns: 8
+## $ group                  &lt;chr&gt; &quot;10044&quot;
+## $ api_results            &lt;list&gt; [[[62, 62], [&lt;&quot;GraphHopper&quot;, &quot;OpenStreetMap c…
+## $ length_routed          &lt;dbl&gt; 1230.7
+## $ geometry               &lt;LINESTRING [°]&gt; LINESTRING (-73.57079 45.53...
+## $ distances              &lt;list&gt; [&lt;tbl_df[5 x 3]&gt;]
+## $ road_classes           &lt;list&gt; [&lt;tbl_df[4 x 3]&gt;]
+## $ road_classes_points    &lt;list&gt; [&lt;tbl_df[6 x 2]&gt;]
+## $ distance_by_road_class &lt;list&gt; [&lt;tbl_df[3 x 2]&gt;]</code></pre>
+<pre><code>## [[1]]
+## # A tibble: 3 x 2
+##   road_class  distance
+##   &lt;chr&gt;          &lt;dbl&gt;
+## 1 cycleway       261. 
+## 2 residential    913. 
+## 3 secondary       55.4</code></pre>
+<p>Let’s map the actual gps data, the map matched route and the shortest route together:</p>
+<div id="htmlwidget-5" style="width:960px;height:480px;" class="leaflet html-widget"></div>
+<script type="application/json" data-for="htmlwidget-5">{"x":{"options":{"minZoom":1,"maxZoom":52,"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}},"preferCanvas":false,"bounceAtZoomLimits":false,"maxBounds":[[[-90,-370]],[[90,370]]]},"calls":[{"method":"addProviderTiles","args":["CartoDB.Positron",1,"CartoDB.Positron",{"errorTileUrl":"","noWrap":false,"detectRetina":false}]},{"method":"addProviderTiles","args":["CartoDB.DarkMatter",2,"CartoDB.DarkMatter",{"errorTileUrl":"","noWrap":false,"detectRetina":false}]},{"method":"addProviderTiles","args":["OpenStreetMap",3,"OpenStreetMap",{"errorTileUrl":"","noWrap":false,"detectRetina":false}]},{"method":"addProviderTiles","args":["Esri.WorldImagery",4,"Esri.WorldImagery",{"errorTileUrl":"","noWrap":false,"detectRetina":false}]},{"method":"addProviderTiles","args":["OpenTopoMap",5,"OpenTopoMap",{"errorTileUrl":"","noWrap":false,"detectRetina":false}]},{"method":"createMapPane","args":["line",430]},{"method":"addPolylines","args":[[[[{"lng":[-73.604989,-73.602017,-73.601374,-73.598711,-73.599037,-73.598299,-73.596819,-73.596667,-73.595801,-73.594438,-73.594352,-73.594068,-73.593991,-73.593375,-73.593198,-73.59291,-73.591861,-73.591577,-73.591369,-73.591219,-73.590933,-73.590265,-73.590189,-73.590063,-73.589927,-73.589737,-73.589058,-73.588298,-73.588151,-73.58803,-73.585809,-73.584884,-73.584814,-73.580783,-73.577092,-73.57694,-73.575703,-73.571278,-73.5695,-73.564775,-73.564061,-73.563863,-73.563888,-73.563864,-73.563801,-73.563747,-73.563588,-73.561377,-73.561732,-73.560354,-73.56028,-73.559336,-73.557977,-73.557513,-73.556951,-73.555785,-73.556638,-73.556235,-73.556966,-73.557101,-73.558149,-73.555541,-73.555539],"lat":[45.519064,45.517754,45.517639,45.516401,45.516047,45.516102,45.516155,45.516151,45.516074,45.515902,45.515869,45.515821,45.515833,45.515745,45.515743,45.515776,45.5161,45.516159,45.516163,45.516139,45.516053,45.515788,45.515728,45.515704,45.515705,45.515729,45.515894,45.516131,45.516142,45.51612,45.515104,45.514653,45.514635,45.512765,45.511056,45.511039,45.510432,45.508374,45.507506,45.505281,45.504928,45.50512,45.505199,45.505226,45.505249,45.505243,45.50541,45.504336,45.503838,45.503209,45.503147,45.502677,45.502028,45.501829,45.501542,45.500996,45.500011,45.499873,45.498989,45.498921,45.497947,45.496959,45.496969]}]],[[{"lng":[-73.604989,-73.602017,-73.601374,-73.598711,-73.599037,-73.599086,-73.598192,-73.596563,-73.596309,-73.594553,-73.594438,-73.593012,-73.591508,-73.591148,-73.589805,-73.589316,-73.58903,-73.586989,-73.584909,-73.579573,-73.579403,-73.579296,-73.579222,-73.579173,-73.57907,-73.579005,-73.578776,-73.578694,-73.578413,-73.57838,-73.578381,-73.578353,-73.578254,-73.574918,-73.571682,-73.572304,-73.570284,-73.571054,-73.56844,-73.568059,-73.566899,-73.566797,-73.566614,-73.566493,-73.566168,-73.56497,-73.564217,-73.563794,-73.563478,-73.563154,-73.560766,-73.560358,-73.558383,-73.554899,-73.555186,-73.555539],"lat":[45.519064,45.517754,45.517639,45.516401,45.516047,45.515961,45.51603,45.516062,45.516045,45.515842,45.515902,45.517471,45.516817,45.516855,45.516272,45.516786,45.516841,45.515922,45.514948,45.512487,45.51241,45.512394,45.512328,45.511907,45.511625,45.511519,45.511258,45.511099,45.510954,45.510909,45.510835,45.510793,45.510746,45.509166,45.507686,45.506655,45.505699,45.50465,45.503385,45.503785,45.50323,45.503134,45.503069,45.503073,45.502983,45.502409,45.50223,45.502161,45.502073,45.501944,45.500881,45.501282,45.500591,45.499417,45.499018,45.496969]}]],[[{"lng":[-73.6050191016393,-73.6048687178296,-73.6048643833,-73.6048199167,-73.6047707167,-73.6047183,-73.6046668667,-73.6046165,-73.6045668,-73.604524,-73.6044763833,-73.604425,-73.6043630667,-73.6042995333,-73.6042385333,-73.6041749167,-73.6041093,-73.6040413833,-73.6039734167,-73.6039091667,-73.6038382333,-73.6037676833,-73.6036966167,-73.6036209667,-73.6035424333,-73.6034654667,-73.6033855833,-73.6033048333,-73.6032285333,-73.6031537333,-73.6030776167,-73.6029976833,-73.6029156333,-73.6028351333,-73.6027446667,-73.6026476833,-73.6025604667,-73.6024812167,-73.6024038833,-73.6023265833,-73.6022488,-73.6021714667,-73.6020927167,-73.60202075,-73.6019462167,-73.60186515,-73.6017822,-73.6016935,-73.60159925,-73.6015087667,-73.6014184333,-73.6013301167,-73.6012427833,-73.6011593667,-73.6010786667,-73.6010003833,-73.600922,-73.60084435,-73.6007638667,-73.6006815333,-73.6006019833,-73.6005198667,-73.60043895,-73.6003589833,-73.6002796333,-73.6001985833,-73.6001168833,-73.6000362667,-73.59995335,-73.5998732167,-73.5997904333,-73.59970385,-73.5996163,-73.5995321,-73.5994458667,-73.5993608,-73.5992828,-73.59920695,-73.5991331333,-73.5990698833,-73.5990066167,-73.5989458,-73.59888155,-73.59881655,-73.5987538833,-73.5987068667,-73.5986723167,-73.5986581833,-73.5986647667,-73.5986823167,-73.5987000333,-73.59871705,-73.59873135,-73.59873675,-73.5987174333,-73.5986955167,-73.5986605667,-73.5986224167,-73.59857715,-73.5985333333,-73.59848625,-73.5984348167,-73.59836625,-73.5982963833,-73.5982213333,-73.5981418,-73.5980466167,-73.5979369833,-73.59782775,-73.5977135667,-73.5975992833,-73.5974816,-73.5973600667,-73.5972505667,-73.5971396667,-73.5970381333,-73.5969380167,-73.5968365167,-73.5967385667,-73.5966437667,-73.5965479,-73.59645075,-73.5963542167,-73.5962617,-73.5961711167,-73.5960810833,-73.5959913333,-73.5959084833,-73.5958248333,-73.5957408,-73.5956572833,-73.59557105,-73.5954977333,-73.59542445,-73.59535265,-73.5952811,-73.59522905,-73.5951793833,-73.5951435667,-73.5951260667,-73.5951110333,-73.5950875167,-73.5950612667,-73.5950018167,-73.5949268833,-73.5948468333,-73.5947522,-73.59466905,-73.5945869167,-73.5944945833,-73.5944015,-73.5943006667,-73.5942032,-73.5940790667,-73.5939258,-73.593766,-73.5936033167,-73.5934373167,-73.5932720333,-73.5931188833,-73.59296245,-73.5928114833,-73.5926638667,-73.59251965,-73.5923762167,-73.5922354,-73.59210245,-73.5919675167,-73.5918362333,-73.5917029333,-73.5915756833,-73.5914519167,-73.5913351833,-73.5912243333,-73.5911236833,-73.5910337167,-73.5909495,-73.5908670333,-73.5907896,-73.5907209833,-73.5906650667,-73.5906199333,-73.5905822667,-73.5905494167,-73.5905189167,-73.5904889333,-73.5904549,-73.5904117167,-73.5903523333,-73.5902861667,-73.5902070833,-73.590115,-73.5900127167,-73.5899094167,-73.5898088,-73.58970965,-73.5896130333,-73.5895187167,-73.5894267333,-73.5893353,-73.5892441667,-73.58915305,-73.5890636167,-73.5889726833,-73.5888787333,-73.5887829833,-73.5886855333,-73.5885874333,-73.5884889333,-73.5883882833,-73.58828575,-73.5881819667,-73.5880843333,-73.5879861667,-73.58789565,-73.58780445,-73.5877124833,-73.5876217667,-73.5875302,-73.5874402667,-73.58735525,-73.5872699333,-73.5871895333,-73.5871075833,-73.5870252,-73.5869427167,-73.5868579167,-73.5867711667,-73.58668835,-73.5866101667,-73.5865314333,-73.5864524833,-73.58637315,-73.58629295,-73.58621305,-73.58613395,-73.5860561667,-73.5859784167,-73.5858991167,-73.5858193667,-73.5857382,-73.5856585333,-73.58557735,-73.58549575,-73.5854145833,-73.5853367,-73.5852567333,-73.5851753667,-73.5850944333,-73.5850117667,-73.5849225667,-73.5848295667,-73.5847378833,-73.5846445167,-73.5845506167,-73.58446025,-73.5843689167,-73.58427925,-73.5841899667,-73.5840956833,-73.5839994333,-73.5839017,-73.5838057833,-73.5837089167,-73.5836143167,-73.58352135,-73.58342905,-73.5833382667,-73.5832470833,-73.5831698833,-73.5831003833,-73.58303235,-73.58298165,-73.5829215,-73.58284475,-73.5827504167,-73.58264655,-73.5825424167,-73.58243195,-73.5823291833,-73.5822257833,-73.5821210167,-73.5820107833,-73.58190615,-73.58178915,-73.5816744833,-73.58155195,-73.58143075,-73.5812983,-73.5811516167,-73.5810219167,-73.5808862,-73.580738,-73.5805873,-73.5804354667,-73.5802868167,-73.5801415167,-73.57999975,-73.5798496,-73.5796887333,-73.5795270167,-73.5793648333,-73.5792039,-73.5790459167,-73.5788883667,-73.5787311667,-73.5785735667,-73.5784167167,-73.5782598833,-73.57810605,-73.5779606333,-73.5778245167,-73.5777126333,-73.5776200333,-73.5775443333,-73.5774797333,-73.5774230333,-73.5773677333,-73.577311,-73.5772519167,-73.5771874167,-73.5771179833,-73.5770461167,-73.5769744167,-73.5769022333,-73.5768281333,-73.5767579667,-73.5766854167,-73.5766112333,-73.5765199833,-73.57642115,-73.5763179833,-73.5762164167,-73.5761146333,-73.5760172167,-73.57592425,-73.5758325333,-73.5757368167,-73.5756376667,-73.5755337667,-73.5754289167,-73.5753225,-73.5752231667,-73.5751179833,-73.5749954,-73.5748691167,-73.5747553833,-73.57464105,-73.57452905,-73.5744231,-73.5743171167,-73.5742152333,-73.5741166667,-73.57402015,-73.5739285667,-73.5738367167,-73.5737433333,-73.5736497667,-73.5735580333,-73.5734624333,-73.5733667,-73.5732719667,-73.5731781333,-73.57308365,-73.5729866,-73.5728870667,-73.5727854167,-73.5726821167,-73.5725813,-73.57248295,-73.5723851,-73.5722844167,-73.5721804,-73.5720822167,-73.57198875,-73.57189625,-73.57178455,-73.5716833,-73.5716031,-73.5715424333,-73.5714963,-73.5714498667,-73.5712592167,-73.57122005,-73.5711706333,-73.5711219667,-73.5710760667,-73.5710280333,-73.5709739333,-73.57091075,-73.5708460333,-73.5707824833,-73.57072305,-73.5706646667,-73.5706058833,-73.57054955,-73.5704939333,-73.5704313167,-73.5703677333,-73.5703061333,-73.5702452833,-73.5701812667,-73.5701131,-73.5700450833,-73.5699769667,-73.56990765,-73.5698378667,-73.5697685833,-73.5696999833,-73.56963135,-73.56956985,-73.5695150167,-73.5694836667,-73.56949,-73.5694817833,-73.56947075,-73.56945835,-73.569448,-73.56938435,-73.5693490167,-73.56931605,-73.5692809,-73.56925,-73.5689774167,-73.5687660667,-73.5686646833,-73.5685731833,-73.5685058333,-73.5683823833,-73.5682760667,-73.5681617667,-73.5680363167,-73.5679387167,-73.56786025,-73.5677680333,-73.5676766,-73.5675812667,-73.5674973667,-73.5674174,-73.5673392333,-73.56726405,-73.56719405,-73.5671247167,-73.5670521167,-73.5669846167,-73.5669436833,-73.5669161667,-73.5669050333,-73.5668823667,-73.5668637333,-73.5668262333,-73.5667839667,-73.5667285,-73.5666639,-73.5665927,-73.5665219833,-73.5664677333,-73.5664229833,-73.5663702167,-73.5663099,-73.5662428833,-73.5661658667,-73.5660803167,-73.5659825167,-73.5658779,-73.5657685833,-73.5656577333,-73.5655486833,-73.56544465,-73.5653430167,-73.5652452167,-73.5651539833,-73.56507645,-73.5650169833,-73.5649710833,-73.5649378667,-73.5648832,-73.5648396333,-73.5647933167,-73.5647478,-73.5647039,-73.5646524,-73.5646023833,-73.5645371833,-73.5644595333,-73.5643700333,-73.5642828333,-73.5642030167,-73.56410855,-73.56399755,-73.56388545,-73.5637666333,-73.5636370667,-73.5635094833,-73.56319835,-73.5630944167,-73.5629909833,-73.5628850833,-73.5627818333,-73.5626866333,-73.5625915167,-73.5624859833,-73.5623870167,-73.5622939167,-73.5622100833,-73.56213475,-73.5620589,-73.5619837333,-73.5619142333,-73.5618585833,-73.5618331,-73.5618081833,-73.5617914333,-73.56177145,-73.5617617,-73.5617525,-73.5617424167,-73.5617337333,-73.56172425,-73.56171345,-73.5617003333,-73.5616798667,-73.56164785,-73.5616137833,-73.56157235,-73.56150895,-73.5614387833,-73.5613621,-73.56127965,-73.5611844833,-73.5610861833,-73.56100225,-73.5609239167,-73.5608445,-73.5607694167,-73.5606995667,-73.5606388667,-73.56059565,-73.5605570833,-73.5605297,-73.5605074333,-73.5604894333,-73.5605268167,-73.56054905,-73.5605727333,-73.5605895333,-73.5606014,-73.5603034,-73.5600030333,-73.55985055,-73.5597242,-73.5595703167,-73.55940575,-73.5592585,-73.5591315,-73.5590139667,-73.55890335,-73.5588010833,-73.55869375,-73.5585997333,-73.5585084,-73.5584239333,-73.5583500667,-73.5582858,-73.5582285,-73.5581808333,-73.5581349167,-73.5580970167,-73.5580566667,-73.5580136333,-73.5579687167,-73.5579213167,-73.5578752167,-73.5578291167,-73.5577855167,-73.55774375,-73.5577042167,-73.5576643667,-73.5576208,-73.5575772333,-73.5575316667,-73.55748295,-73.5574318667,-73.55737815,-73.5573239667,-73.5572779833,-73.5572319833,-73.5571728333,-73.5571154333,-73.5570585833,-73.5570042,-73.5567483333,-73.5566927167,-73.5566359833,-73.5565749333,-73.5565171833,-73.55647315,-73.5564421333,-73.5564105,-73.5562200667,-73.5561869167,-73.5561505333,-73.5561054667,-73.5560566667,-73.5560122167,-73.5559739833,-73.5559356167,-73.5558972167,-73.5558611167,-73.5558297167,-73.5558127667,-73.5558682,-73.5559160167,-73.5559552167,-73.5559902,-73.556026,-73.5560681167,-73.5561223167,-73.55618495,-73.55624445,-73.5563111833,-73.5563706833,-73.55644375,-73.5563855167,-73.55633165,-73.55628115,-73.5562428667,-73.5562106333,-73.5561768333,-73.5561410333,-73.5561017333,-73.5560639667,-73.5561950833,-73.5562861167,-73.5563971833,-73.5565166167,-73.5566395,-73.5567518167,-73.5568628167,-73.5569675333,-73.5570602333,-73.5571341333,-73.5571923167,-73.5572486,-73.5573142833,-73.5573828333,-73.55745025,-73.5575175333,-73.5575833833,-73.5576468167,-73.5576954167,-73.5577431333,-73.5577949667,-73.5578181833,-73.557866,-73.55788255,-73.5579186833,-73.5579532833,-73.5579909167,-73.5580321167,-73.5580700667,-73.5581099167,-73.5581336167,-73.5581000167,-73.5580524,-73.5579830333,-73.55791535,-73.5578455333,-73.5577746333,-73.5577049333,-73.557629,-73.5575532667,-73.5574792333,-73.5574016833,-73.5573244,-73.5572452333,-73.5571692667,-73.5570953167,-73.5570222667,-73.5569487833,-73.5568759833,-73.5568043333,-73.5567318167,-73.5566587833,-73.5565855667,-73.5565128167,-73.5564398167,-73.55636745,-73.5562951833,-73.55621925,-73.5561445667,-73.5560741667,-73.5560072167,-73.5559534,-73.5558992833,-73.55585355,-73.5558056167,-73.5557676833,-73.5557287667,-73.5557085833,-73.5556903,-73.5557018667,-73.5557143,-73.5557528333,-73.5558226333,-73.5558849333,-73.5558994833,-73.5559100833,-73.55590165,-73.55581265,-73.5557003333,-73.5555732667,-73.5555728717065,-73.5555490986405],"lat":[45.5190269268572,45.5191934403056,45.5191899000019,45.5191623000019,45.5191348167019,45.5191062333019,45.5190738500019,45.5190407167019,45.5190051833019,45.5189626333019,45.5189229500019,45.5188866833019,45.5188589500019,45.5188314833019,45.5188033500019,45.5187753000019,45.5187477333019,45.5187217333019,45.5186909000019,45.5186568000019,45.5186278667019,45.5186053667019,45.5185770833019,45.5185475167019,45.5185195833019,45.5184898167019,45.5184574667019,45.5184267167019,45.5183945000019,45.5183610667019,45.5183322333019,45.5183023833019,45.5182713500019,45.5182393667019,45.5182243000019,45.5182149333019,45.5181926000019,45.5181654833019,45.5181307333019,45.5180981500019,45.5180638500019,45.5180261333019,45.5179961667019,45.5179404667019,45.5178879000019,45.5178418833019,45.5178096333019,45.5177791000019,45.5177529000019,45.5177230667019,45.5176939167019,45.5176669333019,45.5176273000019,45.5175925833019,45.5175502667019,45.5175078833019,45.5174668167019,45.5174278000019,45.5173874000019,45.5173495500019,45.5173146667019,45.5172837833019,45.5172533000019,45.5172229000019,45.5171945333019,45.5171645167019,45.5171317167019,45.5170972833019,45.5170631500019,45.5170298500019,45.5169968833019,45.5169661000019,45.5169388000019,45.5169112833019,45.5168957167019,45.5168776500019,45.5168591667019,45.5168413667019,45.5168252667019,45.5168158000019,45.5168092667019,45.5168013833019,45.5167818167019,45.5167689500019,45.5167505833019,45.5167179667019,45.5166826000019,45.5166540667019,45.5165577000019,45.5164789333019,45.5164402000019,45.5164054500019,45.5163723667019,45.5162788500019,45.5162053833019,45.5161708833019,45.5161467667019,45.5161246667019,45.5161060667019,45.5160887500019,45.5160737167019,45.5160635167019,45.5160615333019,45.5160607500019,45.5160626833019,45.5160676833019,45.5160757333019,45.5160865167019,45.5160926833019,45.5160980500019,45.5161051500019,45.5161139500019,45.5161244167019,45.5161337167019,45.5161433000019,45.5161504333019,45.5161584000019,45.5161632167019,45.5161635000019,45.5161574667019,45.5161482500019,45.5161378167019,45.5161263000019,45.5161108000019,45.5160945167019,45.5160793000019,45.5160640000019,45.5160420000019,45.5160226167019,45.5160084500019,45.5159922500019,45.5159901000019,45.5159793167019,45.5159687333019,45.5159632333019,45.5159597000019,45.5159557500019,45.5159520167019,45.5159289167019,45.5158908667019,45.5158512000019,45.5158186000019,45.5157836167019,45.5157642833019,45.5157463667019,45.5157297833019,45.5157122167019,45.5156941667019,45.5156741500019,45.5156553333019,45.5156371500019,45.5156217667019,45.5156062667019,45.5155925500019,45.5155847000019,45.5155836667019,45.5155914500019,45.5156152667019,45.5156476500019,45.5156842667019,45.5157257667019,45.5157674833019,45.5158083000019,45.5158461000019,45.5158816500019,45.5159154667019,45.5159534833019,45.5159910833019,45.5160225833019,45.5160452500019,45.5160546167019,45.5160532333019,45.5160345000019,45.5160160500019,45.5159937500019,45.5159688167019,45.5159448500019,45.5159228667019,45.5159015167019,45.5158802500019,45.5158610333019,45.5158432333019,45.5158286000019,45.5158146500019,45.5157985667019,45.5157810333019,45.5157659333019,45.5157525167019,45.5157382833019,45.5157227500019,45.5157064167019,45.5156946833019,45.5156894833019,45.5156938333019,45.5157055000019,45.5157231333019,45.5157421667019,45.5157625500019,45.5157838167019,45.5158065833019,45.5158309667019,45.5158550667019,45.5158803833019,45.5159075833019,45.5159342500019,45.5159602500019,45.5159866000019,45.5160134167019,45.5160370833019,45.5160526500019,45.5160623167019,45.5160591833019,45.5160371667019,45.5160103333019,45.5159826167019,45.5159536000019,45.5159229833019,45.5158879833019,45.5158541500019,45.5158195000019,45.5157810833019,45.5157445500019,45.5157012167019,45.5156622000019,45.5156250833019,45.5155890333019,45.5155565167019,45.5155261833019,45.5154939667019,45.5154587500019,45.5154234500019,45.5153889500019,45.5153529667019,45.5153177167019,45.5152809833019,45.5152419333019,45.5152010500019,45.5151607000019,45.5151219333019,45.5150847000019,45.5150476500019,45.5150079167019,45.5149688333019,45.5149288167019,45.5148875167019,45.5148405667019,45.5147960667019,45.5147494667019,45.5147010833019,45.5146520500019,45.5146062000019,45.5145614667019,45.5145140000019,45.5144654000019,45.5144161667019,45.5143683167019,45.5143222500019,45.5142773333019,45.5142328667019,45.5141919333019,45.5141520667019,45.5141129000019,45.5140744000019,45.5140377667019,45.5139977000019,45.5139543833019,45.5139104333019,45.5138641000019,45.5138180167019,45.5137594000019,45.5136943500019,45.5136345000019,45.5135669167019,45.5135064333019,45.5134517000019,45.5134051167019,45.5133646833019,45.5133206333019,45.5132752500019,45.5132321667019,45.5131886333019,45.5131426667019,45.5130956500019,45.5130495000019,45.5130000833019,45.5129507500019,45.5129013167019,45.5128502667019,45.5127969333019,45.5127379333019,45.5126859000019,45.5126324833019,45.5125696667019,45.5125143000019,45.5124583833019,45.5124007833019,45.5123392167019,45.5122754167019,45.5122145500019,45.5121535333019,45.5120893333019,45.5120260167019,45.5119596500019,45.5118893167019,45.5118180667019,45.5117463833019,45.5116738167019,45.5116005667019,45.5115310167019,45.5114638667019,45.5113949833019,45.5113262833019,45.5112652000019,45.5112132833019,45.5111793500019,45.5111554500019,45.5111348500019,45.5111126167019,45.5110871833019,45.5110566167019,45.5110265500019,45.5109973833019,45.5109660000019,45.5109305833019,45.5108920667019,45.5108538333019,45.5108151500019,45.5107773333019,45.5107411000019,45.5107099500019,45.5106809000019,45.5106550833019,45.5106311667019,45.5106073000019,45.5105818500019,45.5105558333019,45.5105268333019,45.5104927167019,45.5104553667019,45.5104135333019,45.5103667000019,45.5103151667019,45.5102477833019,45.5101806833019,45.5101339500019,45.5100906667019,45.5100455333019,45.5099987000019,45.5099469500019,45.5098922000019,45.5098380333019,45.5097836167019,45.5097314667019,45.5096813000019,45.5096315333019,45.5095843333019,45.5095418667019,45.5095008500019,45.5094589833019,45.5094188500019,45.5093776833019,45.5093339667019,45.5092881333019,45.5092396167019,45.5091927333019,45.5091475667019,45.5091069167019,45.5090660833019,45.5090224000019,45.5089765667019,45.5089298333019,45.5088904333019,45.5088537500019,45.5088132167019,45.5087735000019,45.5087349833019,45.5087072667019,45.5086793667019,45.5086507333019,45.5086258833019,45.5086039833019,45.5085839167019,45.5084924333019,45.5084708167019,45.5084440833019,45.5084127667019,45.5083802333019,45.5083495500019,45.5083179000019,45.5082854333019,45.5082531500019,45.5082226167019,45.5081924167019,45.5081626500019,45.5081333833019,45.5081070333019,45.5080813333019,45.5080646167019,45.5080466667019,45.5080291500019,45.5080121333019,45.5080007000019,45.5079960000019,45.5079898000019,45.5079861667019,45.5079843667019,45.5079923833019,45.5079984833019,45.5079946167019,45.5079878167019,45.5079810500019,45.5079678500019,45.5079535333019,45.5078280167019,45.5078076333019,45.5077906333019,45.5077777167019,45.5077592000019,45.5076754500019,45.5076530167019,45.5076242667019,45.5075927833019,45.5075710167019,45.5073664167019,45.5072974833019,45.5072605333019,45.5072249833019,45.5071979000019,45.5071470833019,45.5071078667019,45.5070611167019,45.5069974667019,45.5069472167019,45.5068917333019,45.5068549667019,45.5068250833019,45.5067956500019,45.5067558667019,45.5067154167019,45.5066764167019,45.5066400667019,45.5066020167019,45.5065687167019,45.5065569500019,45.5065467500019,45.5065387667019,45.5065235000019,45.5065036833019,45.5064597833019,45.5064350000019,45.5064197667019,45.5064020333019,45.5063972500019,45.5063990500019,45.5063888500019,45.5063711167019,45.5063273333019,45.5062785667019,45.5062331167019,45.5061821667019,45.5061361333019,45.5060921500019,45.5060412500019,45.5059921667019,45.5059443333019,45.5058925667019,45.5058341167019,45.5057760333019,45.5057206167019,45.5056636667019,45.5056071333019,45.5055541167019,45.5055119833019,45.5054814667019,45.5054608000019,45.5054450667019,45.5053543167019,45.5053605167019,45.5053717500019,45.5053782500019,45.5053836167019,45.5053801833019,45.5053727833019,45.5053499000019,45.5053203333019,45.5052925833019,45.5052644000019,45.5052483500019,45.5052453333019,45.5052447833019,45.5052162000019,45.5051868833019,45.5051652167019,45.5051361833019,45.5049947833019,45.5049492833019,45.5049046333019,45.5048612167019,45.5048056167019,45.5047177333019,45.5046288833019,45.5045923000019,45.5045476500019,45.5044960500019,45.5044274167019,45.5043497000019,45.5042881333019,45.5042401333019,45.5041940000019,45.5041616167019,45.5041383500019,45.5041179333019,45.5041040000019,45.5041002000019,45.5040924000019,45.5040852500019,45.5040761333019,45.5040653500019,45.5040528000019,45.5040379667019,45.5040221667019,45.5040035833019,45.5039788333019,45.5039605333019,45.5039544667019,45.5039238667019,45.5038770500019,45.5038280000019,45.5037785167019,45.5037311667019,45.5036816333019,45.5036373833019,45.5035922333019,45.5035541167019,45.5035172667019,45.5034810500019,45.5034462167019,45.5034155333019,45.5033882833019,45.5033695667019,45.5033556000019,45.5032675667019,45.5032235500019,45.5032006500019,45.5031764500019,45.5031540333019,45.5031331333019,45.5031073167019,45.5030707667019,45.5030547667019,45.5030387500019,45.5030178833019,45.5029906167019,45.5029447833019,45.5028956000019,45.5028522500019,45.5028132833019,45.5027395167019,45.5026629500019,45.5026155000019,45.5025824667019,45.5025644000019,45.5025443167019,45.5025225667019,45.5025081833019,45.5024969500019,45.5024844500019,45.5024365833019,45.5023794000019,45.5023243333019,45.5022725333019,45.5022242500019,45.5021811167019,45.5021426333019,45.5021093500019,45.5020868833019,45.5020739833019,45.5020608667019,45.5020537500019,45.5020462000019,45.5020405000019,45.5020332667019,45.5020017167019,45.5019675167019,45.5019348667019,45.5019050000019,45.5018754000019,45.5018570667019,45.5018387500019,45.5018179333019,45.5017971167019,45.5016637667019,45.5016315333019,45.5016002000019,45.5015790833019,45.5015615333019,45.5015442167019,45.5015310667019,45.5015186167019,45.5014076000019,45.5013855667019,45.5013626333019,45.5013470167019,45.5013353333019,45.5013210667019,45.5013091333019,45.5012960833019,45.5012835833019,45.5012666333019,45.5012434500019,45.5012212167019,45.5011944167019,45.5011742167019,45.5011517500019,45.5011056833019,45.5010506167019,45.5010007833019,45.5009556000019,45.5009077833019,45.5008567167019,45.5008102167019,45.5007716667019,45.5003704500019,45.5003360833019,45.5003027500019,45.5002672333019,45.5002136667019,45.5001596000019,45.5001059500019,45.5000577500019,45.5000148667019,45.4999670333019,45.4998972000019,45.4998722167019,45.4998332000019,45.4997808667019,45.4997139167019,45.4996367667019,45.4995527167019,45.4994725000019,45.4993992167019,45.4993255500019,45.4992636833019,45.4992054833019,45.4991559333019,45.4991120000019,45.4990782833019,45.4990589833019,45.4990349833019,45.4990103833019,45.4989524833019,45.4989069167019,45.4988761667019,45.4987966667019,45.4987591500019,45.4986766167019,45.4986151333019,45.4985592833019,45.4985050333019,45.4984529500019,45.4983996167019,45.4983386000019,45.4982738500019,45.4981957667019,45.4981222500019,45.4980577000019,45.4979974500019,45.4979423833019,45.4978957167019,45.4978490333019,45.4978060000019,45.4977699833019,45.4977376167019,45.4977297667019,45.4977194500019,45.4977124667019,45.4977023167019,45.4976833500019,45.4976601000019,45.4976333833019,45.4976028833019,45.4975708500019,45.4975401000019,45.4975105000019,45.4974822500019,45.4974550333019,45.4974287833019,45.4974023500019,45.4973765000019,45.4973633667019,45.4973499333019,45.4973319333019,45.4973120500019,45.4973046833019,45.4973010333019,45.4973274167019,45.4973548167019,45.4973522333019,45.4973440833019,45.4973141667019,45.4972795333019,45.4972630167019,45.4972729167019,45.4972172333019,45.4971787667019,45.4971435667019,45.4970772333019,45.4970268833019,45.4969769333019,45.4969008667019,45.4968355333019,45.4968133167019,45.496813225526,45.4969654739377]}]]],null,"Origial trip vs  map-matched vs shortest (trip id = 56)",{"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}},"pane":"line","stroke":true,"color":["#21908C","#FDE725","#440154"],"weight":2,"opacity":[0.9,0.9,0.9],"fill":false,"fillColor":["#21908C","#FDE725","#440154"],"fillOpacity":[1,1,1],"smoothFactor":1,"noClip":false},["<html><head><link rel=\"stylesheet\" type=\"text/css\" href=\"lib/popup/popup.css\"><\/head><body><div class=\"scrollableContainer\"><table class=\"popup scrollable\" id=\"popup\"><tr class='coord'><td><\/td><td><b>Feature ID<\/b><\/td><td align='right'>1&emsp;<\/td><\/tr><tr class='alt'><td>1<\/td><td><b>group&emsp;<\/b><\/td><td align='right'>56_matched&emsp;<\/td><\/tr><tr><td>2<\/td><td><b>geometry&emsp;<\/b><\/td><td align='right'>sfc_LINESTRING&emsp;<\/td><\/tr><\/table><\/div><\/body><\/html>","<html><head><link rel=\"stylesheet\" type=\"text/css\" href=\"lib/popup/popup.css\"><\/head><body><div class=\"scrollableContainer\"><table class=\"popup scrollable\" id=\"popup\"><tr class='coord'><td><\/td><td><b>Feature ID<\/b><\/td><td align='right'>2&emsp;<\/td><\/tr><tr class='alt'><td>1<\/td><td><b>group&emsp;<\/b><\/td><td align='right'>56_shortest&emsp;<\/td><\/tr><tr><td>2<\/td><td><b>geometry&emsp;<\/b><\/td><td align='right'>sfc_LINESTRING&emsp;<\/td><\/tr><\/table><\/div><\/body><\/html>","<html><head><link rel=\"stylesheet\" type=\"text/css\" href=\"lib/popup/popup.css\"><\/head><body><div class=\"scrollableContainer\"><table class=\"popup scrollable\" id=\"popup\"><tr class='coord'><td><\/td><td><b>Feature ID<\/b><\/td><td align='right'>3&emsp;<\/td><\/tr><tr class='alt'><td>1<\/td><td><b>group&emsp;<\/b><\/td><td align='right'>56&emsp;<\/td><\/tr><tr><td>2<\/td><td><b>geometry&emsp;<\/b><\/td><td align='right'>sfc_LINESTRING&emsp;<\/td><\/tr><\/table><\/div><\/body><\/html>"],{"maxWidth":800,"minWidth":50,"autoPan":true,"keepInView":false,"closeButton":true,"closeOnClick":true,"className":""},["56_matched","56_shortest","56"],{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},{"stroke":true,"weight":3,"opacity":1,"fill":false,"fillOpacity":0,"bringToFront":false,"sendToBack":false}]},{"method":"addScaleBar","args":[{"maxWidth":100,"metric":true,"imperial":true,"updateWhenIdle":true,"position":"bottomleft"}]},{"method":"addHomeButton","args":[-73.6050191016393,45.496813225526,-73.554899,45.5191934403056,"Origial trip vs  map-matched vs shortest (trip id = 56)","Zoom to Origial trip vs  map-matched vs shortest (trip id = 56)","<strong> Origial trip vs  map-matched vs shortest (trip id = 56) <\/strong>","bottomright"]},{"method":"addLayersControl","args":[["CartoDB.Positron","CartoDB.DarkMatter","OpenStreetMap","Esri.WorldImagery","OpenTopoMap"],"Origial trip vs  map-matched vs shortest (trip id = 56)",{"collapsed":true,"autoZIndex":true,"position":"topleft"}]},{"method":"addLegend","args":[{"colors":["#440154","#21908C","#FDE725"],"labels":["56","56_matched","56_shortest"],"na_color":null,"na_label":"NA","opacity":1,"position":"topright","type":"factor","title":"Origial trip vs  map-matched vs shortest (trip id = 56)","extra":null,"layerId":null,"className":"info legend","group":"Origial trip vs  map-matched vs shortest (trip id = 56)"}]}],"limits":{"lat":[45.496813225526,45.5191934403056],"lng":[-73.6050191016393,-73.554899]}},"evals":[],"jsHooks":{"render":[{"code":"function(el, x, data) {\n  return (\n      function(el, x, data) {\n      // get the leaflet map\n      var map = this; //HTMLWidgets.find('#' + el.id);\n      // we need a new div element because we have to handle\n      // the mouseover output separately\n      // debugger;\n      function addElement () {\n      // generate new div Element\n      var newDiv = $(document.createElement('div'));\n      // append at end of leaflet htmlwidget container\n      $(el).append(newDiv);\n      //provide ID and style\n      newDiv.addClass('lnlt');\n      newDiv.css({\n      'position': 'relative',\n      'bottomleft':  '0px',\n      'background-color': 'rgba(255, 255, 255, 0.7)',\n      'box-shadow': '0 0 2px #bbb',\n      'background-clip': 'padding-box',\n      'margin': '0',\n      'padding-left': '5px',\n      'color': '#333',\n      'font': '9px/1.5 \"Helvetica Neue\", Arial, Helvetica, sans-serif',\n      'z-index': '700',\n      });\n      return newDiv;\n      }\n\n\n      // check for already existing lnlt class to not duplicate\n      var lnlt = $(el).find('.lnlt');\n\n      if(!lnlt.length) {\n      lnlt = addElement();\n\n      // grab the special div we generated in the beginning\n      // and put the mousmove output there\n\n      map.on('mousemove', function (e) {\n      if (e.originalEvent.ctrlKey) {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                           ' lon: ' + (e.latlng.lng).toFixed(5) +\n                           ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                           ' | zoom: ' + map.getZoom() +\n                           ' | x: ' + L.CRS.EPSG3857.project(e.latlng).x.toFixed(0) +\n                           ' | y: ' + L.CRS.EPSG3857.project(e.latlng).y.toFixed(0) +\n                           ' | epsg: 3857 ' +\n                           ' | proj4: +proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +no_defs ');\n      } else {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                      ' lon: ' + (e.latlng.lng).toFixed(5) +\n                      ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                      ' | zoom: ' + map.getZoom() + ' ');\n      }\n      });\n\n      // remove the lnlt div when mouse leaves map\n      map.on('mouseout', function (e) {\n      var strip = document.querySelector('.lnlt');\n      strip.remove();\n      });\n\n      };\n\n      //$(el).keypress(67, function(e) {\n      map.on('preclick', function(e) {\n      if (e.originalEvent.ctrlKey) {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                      ' lon: ' + (e.latlng.lng).toFixed(5) +\n                      ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                      ' | zoom: ' + map.getZoom() + ' ');\n      var txt = document.querySelector('.lnlt').textContent;\n      console.log(txt);\n      //txt.innerText.focus();\n      //txt.select();\n      setClipboardText('\"' + txt + '\"');\n      }\n      });\n\n      }\n      ).call(this.getMap(), el, x, data);\n}","data":null}]}}</script>
+</div>
+<div id="but-we-also-need-the-actual-distance-travelled-by-road-class" class="section level2">
+<h2>.. but we also need the actual distance travelled by road class !</h2>
+<p>Here’s something that kinda sucks : the map matching program returns a bunch of points, but it doesnt tell us the road class that was actually travelled.</p>
+<p>Here is what we are going to do. We are going to take as many points as possible from the map-matched route and feed it to the routing API. This will give us a distance travelled by road class and hopefully it wont be too borked.</p>
+<p>Some issues I got :</p>
+<ul>
+<li>the fromJSON function falsely interprets long URLs as actual text return by an API. To prevent this from happening, we can use the url() function inside the fromJSON function like this: fromJSON(url(filesURL)) . This idea was found [h]ere on github](<a href="https://github.com/jeroen/jsonlite/issues/230" class="uri">https://github.com/jeroen/jsonlite/issues/230</a>).<br />
+</li>
+<li>Firefox crashes when I give it URLs that are too long (error: URI too long), such as for id = 1015 which has around 400 matched points. The cutoff appears to be somewhere around 275 points. My fix is to keep a maximum of 250 random points (including origin and destination).</li>
+</ul>
+<p>It … kinda works… but there are some random hiccups. Look at our old friend 56 below
+<div id="htmlwidget-6" style="width:960px;height:480px;" class="leaflet html-widget"></div>
+<script type="application/json" data-for="htmlwidget-6">{"x":{"options":{"minZoom":1,"maxZoom":52,"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}},"preferCanvas":false,"bounceAtZoomLimits":false,"maxBounds":[[[-90,-370]],[[90,370]]]},"calls":[{"method":"addProviderTiles","args":["CartoDB.Positron",1,"CartoDB.Positron",{"errorTileUrl":"","noWrap":false,"detectRetina":false}]},{"method":"addProviderTiles","args":["CartoDB.DarkMatter",2,"CartoDB.DarkMatter",{"errorTileUrl":"","noWrap":false,"detectRetina":false}]},{"method":"addProviderTiles","args":["OpenStreetMap",3,"OpenStreetMap",{"errorTileUrl":"","noWrap":false,"detectRetina":false}]},{"method":"addProviderTiles","args":["Esri.WorldImagery",4,"Esri.WorldImagery",{"errorTileUrl":"","noWrap":false,"detectRetina":false}]},{"method":"addProviderTiles","args":["OpenTopoMap",5,"OpenTopoMap",{"errorTileUrl":"","noWrap":false,"detectRetina":false}]},{"method":"createMapPane","args":["line",430]},{"method":"addPolylines","args":[[[[{"lng":[-73.604989,-73.602017,-73.601374,-73.598711,-73.599037,-73.598299,-73.596819,-73.596667,-73.595801,-73.594438,-73.594352,-73.594068,-73.593991,-73.593375,-73.593198,-73.59291,-73.591861,-73.591577,-73.591369,-73.591219,-73.590933,-73.590265,-73.590189,-73.590063,-73.589927,-73.589737,-73.589058,-73.588298,-73.588151,-73.58803,-73.585809,-73.584884,-73.584814,-73.580783,-73.577092,-73.57694,-73.575703,-73.571278,-73.5695,-73.564775,-73.564061,-73.563863,-73.563888,-73.563864,-73.563801,-73.563747,-73.563588,-73.561377,-73.561732,-73.560354,-73.56028,-73.559336,-73.557977,-73.557513,-73.556951,-73.555785,-73.556638,-73.556235,-73.556966,-73.557101,-73.558149,-73.555541,-73.555539],"lat":[45.519064,45.517754,45.517639,45.516401,45.516047,45.516102,45.516155,45.516151,45.516074,45.515902,45.515869,45.515821,45.515833,45.515745,45.515743,45.515776,45.5161,45.516159,45.516163,45.516139,45.516053,45.515788,45.515728,45.515704,45.515705,45.515729,45.515894,45.516131,45.516142,45.51612,45.515104,45.514653,45.514635,45.512765,45.511056,45.511039,45.510432,45.508374,45.507506,45.505281,45.504928,45.50512,45.505199,45.505226,45.505249,45.505243,45.50541,45.504336,45.503838,45.503209,45.503147,45.502677,45.502028,45.501829,45.501542,45.500996,45.500011,45.499873,45.498989,45.498921,45.497947,45.496959,45.496969]}]],[[{"lng":[-73.604989,-73.602017,-73.601374,-73.598711,-73.599037,-73.598299,-73.596819,-73.596667,-73.595801,-73.594438,-73.594352,-73.594068,-73.593991,-73.593991,-73.594062,-73.594349,-73.594438,-73.594352,-73.594068,-73.593991,-73.593375,-73.593198,-73.59291,-73.591861,-73.591577,-73.591369,-73.591219,-73.590933,-73.590265,-73.590189,-73.590063,-73.589927,-73.589737,-73.589058,-73.588298,-73.588151,-73.58803,-73.585809,-73.584884,-73.584814,-73.580783,-73.577092,-73.57694,-73.57694,-73.577037,-73.577162,-73.577227,-73.577092,-73.57694,-73.575703,-73.571278,-73.5695,-73.564775,-73.564061,-73.563863,-73.563888,-73.563864,-73.563801,-73.563747,-73.563588,-73.563588,-73.561377,-73.561377,-73.562207,-73.563171,-73.563437,-73.56443,-73.565003,-73.564291,-73.562697,-73.561732,-73.560354,-73.56028,-73.559336,-73.557977,-73.557513,-73.556951,-73.555785,-73.555785,-73.556638,-73.556235,-73.554899,-73.555186,-73.555308,-73.556966,-73.556966,-73.557101,-73.558149,-73.555541,-73.555541,-73.555539],"lat":[45.519064,45.517754,45.517639,45.516401,45.516047,45.516102,45.516155,45.516151,45.516074,45.515902,45.515869,45.515821,45.515833,45.515833,45.51587,45.515915,45.515902,45.515869,45.515821,45.515833,45.515745,45.515743,45.515776,45.5161,45.516159,45.516163,45.516139,45.516053,45.515788,45.515728,45.515704,45.515705,45.515729,45.515894,45.516131,45.516142,45.51612,45.515104,45.514653,45.514635,45.512765,45.511056,45.511039,45.511039,45.511126,45.511192,45.511117,45.511056,45.511039,45.510432,45.508374,45.507506,45.505281,45.504928,45.50512,45.505199,45.505226,45.505249,45.505243,45.50541,45.50541,45.504336,45.504336,45.503196,45.503645,45.503289,45.503759,45.504053,45.505036,45.504278,45.503838,45.503209,45.503147,45.502677,45.502028,45.501829,45.501542,45.500996,45.500996,45.500011,45.499873,45.499417,45.499018,45.498325,45.498989,45.498989,45.498921,45.497947,45.496959,45.496959,45.496969]}]]],null,"map matched vs routed-map-matched (trip id = 56)",{"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}},"pane":"line","stroke":true,"color":["#440154","#FDE725"],"weight":2,"opacity":[0.9,0.9],"fill":false,"fillColor":["#440154","#FDE725"],"fillOpacity":[1,1],"smoothFactor":1,"noClip":false},["<html><head><link rel=\"stylesheet\" type=\"text/css\" href=\"lib/popup/popup.css\"><\/head><body><div class=\"scrollableContainer\"><table class=\"popup scrollable\" id=\"popup\"><tr class='coord'><td><\/td><td><b>Feature ID<\/b><\/td><td align='right'>1&emsp;<\/td><\/tr><tr class='alt'><td>1<\/td><td><b>group&emsp;<\/b><\/td><td align='right'>56_matched&emsp;<\/td><\/tr><tr><td>2<\/td><td><b>geometry&emsp;<\/b><\/td><td align='right'>sfc_LINESTRING&emsp;<\/td><\/tr><\/table><\/div><\/body><\/html>","<html><head><link rel=\"stylesheet\" type=\"text/css\" href=\"lib/popup/popup.css\"><\/head><body><div class=\"scrollableContainer\"><table class=\"popup scrollable\" id=\"popup\"><tr class='coord'><td><\/td><td><b>Feature ID<\/b><\/td><td align='right'>2&emsp;<\/td><\/tr><tr class='alt'><td>1<\/td><td><b>group&emsp;<\/b><\/td><td align='right'>56_routed_matched&emsp;<\/td><\/tr><tr><td>2<\/td><td><b>geometry&emsp;<\/b><\/td><td align='right'>sfc_LINESTRING&emsp;<\/td><\/tr><\/table><\/div><\/body><\/html>"],{"maxWidth":800,"minWidth":50,"autoPan":true,"keepInView":false,"closeButton":true,"closeOnClick":true,"className":""},["56_matched","56_routed_matched"],{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},{"stroke":true,"weight":3,"opacity":1,"fill":false,"fillOpacity":0,"bringToFront":false,"sendToBack":false}]},{"method":"addScaleBar","args":[{"maxWidth":100,"metric":true,"imperial":true,"updateWhenIdle":true,"position":"bottomleft"}]},{"method":"addHomeButton","args":[-73.604989,45.496959,-73.554899,45.519064,"map matched vs routed-map-matched (trip id = 56)","Zoom to map matched vs routed-map-matched (trip id = 56)","<strong> map matched vs routed-map-matched (trip id = 56) <\/strong>","bottomright"]},{"method":"addLayersControl","args":[["CartoDB.Positron","CartoDB.DarkMatter","OpenStreetMap","Esri.WorldImagery","OpenTopoMap"],"map matched vs routed-map-matched (trip id = 56)",{"collapsed":true,"autoZIndex":true,"position":"topleft"}]},{"method":"addLegend","args":[{"colors":["#440154","#FDE725"],"labels":["56_matched","56_routed_matched"],"na_color":null,"na_label":"NA","opacity":1,"position":"topright","type":"factor","title":"map matched vs routed-map-matched (trip id = 56)","extra":null,"layerId":null,"className":"info legend","group":"map matched vs routed-map-matched (trip id = 56)"}]}],"limits":{"lat":[45.496959,45.519064],"lng":[-73.604989,-73.554899]}},"evals":[],"jsHooks":{"render":[{"code":"function(el, x, data) {\n  return (\n      function(el, x, data) {\n      // get the leaflet map\n      var map = this; //HTMLWidgets.find('#' + el.id);\n      // we need a new div element because we have to handle\n      // the mouseover output separately\n      // debugger;\n      function addElement () {\n      // generate new div Element\n      var newDiv = $(document.createElement('div'));\n      // append at end of leaflet htmlwidget container\n      $(el).append(newDiv);\n      //provide ID and style\n      newDiv.addClass('lnlt');\n      newDiv.css({\n      'position': 'relative',\n      'bottomleft':  '0px',\n      'background-color': 'rgba(255, 255, 255, 0.7)',\n      'box-shadow': '0 0 2px #bbb',\n      'background-clip': 'padding-box',\n      'margin': '0',\n      'padding-left': '5px',\n      'color': '#333',\n      'font': '9px/1.5 \"Helvetica Neue\", Arial, Helvetica, sans-serif',\n      'z-index': '700',\n      });\n      return newDiv;\n      }\n\n\n      // check for already existing lnlt class to not duplicate\n      var lnlt = $(el).find('.lnlt');\n\n      if(!lnlt.length) {\n      lnlt = addElement();\n\n      // grab the special div we generated in the beginning\n      // and put the mousmove output there\n\n      map.on('mousemove', function (e) {\n      if (e.originalEvent.ctrlKey) {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                           ' lon: ' + (e.latlng.lng).toFixed(5) +\n                           ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                           ' | zoom: ' + map.getZoom() +\n                           ' | x: ' + L.CRS.EPSG3857.project(e.latlng).x.toFixed(0) +\n                           ' | y: ' + L.CRS.EPSG3857.project(e.latlng).y.toFixed(0) +\n                           ' | epsg: 3857 ' +\n                           ' | proj4: +proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +no_defs ');\n      } else {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                      ' lon: ' + (e.latlng.lng).toFixed(5) +\n                      ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                      ' | zoom: ' + map.getZoom() + ' ');\n      }\n      });\n\n      // remove the lnlt div when mouse leaves map\n      map.on('mouseout', function (e) {\n      var strip = document.querySelector('.lnlt');\n      strip.remove();\n      });\n\n      };\n\n      //$(el).keypress(67, function(e) {\n      map.on('preclick', function(e) {\n      if (e.originalEvent.ctrlKey) {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                      ' lon: ' + (e.latlng.lng).toFixed(5) +\n                      ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                      ' | zoom: ' + map.getZoom() + ' ');\n      var txt = document.querySelector('.lnlt').textContent;\n      console.log(txt);\n      //txt.innerText.focus();\n      //txt.select();\n      setClipboardText('\"' + txt + '\"');\n      }\n      });\n\n      }\n      ).call(this.getMap(), el, x, data);\n}","data":null}]}}</script></p>
+<p>To compensate for these extra meters, we will apply the ratio between length(matched) and length(routed_matched) to the distance travelled in each road class.</p>
+</div>
+</div>
+<div id="so-..-the-results" class="section level1">
+<h1>So .. the results !</h1>
+<p>Yeah.. there is some thinking to do here. The travelled distance is much longer than the shortest possible distance because a lot of the trips are “loops”. This means that the travelled distance is longer than the shortest distance for all road classes and that we can’t calculate a trade-off</p>
+<p>Ah well, at least I learned to use graphhopper and got to publish my first docker image along the way.</p>
+<table>
+<thead>
+<tr class="header">
+<th align="left">road_class</th>
+<th align="right">shortest_distance</th>
+<th align="right">travelled_distance</th>
+<th align="right">diff</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">residential</td>
+<td align="right">7730760</td>
+<td align="right">9397188</td>
+<td align="right">1666427</td>
+</tr>
+<tr class="even">
+<td align="left">cycleway</td>
+<td align="right">6311952</td>
+<td align="right">6636475</td>
+<td align="right">324524</td>
+</tr>
+<tr class="odd">
+<td align="left">secondary</td>
+<td align="right">2357788</td>
+<td align="right">5652878</td>
+<td align="right">3295089</td>
+</tr>
+<tr class="even">
+<td align="left">tertiary</td>
+<td align="right">4187499</td>
+<td align="right">5263252</td>
+<td align="right">1075753</td>
+</tr>
+<tr class="odd">
+<td align="left">primary</td>
+<td align="right">188080</td>
+<td align="right">966677</td>
+<td align="right">778597</td>
+</tr>
+<tr class="even">
+<td align="left">footway</td>
+<td align="right">152416</td>
+<td align="right">954382</td>
+<td align="right">801965</td>
+</tr>
+<tr class="odd">
+<td align="left">service</td>
+<td align="right">156998</td>
+<td align="right">833343</td>
+<td align="right">676345</td>
+</tr>
+<tr class="even">
+<td align="left">pedestrian</td>
+<td align="right">39472</td>
+<td align="right">340562</td>
+<td align="right">301090</td>
+</tr>
+<tr class="odd">
+<td align="left">unclassified</td>
+<td align="right">86905</td>
+<td align="right">323427</td>
+<td align="right">236522</td>
+</tr>
+<tr class="even">
+<td align="left">path</td>
+<td align="right">9843</td>
+<td align="right">56300</td>
+<td align="right">46458</td>
+</tr>
+<tr class="odd">
+<td align="left">trunk</td>
+<td align="right">669</td>
+<td align="right">34166</td>
+<td align="right">33497</td>
+</tr>
+<tr class="even">
+<td align="left">steps</td>
+<td align="right">1169</td>
+<td align="right">10055</td>
+<td align="right">8887</td>
+</tr>
+<tr class="odd">
+<td align="left">living_street</td>
+<td align="right">85</td>
+<td align="right">1744</td>
+<td align="right">1658</td>
+</tr>
+<tr class="even">
+<td align="left">other</td>
+<td align="right">29</td>
+<td align="right">522</td>
+<td align="right">493</td>
+</tr>
+</tbody>
+</table>
+</div>
