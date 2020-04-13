@@ -30,9 +30,11 @@ knitr::opts_chunk$set(echo = FALSE,
                       cache.lazy = FALSE) # fixes long vecto rnot supported quand on cache des gros éléments https://stackoverflow.com/questions/39417003/long-vectors-not-supported-yet-error-in-rmd-but-not-in-r-script
 ```
 
-I made a twitter survey a couple weeks before the apocalypse to help me pick my next blog post topic and the crowd overwhelmingly agreed that I should use bike gps data and graphhopper to find out how far cyclists are willing to go to use safer infrastructure.  :)  
+I made a twitter survey a couple of weeks before the apocalypse to help me pick my next blog post topic and alll 3 members of the crowd overwhelmingly agreed that I should use bike gps data and graphhopper to find out how far cyclists are willing to go to use safer infrastructure.  
 
-This is awesome, because I have been looking for a use for [this open data that contains GPS data for ~ 5000 bike trips in Montreal](http://donnees.ville.montreal.qc.ca/dataset/trajets-individuels-velo-enregistre-mon-resovelo) for a while.  
+
+
+This is awesome, because I had been looking for a use for [this open data that contains GPS data for ~ 5000 bike trips in Montreal](http://donnees.ville.montreal.qc.ca/dataset/trajets-individuels-velo-enregistre-mon-resovelo) for a while.  
 
 ```{r echo=FALSE}
 blogdown::shortcode('tweet', '1232450391398207488')
@@ -91,10 +93,14 @@ I came up with the following methodology:
 * Find out how many kilometers are *actually spent on each road class* (eg: 7 kilometers on residential roads, 6 kilometers on cycling pathways).
 * The ratio between the kilometers increase in cycling pathway  and the kilometer decrease in less-safe roads defines how much cycling pathways are preferred over less-safe roads.  
 
-In my example, the ratio is 2.0, as the 6 kilometers on cycling pathways are used to reduce the distance on roads by 2x.
+In my example, the ratio is 2.0, as the cyclists are willing to do 6 kilometers on cycling pathways to reduce their residential road milage by 3.
 
-This turned out to be quite an undertaking.  I have hit many snags, and I don't have an answer yet.  Hopefully putting this in the open will help someone and maybe increase my odds of finishing the project.   **This blog post will focus on how I get graphhopper running and how I used it.**
+This turned out to be quite an undertaking.  I have hit many snags, and I don't have an answer yet.  I dont think I ever will, but hopefully putting this in the open will help someone get started with graphhopper.    
 
+
+# Code  
+
+As usual, the code for this post is available on [github](https://github.com/SimonCoulombe/snippets/tree/master/content/post).  
 
 # Data 
 
@@ -102,7 +108,7 @@ This turned out to be quite an undertaking.  I have hit many snags, and I don't 
 
 We use [open data recorded](http://donnees.ville.montreal.qc.ca/dataset/trajets-individuels-velo-enregistre-mon-resovelo) by the "Mon RésoVélo" app of the city of Montréal.   The JSON file includes around 5000 trips (4881 to be precise).  
 
-It includes the following columns, a linestring geometry depicting the path travelled and a column named "liste_segments_jsonb" giving the IDs of the segments travelled.  (looks like the city did some mapmatching too).. 
+It includes a linestring geometry depicting the path travelled,a column named "liste_segments_jsonb" giving the IDs of the segments travelled  (looks like the city did some mapmatching too) and the columns shown below:  
 ```{r}
 trips %>% head(5) %>% glimpse
 ```
@@ -111,9 +117,6 @@ trips %>% head(5) %>% glimpse
 mymap <- trips %>% 
   filter(id=="10044") %>%
   mapview(zcol ="id",
-          #legend = TRUE,
-          #color = c("pink", "red", "orang  e", "grey90", "black"),
-          #color = RColorBrewer::brewer.pal(5, "PuBuGn")
           color = colorblindr::palette_OkabeIto[1:nrow(.)]
   ) 
 
@@ -127,7 +130,7 @@ mymap
 
 ![](/post/2019-04-24-montreal-melting-pot_files/original_bike_path.png)
 
-Since the map matching tool requires GPX files as input, we convert the linestring to multipoint, then export each trip to a gpx file name id_NNN.gps using the `pgirmess` package.
+Since the map matching tool requires GPX files as input, we convert the linestring to multipoint, then export each trip to a gpx file name id_NNN.gps using the `pgirmess::writeGPX` function.  
 
 ```{r}
 
@@ -169,8 +172,9 @@ Graphhopper ([github](https://github.com/graphhopper/graphhopper) is an "open so
 ## Map matching tool installation and use    
 
 
-We will follow the [installation instructions](https://github.com/graphhopper/map-matching) on the git repository, with a few changes:  
-* We download the "recent_core" branch instead of master because it is required for the "vehicle=bike" option to work,
+We will follow the [installation instructions](https://github.com/graphhopper/map-matching) on the git repository, with a few changes:    
+
+* We download the "recent_core" branch instead of master because it is required for the "vehicle=bike" option to work,  
 * We import the road network for the province of Quebec instead of the city of Berlin.    
 
 Note:  Java 8 and Maven >=3.3 are required.  
@@ -189,6 +193,11 @@ java -jar matching-web/target/graphhopper-map-matching-web-1.0-SNAPSHOT.jar impo
 
 Once the quebec map has been imported into the mapmatching tool, we can invoke it from the command line  and ask it to map-match all the we put GPXs in the folder.  This takes about 10 minutes on my computer.  
 
+
+```
+cd ~/git/map-matching   
+java -jar ~/git/map-matching/matching-web/target/graphhopper-map-matching-web-1.0-SNAPSHOT.jar match ~/git/snippets/content/post/data/interim/bikegps/*.gpx
+```
 ```{r}
 
 if (switch_generate_interim_data){
@@ -264,7 +273,7 @@ mapview(original_and_matched %>% filter(group %in% c("10044", "10044_matched")),
 ```
 
 
-Its working fine!    As you can see, the 10044_matched trip  is matched to the  cycling lane on Rachel instead of the road.
+Its working fine!    As you can see, the 10044_matched trip  is matched to the  cycling lane on Rachel instead of the road.  This means the map matching algorithm really is using the "bike" vehicle option.  
 
 
 ## Routing tool installation  
@@ -280,19 +289,19 @@ The graphhopper routing engine is located at https://github.com/graphhopper/grap
 We install it following [the quickstart guide for developpers](https://github.com/graphhopper/graphhopper/blob/0.13/docs/core/quickstart-from-source.md), because the quickstart guide using a *.jar file (https://github.com/graphhopper/graphhopper/blob/0.13/docs/web/quickstart.md) returns an error when using the bike vehicle.
 
 We replaced the including "config-example.yml" with my own [config-bike.yml](https://gist.githubusercontent.com/SimonCoulombe/c4e4bb3af45ba6b4ccdd48aab561b2dc/raw/config-bike.yml), shared as a gist.  The differences are as follow:  
-* replace `graph.flag_encoders: car`  with `graph.flag_encoders: bike, car`  , 
-* add   
-`    - name: bike
-vehicle: bike
-weighting: fastest` under
 
-`profiles:
-- name: car
-vehicle: car
-weighting: fastest`    
-* add   `- profile: bike `  under   
-`profiles_ch:
-- profile: car`  
+  * replace `graph.flag_encoders: car`  with `graph.flag_encoders: bike, car`  ,  
+  * add   
+    `    - name: bike
+    vehicle: bike
+    weighting: fastest` under
+    `profiles:
+    - name: car
+    vehicle: car
+    weighting: fastest`    
+  * add   `- profile: bike `  under   
+    `profiles_ch:
+    - profile: car`  
 
 
 NOTE/QUESTION  :  I wasted a lot of time trying to get it with bike as the only available vehicle, to no avail.  It appears you can only add vehicles to "car", not replace car with another vehicle.   
@@ -360,9 +369,9 @@ api_results %>% str
 
 
 ```{r}
-api_results$paths$instructions %>% .[[1]] %>% select(distance)#%>% head(-1) # distances sur chacun des 3 segments
-api_results$paths$instructions %>% .[[1]] %>% select(interval) #%>% head(-1) # distances sur chacun des 3 segments
-api_results$paths$details$road_class[[1]][,3] # type de route correspondant aux distances
+#api_results$paths$instructions %>% .[[1]] %>% select(distance)#%>% head(-1) # distances sur chacun des 3 segments
+#api_results$paths$instructions %>% .[[1]] %>% select(interval) #%>% head(-1) # distances sur chacun des 3 segments
+#api_results$paths$details$road_class[[1]][,3] # type de route correspondant aux distances
 api_results$paths$points$coordinates[[1]] %>%
   as_tibble() %>%
   rename(lon = V1, lat= V2) %>%
@@ -377,19 +386,19 @@ api_results$paths$points$coordinates[[1]] %>%
 I find the following useful for my use case:
 
 1 ) The "coordinates" columns gives us all the points in the path. There are 31 points.
-```{r}
+```{r, echo = T}
 api_results$paths$points$coordinates[[1]]
 ```
 
 2)  "Instructions"  contains the text instruction your GPS would normally give you,  but also a "distance" travelled column (in meters) and an "interval" column telling us which points fit with which instructions.  
-```{r}
+```{r, echo = T}
 api_results$path$instructions[[1]]
 ```
 
 In our example, the interval column indicates that the first instruction (continue onto Rue Lamoureux) is illustrated by the points 0 to 7, the second instruction (Keep right onto Sentier des Voyageurs Pathway) is illustrated by point 7-25 ... etc..
 
-It appears we will need to add 1 to these numbers, as the intervals refer from 0 to 30 while we know we have 31 points.  
-```{r}
+
+```{r, echo = T}
 api_results$path$instructions[[1]]$interval
 ```
 
@@ -546,22 +555,21 @@ if (switch_generate_interim_data){
   qsave(shortest_route, here::here("content/post/data/interim/bikegps/", "shortest_route.qs"))
 } else {shortest_route <- qread(here::here("content/post/data/interim/bikegps/", "shortest_route.qs"))
 } 
-
-mapview(shortest_route %>% filter(group == "10044") , zcol = "group")
 ```
 
+This is the content of "shortest route" for id 10044
 ```{r}
 shortest_route %>% filter(group == "10044") %>% glimpse
 ```
 
-
+This is the content of "shortest route"'s "distance_by_road_class" for id 10044
 ```{r}
 
 shortest_route %>% filter(group == "10044") %>% pull(distance_by_road_class)
 
 ```
 
-Let's map the actual gps data, the map matched route and the shortest route together: 
+Let's map the actual gps data, the map matched route and the shortest route together for id 56
 
 ```{r}
 
@@ -585,7 +593,7 @@ mapview(original_and_matched_and_shortest %>% filter(group %in% c("56", "56_matc
 
 ```
 
-## .. but we also need the actual distance travelled by road class !  
+## .. but we also need the **actual** distance travelled by road class !  
 
 Here's something that kinda sucks : the map matching program returns a bunch of points, but it doesnt tell us the road class that was actually travelled.
 
