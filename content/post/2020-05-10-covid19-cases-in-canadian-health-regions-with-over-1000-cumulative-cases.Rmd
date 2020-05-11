@@ -1,0 +1,143 @@
+---
+title: covid19 cases in canadian health regions with over 1000 cumulative cases
+author: simon
+date: '2020-05-10'
+slug: covid19-cases-in-canadian-health-regions-with-over-1000-cumulative-cases
+categories:
+  - r
+  - covic19
+tags: []
+keywords:
+  - tech
+---
+
+
+
+```{r setup, include =F, echo =F}
+#
+# TODO : valider ceci : Chunk options must be written in one line; no line breaks are allowed inside chunk options;
+# https://yihui.name/knitr/options/
+knitr::opts_chunk$set(echo = TRUE, 
+                      collapse = FALSE,
+                      warning = FALSE,
+                      error = FALSE,
+                      message = FALSE,
+                      fig.align= "center",
+                      fig.width = 12,
+                      fig.height = 10,
+                      highlight = TRUE,
+                      cache = FALSE,
+                      cache.lazy = FALSE) # fixes long vecto rnot supported quand on cache des gros éléments https://stackoverflow.com/questions/39417003/long-vectors-not-supported-yet-error-in-rmd-but-not-in-r-script
+```
+
+
+Quick post inspired by the winning / nearly there / need action graphs by @yaneerbaryam at https://www.endcoronavirus.org/countries.
+We'll use the data compiled by Isha Berry & friends at  https://github.com/ishaberry/Covid19Canada
+
+```{r}
+library(tidyverse)
+#mortality_hr <- read_csv("https://raw.githubusercontent.com/ishaberry/Covid19Canada/master/timeseries_hr/mortality_timeseries_hr.csv")
+cases_timeseries_hr <- read_csv("https://raw.githubusercontent.com/ishaberry/Covid19Canada/master/timeseries_hr/cases_timeseries_hr.csv")
+
+```
+
+Quebec graph
+
+```{r}
+
+gaa <- cases_timeseries_hr %>% 
+  mutate(date_report = lubridate::dmy(date_report))%>%
+  arrange(province, health_region,date_report) %>% 
+  group_by(province, health_region) %>%
+  mutate(avg_cases_last7 = (cases + lag(cases, 1) + lag(cases, 2) + lag(cases, 3) + lag(cases, 4) + lag(cases, 5) + lag(cases, 6)) / 7)  %>%
+  ungroup() %>%
+  filter(health_region != "Not Reported") %>%
+  mutate(health_region = case_when(
+    health_region == "Gaspésie-Îles-de-la-Madeleine" ~ "Gaspésie", 
+    health_region == "Abitibi-Témiscamingue" ~ "Abitibi",
+    health_region == "Terres-Cries-de-la-Baie-James" ~ "Terre-Cries",
+    TRUE ~ health_region)
+    ) 
+  
+gaa1 <- gaa %>%
+  group_by(province, health_region) %>%
+  summarise(total = sum(cases),
+    worst7 = max(avg_cases_last7, na.rm = TRUE),
+            last7  = max(avg_cases_last7 * (date_report == max(date_report)), na.rm = TRUE),
+            ratio = last7 / worst7,
+            winning = factor( 
+              case_when(ratio < 0.33 ~ "Winning",
+                        ratio < 0.67 ~ "Nearly there",
+                        TRUE ~ "Needs action"
+              )
+              , levels = c("Winning", "Nearly there", "Needs action"))
+  ) %>%
+  ungroup() %>%
+  
+  mutate(
+    pr_region = paste0(province,"-", health_region),
+    health_region2 = fct_reorder(health_region, total, .desc =TRUE),
+    pr_region = fct_reorder(pr_region, total, .desc =TRUE))
+
+
+lastdate  <- max(gaa$date_report)
+
+gaa %>% 
+  left_join(gaa1) %>%
+  filter(province == "Quebec", date_report >= lubridate::ymd("20200315")) %>%
+  rename(cas = cases , moyenne_7_derniers_jours = avg_cases_last7) %>%
+  gather(key=key, value= value, cas, moyenne_7_derniers_jours) %>%
+  mutate(alpha = if_else(key == "cas", 0.5, 1)) %>%
+  ggplot(aes(x=date_report, y= value, group = key))+
+  facet_wrap( ~ health_region2, scales = "free" )+
+  geom_line(aes( color = winning, alpha = key), size =1) + # linetype = key,
+  dviz.supp::theme_dviz_grid()+
+  scale_y_continuous(breaks = scales::pretty_breaks() )+  
+  theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1)) +
+  scale_colour_manual(values = c("darkgreen", "darkorange", "darkred"), guide = "none")  +
+  scale_alpha_manual(values = c(1, 0.3)) + # , guide = "none"
+  labs(
+    title = "Évolution du nombre de cas de Covid-19 au Québec",
+    subtitle = paste0("en date du ", lastdate),
+    caption = "Graph par @coulsim, data par @ishaberry2 https://github.com/ishaberry/Covid19Canada"
+  ) + 
+  xlab("date")+
+  ylab ("cas") + 
+  theme(legend.position="bottom")
+  
+
+```
+
+
+
+
+```{r}
+
+gaa %>% 
+  left_join(gaa1) %>%
+  filter(total > 1000, date_report >= lubridate::ymd("20200315")) %>%
+  #rename(cas = cases , moyenne_7_derniers_jours = avg_cases_last7) %>%
+  gather(key=key, value= value, cases, avg_cases_last7) %>%
+  mutate(alpha = if_else(key == "cases", 0.5, 1)) %>%
+  ggplot(aes(x=date_report, y= value, group = key))+
+  facet_wrap( ~ pr_region, scales = "free" )+
+  geom_line(aes( color = winning, alpha = key), size =1) + # linetype = key,
+  dviz.supp::theme_dviz_grid()+
+  scale_y_continuous(breaks = scales::pretty_breaks() )+  
+  theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1)) +
+  scale_colour_manual(values = c("darkgreen", "darkorange", "darkred"), guide = "none")  +
+  scale_alpha_manual(values = c(1, 0.3)) + # , guide = "none"
+  labs(
+    title = "Daily Covid-19 cases in health regions with cumulative cases over 1000",
+    subtitle = paste0("As of  ", lastdate),
+    caption = "Graph by @coulsim, data by @ishaberry2 https://github.com/ishaberry/Covid19Canada"
+  ) + 
+  xlab("date")+
+  ylab ("cases") + 
+  theme(legend.position="bottom")
+```
+
+
+
+
+
