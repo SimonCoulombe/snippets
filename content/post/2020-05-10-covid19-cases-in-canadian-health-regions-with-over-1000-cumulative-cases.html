@@ -1,0 +1,154 @@
+---
+title: covid19 cases in canadian health regions with over 1000 cumulative cases
+author: simon
+date: '2020-05-10'
+slug: covid19-cases-in-canadian-health-regions-with-over-1000-cumulative-cases
+categories:
+  - r
+  - covic19
+tags: []
+keywords:
+  - tech
+---
+
+
+
+<p>Quick post inspired by the winning / nearly there / need action graphs by <span class="citation">@yaneerbaryam</span> at <a href="https://www.endcoronavirus.org/countries" class="uri">https://www.endcoronavirus.org/countries</a>.
+We’ll use the data compiled by Isha Berry &amp; friends at <a href="https://github.com/ishaberry/Covid19Canada" class="uri">https://github.com/ishaberry/Covid19Canada</a></p>
+<p>new to me : the new tidyeval that uses {{ }}, and using vars() inside facet_wrap to allow tidyevaluation.</p>
+<pre class="r"><code>library(tidyverse)
+
+mortality_hr &lt;- read_csv(&quot;https://raw.githubusercontent.com/ishaberry/Covid19Canada/master/timeseries_hr/mortality_timeseries_hr.csv&quot;) %&gt;%
+  rename(cases = deaths,
+         cumulative_cases = cumulative_deaths,
+         date_report = date_death_report,
+  )
+cases_timeseries_hr &lt;- read_csv(&quot;https://raw.githubusercontent.com/ishaberry/Covid19Canada/master/timeseries_hr/cases_timeseries_hr.csv&quot;)</code></pre>
+<pre class="r"><code>prep_data &lt;- function(data){
+  gaa &lt;-   data %&gt;% 
+    mutate(date_report = lubridate::dmy(date_report))%&gt;%
+    arrange(province, health_region,date_report) %&gt;% 
+    group_by(province, health_region) %&gt;%
+    mutate(avg_cases_last7 = (cases + lag(cases, 1) + lag(cases, 2) + lag(cases, 3) + lag(cases, 4) + lag(cases, 5) + lag(cases, 6)) / 7)  %&gt;%
+    ungroup() %&gt;%
+    filter(health_region != &quot;Not Reported&quot;) %&gt;%
+    mutate(health_region = case_when(
+      health_region == &quot;Gaspésie-Îles-de-la-Madeleine&quot; ~ &quot;Gaspésie&quot;, 
+      health_region == &quot;Abitibi-Témiscamingue&quot; ~ &quot;Abitibi&quot;,
+      health_region == &quot;Terres-Cries-de-la-Baie-James&quot; ~ &quot;Terre-Cries&quot;,
+      TRUE ~ health_region)
+    ) 
+  
+  gaa1 &lt;- gaa %&gt;%
+    group_by(province, health_region) %&gt;%
+    summarise(total = sum(cases),
+              worst7 = max(avg_cases_last7, na.rm = TRUE),
+              last7  = max(avg_cases_last7 * (date_report == max(date_report)), na.rm = TRUE),
+              ratio = last7 / worst7,
+              winning = factor( 
+                case_when(ratio &lt; 0.33 ~ &quot;Winning&quot;,
+                          ratio &lt; 0.67 ~ &quot;Nearly there&quot;,
+                          TRUE ~ &quot;Needs action&quot;
+                )
+                , levels = c(&quot;Winning&quot;, &quot;Nearly there&quot;, &quot;Needs action&quot;))
+    ) %&gt;%
+    ungroup() %&gt;%
+    
+    mutate(
+      pr_region = paste0(province,&quot;-&quot;, health_region),
+      health_region2 = fct_reorder(health_region, total, .desc =TRUE),
+      pr_region = fct_reorder(pr_region, total, .desc =TRUE))
+  
+  
+  
+  gaa %&gt;% 
+    left_join(gaa1) 
+  
+}
+
+
+# https://www.tidyverse.org/blog/2019/06/rlang-0-4-0/
+# {{ }}
+
+# https://edwinth.github.io/blog/dplyr-recipes/
+# filter_func &lt;- function(x, filter_exp) {
+#   filter_exp_enq &lt;- enquo(filter_exp)
+#   x %&gt;% filter(!!filter_exp_enq)
+# }
+# filter_func(mtcars, hp == 93)
+create_graph &lt;- function(data, filter_exp, title, geo){
+  # browser()
+  labels &lt;- data %&gt;% 
+    filter( {{ filter_exp }} ) %&gt;% 
+    group_by( {{ geo }} )%&gt;%
+    summarise(label = paste0( format(sum(cases), digits=9, decimal.mark=&quot;,&quot;, big.mark=&quot; &quot;,small.mark=&quot;.&quot;, , small.interval=3), 
+                              &quot; cases&quot;),
+              value = 0.9 * max(cases)
+    ) %&gt;%
+    mutate(key=&quot;avg_cases_last7&quot;,
+           date_report = lubridate::ymd(&quot;20200316&quot;)
+    )
+  
+  data  %&gt;%
+    filter( {{ filter_exp }}  &amp; date_report &gt;= lubridate::ymd(&#39;20200315&#39;)) %&gt;%
+    gather(key=key, value= value, cases, avg_cases_last7) %&gt;%
+    mutate(alpha = if_else(key == &quot;cases&quot;, 0.5, 1)) %&gt;%
+    ggplot(aes(x=date_report, y= value, group = key))+
+    facet_wrap( vars ({{ geo }})  , scales = &quot;free&quot; )+
+    geom_line(aes( color = winning, alpha = key), size =1) + # linetype = key,
+    dviz.supp::theme_dviz_grid()+
+    scale_y_continuous(breaks = scales::pretty_breaks() )+  
+    theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1)) +
+    scale_colour_manual(values = c(&quot;darkgreen&quot;, &quot;darkorange&quot;, &quot;darkred&quot;), guide = &quot;none&quot;)  +
+    scale_alpha_manual(values = c(1, 0.3)) + # , guide = &quot;none&quot;
+    labs(
+      title = title,
+      subtitle = paste0(&quot;As of &quot;, lastdate),
+      caption = &quot;Graph by @coulsim, data by @ishaberry2 https://github.com/ishaberry/Covid19Canada&quot;
+    ) + 
+    xlab(&quot;date&quot;)+
+    ylab (&quot;Daily number of cases&quot;) + 
+    theme(legend.position=&quot;bottom&quot;) +
+    geom_text(data= labels ,
+              aes(label = label),
+              hjust = &quot;left&quot; )
+}</code></pre>
+<div id="prep-data" class="section level1">
+<h1>Prep data</h1>
+<pre class="r"><code>cases &lt;- prep_data(cases_timeseries_hr)
+#deaths &lt;- prep_data(mortality_hr)
+
+lastdate  &lt;- max(cases$date_report)</code></pre>
+</div>
+<div id="canada---health-regions-with-over-1000-cumulative-cases" class="section level1">
+<h1>Canada - health regions with over 1000 cumulative cases</h1>
+<pre class="r"><code>create_graph(cases, 
+             total &gt; 1000 , 
+             &quot;Daily Covid-19 cases in health regions with cumulative cases over 1000&quot;,
+             pr_region)</code></pre>
+<p><img src="/post/2020-05-10-covid19-cases-in-canadian-health-regions-with-over-1000-cumulative-cases_files/figure-html/unnamed-chunk-4-1.png" width="1152" style="display: block; margin: auto;" /></p>
+</div>
+<div id="quebec" class="section level1">
+<h1>Quebec</h1>
+<pre class="r"><code>create_graph(cases, 
+             province == &#39;Quebec&#39;,
+             &quot;Évolution du nombre de cas de Covid-19 au Québec&quot;, 
+             health_region2)</code></pre>
+<p><img src="/post/2020-05-10-covid19-cases-in-canadian-health-regions-with-over-1000-cumulative-cases_files/figure-html/unnamed-chunk-5-1.png" width="1152" style="display: block; margin: auto;" /></p>
+</div>
+<div id="ontario" class="section level1">
+<h1>Ontario</h1>
+<pre class="r"><code>create_graph(cases, 
+             province == &#39;Ontario&#39;,
+             &quot;Daily Covid-19 cases by health regions in Ontario&quot;, 
+             health_region2)</code></pre>
+<p><img src="/post/2020-05-10-covid19-cases-in-canadian-health-regions-with-over-1000-cumulative-cases_files/figure-html/unnamed-chunk-6-1.png" width="1152" style="display: block; margin: auto;" /></p>
+</div>
+<div id="british-columbia" class="section level1">
+<h1>British-Columbia</h1>
+<pre class="r"><code>create_graph(cases, 
+             province == &#39;Ontario&#39;,
+             &quot;Daily Covid-19 cases by health regions in Ontario&quot;, 
+             health_region2)</code></pre>
+<p><img src="/post/2020-05-10-covid19-cases-in-canadian-health-regions-with-over-1000-cumulative-cases_files/figure-html/unnamed-chunk-7-1.png" width="1152" style="display: block; margin: auto;" /></p>
+</div>
