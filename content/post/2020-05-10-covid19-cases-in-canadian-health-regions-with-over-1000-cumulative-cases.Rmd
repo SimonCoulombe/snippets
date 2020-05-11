@@ -17,7 +17,7 @@ keywords:
 #
 # TODO : valider ceci : Chunk options must be written in one line; no line breaks are allowed inside chunk options;
 # https://yihui.name/knitr/options/
-knitr::opts_chunk$set(echo = TRUE, 
+knitr::opts_chunk$set(echo = FALSE, 
                       collapse = FALSE,
                       warning = FALSE,
                       error = FALSE,
@@ -39,11 +39,11 @@ new to me : the new tidyeval that uses {{ }}, and using vars() inside facet_wrap
 ```{r}
 library(tidyverse)
 
-mortality_hr <- read_csv("https://raw.githubusercontent.com/ishaberry/Covid19Canada/master/timeseries_hr/mortality_timeseries_hr.csv") %>%
-  rename(cases = deaths,
-         cumulative_cases = cumulative_deaths,
-         date_report = date_death_report,
-  )
+# mortality_hr <- read_csv("https://raw.githubusercontent.com/ishaberry/Covid19Canada/master/timeseries_hr/mortality_timeseries_hr.csv") %>%
+#   rename(cases = deaths,
+#          cumulative_cases = cumulative_deaths,
+#          date_report = date_death_report,
+#   )
 cases_timeseries_hr <- read_csv("https://raw.githubusercontent.com/ishaberry/Covid19Canada/master/timeseries_hr/cases_timeseries_hr.csv")
 
 
@@ -104,11 +104,16 @@ prep_data <- function(data){
 # }
 # filter_func(mtcars, hp == 93)
 create_graph <- function(data, filter_exp, title, geo){
-  # browser()
+   #browser()
   labels <- data %>% 
     filter( {{ filter_exp }} ) %>% 
     group_by( {{ geo }} )%>%
-    summarise(label = paste0( format(sum(cases), digits=9, decimal.mark=",", big.mark=" ",small.mark=".", , small.interval=3), 
+    summarise(label = paste0( format(sum(cases), 
+                                     digits=9,
+                                     decimal.mark=",", 
+                                     big.mark=" ",
+                                     small.mark=".", 
+                                     small.interval=3), 
                               " cases"),
               value = 0.9 * max(cases)
     ) %>%
@@ -124,7 +129,7 @@ create_graph <- function(data, filter_exp, title, geo){
     facet_wrap( vars ({{ geo }})  , scales = "free" )+
     geom_line(aes( color = winning, alpha = key), size =1) + # linetype = key,
     dviz.supp::theme_dviz_grid()+
-    scale_y_continuous(breaks = scales::pretty_breaks() )+  
+    scale_y_continuous(breaks = scales::pretty_breaks() )+
     theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1)) +
     scale_colour_manual(values = c("darkgreen", "darkorange", "darkred"), guide = "none")  +
     scale_alpha_manual(values = c(1, 0.3)) + # , guide = "none"
@@ -132,31 +137,27 @@ create_graph <- function(data, filter_exp, title, geo){
       title = title,
       subtitle = paste0("As of ", lastdate),
       caption = "Graph by @coulsim, data by @ishaberry2 https://github.com/ishaberry/Covid19Canada"
-    ) + 
+    ) +
     xlab("date")+
-    ylab ("Daily number of cases") + 
-    theme(legend.position="bottom") +
-    geom_text(data= labels ,
-              aes(label = label),
-              hjust = "left" )
+    ylab ("Daily number of cases") +
+     theme(legend.position="bottom") +
+     geom_text(data= labels ,
+               aes(label = label),
+               hjust = "left" )
 }
-```
 
-# Prep data
-
-```{r}
 cases <- prep_data(cases_timeseries_hr)
 #deaths <- prep_data(mortality_hr)
 
 lastdate  <- max(cases$date_report)
 
-
 ```
+
 
 
 # Canada - health regions with over 1000 cumulative cases
 
-```{r}
+```{r canada }
 create_graph(cases, 
              total > 1000 , 
              "Daily Covid-19 cases in health regions with cumulative cases over 1000",
@@ -167,7 +168,7 @@ create_graph(cases,
 
 # Quebec  
 
-```{r}
+```{r qc}
 create_graph(cases, 
              province == 'Quebec',
              "Évolution du nombre de cas de Covid-19 au Québec", 
@@ -178,7 +179,7 @@ create_graph(cases,
 
 # Ontario  
 
-```{r}
+```{r on }
 create_graph(cases, 
              province == 'Ontario',
              "Daily Covid-19 cases by health regions in Ontario", 
@@ -190,7 +191,7 @@ create_graph(cases,
 
 # British-Columbia  
 
-```{r}
+```{r bc}
 create_graph(cases, 
              province == 'BC',
              "Daily Covid-19 cases by health regions in BC", 
@@ -201,7 +202,7 @@ create_graph(cases,
 
 # Saskatchewan
 
-```{r}
+```{r sk}
 create_graph(cases, 
              province == 'Saskatchewan',
              "Daily Covid-19 cases by health regions in Nova Saskatchewan", 
@@ -212,7 +213,7 @@ create_graph(cases,
 
 # Manitoba
 
-```{r}
+```{r mb}
 create_graph(cases, 
              province == 'Manitoba',
              "Daily Covid-19 cases by health regions in Manitoba", 
@@ -224,7 +225,7 @@ create_graph(cases,
 
 # Nova Scotia
 
-```{r}
+```{r ns}
 create_graph(cases, 
              province == 'Nova Scotia',
              "Daily Covid-19 cases by health regions in Nova Scotia", 
@@ -234,7 +235,7 @@ create_graph(cases,
 
 # New Brunswick
 
-```{r}
+```{r nb}
 create_graph(cases, 
              province == 'New Brunswick',
              "Daily Covid-19 cases by health regions in New Brunswick", 
