@@ -39,7 +39,7 @@ new to me : the new tidyeval that uses {{ }}, and using vars() inside facet_wrap
 ```{r}
 library(tidyverse)
 library(googlesheets4)
-# mortality_hr <- read_csv("https://raw.githubusercontent.com/ishaberry/Covid19Canada/master/timeseries_hr/mortality_timeseries_hr.csv") %>%
+# mortality_hr <- read_csv("htt ps://raw.githubusercontent.com/ishaberry/Covid19Canada/master/timeseries_hr/mortality_timeseries_hr.csv") %>%
 #   rename(cases = deaths,
 #          cumulative_cases = cumulative_deaths,
 #          date_report = date_death_report,
@@ -134,14 +134,14 @@ create_graph <- function(data, filter_exp, title, geo,mindate= "20200315"){
     scale_y_continuous(breaks = scales::pretty_breaks(n =4) )+
     theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1)) +
     scale_colour_manual(values = c("darkgreen", "darkorange", "darkred"), guide = "none")  +
-    scale_alpha_manual(values = c(1, 0.3), labels= c("average number of cases (last 7 days)", "Daily cases")) + # , guide = "none"
+    scale_alpha_manual(values = c(1, 0.3), labels= c("7-day moving average", "Daily count"), name = NULL) + # , guide = "none"
     labs(
       title = title,
-      subtitle = paste0("As of ", lastdate),
+      subtitle = paste0("As of ", format(lastdate, format="%B %d %Y")),
       caption = "Graph by @coulsim, data by @ishaberry2 https://github.com/ishaberry/Covid19Canada"
     ) +
     xlab("date")+
-    ylab ("Daily number of cases") +
+    ylab ("Daily new cases") +
     theme(legend.position="bottom") +
     geom_text(data= labels ,
               aes(label = label),
@@ -158,7 +158,7 @@ get_province_graph <- function(.prov){
 
   create_graph(z,
              TRUE,
-             paste0("Daily Covid-19 cases by health regions in ", .prov),
+             paste0("Daily new Covid-19 cases by health regions in ", .prov),
              health_region)
 }
 ```
@@ -177,7 +177,7 @@ lastdate  <- max(cases$date_report)
 
 create_graph(cases, 
              total > 1000 , 
-             "Daily Covid-19 cases in health regions with cumulative cases over 1000",
+             "Daily new Covid-19 cases in health regions with cumulative cases over 1000",
              group)
 
 ```
@@ -205,33 +205,33 @@ mtl  <- prout[1:which(prout$Quartier == "Westmount"), ] %>%
   select(-key) %>%
   group_by(Quartier) %>% 
   arrange(Quartier, desc(date_report)) %>% ## descending date to fix cumulative 
-  mutate(cumulative_cases = if_else(cumulative_cases > lag(cumulative_cases), lag(cumulative_cases), cumulative_cases)) %>% ## cumulative can't be bigger than next day.. if so reduce to next day level.
+  mutate(cumulative_cases = if_else(cumulative_cases > lag(cumulative_cases), lag(cumulative_cases), cumulative_cases, cumulative_cases)) %>% ## cumulative can't be bigger than next day.. if so reduce to next day level.
   arrange(Quartier, date_report) %>% ## ascending date
   mutate(cases = cumulative_cases - lag(cumulative_cases)) %>% 
   ungroup() %>%
   filter(!is.na(cases)) 
 
 
-cases <- prep_data(mtl, Quartier)
-lastdate  <- max(cases$date_report)
-create_graph(cases , 
+mtl_cases <- prep_data(mtl, Quartier)
+lastdate  <- max(mtl_cases$date_report)
+create_graph(mtl_cases , 
              total> 200,
-             "Évolution du nombre de cas de covid-19 dans les arrondissements de Montréal avec plus de 200 cas", 
+             "Daily new Covid-19 cases for Montreal with more than 200 cases", 
              group,
              mindate="20200405") +
-  labs(caption = "graph par @coulsim, données compilées par @bouchecl")
+  labs(caption = "graph by @coulsim, data compiled by @bouchecl from https://santemontreal.qc.ca/population/coronavirus-covid-19/ ")
 
 
 ```
 
 
 ```{r}
-create_graph(cases , 
+create_graph(mtl_cases , 
              total <= 200,
-             "Évolution du nombre de cas de covid-19 dans les arrondissements de Montréal avec moins  de 200 cas", 
+             "Daily new Covid-19 cases for Montreal with less than 200 cases", 
              group,
              mindate="20200405") +
-  labs(caption = "graph par @coulsim, données compilées par @bouchecl")
+  labs(caption = "graph by @coulsim, data compiled by @bouchecl from https://santemontreal.qc.ca/population/coronavirus-covid-19/")
 
 
 ```
