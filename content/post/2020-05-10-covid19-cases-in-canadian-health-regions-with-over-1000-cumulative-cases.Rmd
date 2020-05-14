@@ -1,5 +1,5 @@
 ---
-title: covid19 cases in canadian health regions with over 1000 cumulative cases
+title: "Local Covid19 cases:   Canadian health regions and Montreal boroughs"
 author: simon
 date: '2020-05-10'
 slug: covid19-cases-in-canadian-health-regions-with-over-1000-cumulative-cases
@@ -9,10 +9,10 @@ categories:
 tags: []
 keywords:
   - tech
+thumbnailImage: "/post/2020-05-10-covid19-cases-in-canadian-health-regions-with-over-1000-cumulative-cases_files/montreal20200512.png" 
+thumbnailImagePosition: left      
 ---
-
-
-
+blo
 ```{r setup, include =F, echo =F}
 #
 # TODO : valider ceci : Chunk options must be written in one line; no line breaks are allowed inside chunk options;
@@ -32,9 +32,18 @@ knitr::opts_chunk$set(echo = FALSE,
 
 
 Quick post inspired by the winning / nearly there / need action graphs by @yaneerbaryam at https://www.endcoronavirus.org/countries.
-We'll use the data compiled by Isha Berry & friends at  https://github.com/ishaberry/Covid19Canada
 
-new to me : the new tidyeval that uses {{ }}, and using vars() inside facet_wrap to allow tidyevaluation.
+# Data  
+
+Health regions date is compiled by Isha Berry & friends [github](https://github.com/ishaberry/Covid19Canada).
+Montreal boroughs data is [published daily](https://santemontreal.qc.ca/population/coronavirus-covid-19/).  They only keep the total and keep no history, so @bouchecl visits them every day and compiles the data in this [google sheet](https://docs.google.com/spreadsheets/d/1mOyyeCHwfI_F_T3pAalIdMBxhhfTbM7m5RvbciXIvPM/)  
+
+# Code   
+
+As usual, the code [for this post is on github](https://github.com/SimonCoulombe/snippets/blob/master/content/post/2020-05-10-covid19-cases-in-canadian-health-regions-with-over-1000-cumulative-cases.Rmd).  
+
+New to me : the new tidyeval that uses {{ }}, and using vars() inside facet_wrap to allow tidyevaluation.
+
 
 ```{r}
 library(tidyverse)
@@ -133,8 +142,8 @@ create_graph <- function(data, filter_exp, title, geo,mindate= "20200315"){
     dviz.supp::theme_dviz_grid()+
     scale_y_continuous(breaks = scales::pretty_breaks(n =4) )+
     theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1)) +
-    scale_colour_manual(values = c("darkgreen", "darkorange", "darkred"), guide = "none")  +
-    scale_alpha_manual(values = c(1, 0.3), labels= c("7-day moving average", "Daily count"), name = NULL) + # , guide = "none"
+      scale_colour_manual(values = c("darkgreen", "darkorange", "darkred"), name = "(# of cases last week) / (# of cases worst week):",  labels= c("< 0.33", "0.33 to 0.67", " > 0.67"))  + # ,guide = "none"
+    scale_alpha_manual(values = c(1, 0.3), labels= c("7-day average", "Daily count"),name =  "type:" ) + #  name = NULL , guide = "none"
     labs(
       title = title,
       subtitle = paste0("As of ", format(lastdate, format="%B %d %Y")),
@@ -183,14 +192,14 @@ create_graph(cases,
 ```
 
 
-# Provinces
+# Provinces (all health regions)  
 
 ```{r qc}
 
 map(unique(cases$province), ~get_province_graph(.prov = .x))
 ```
 
-# Montréal   
+# Montréal boroughs  
 
 données arrondissement montréal
 ```{r}
@@ -216,7 +225,7 @@ mtl_cases <- prep_data(mtl, Quartier)
 lastdate  <- max(mtl_cases$date_report)
 create_graph(mtl_cases , 
              total> 200,
-             "Daily new Covid-19 cases for Montreal with more than 200 cases", 
+             "Daily new Covid-19 cases for Montreal boroughs with more than 200 cases", 
              group,
              mindate="20200405") +
   labs(caption = "graph by @coulsim, data compiled by @bouchecl from https://santemontreal.qc.ca/population/coronavirus-covid-19/ ")
@@ -225,10 +234,10 @@ create_graph(mtl_cases ,
 ```
 
 
-```{r}
+```{r montreal}
 create_graph(mtl_cases , 
              total <= 200,
-             "Daily new Covid-19 cases for Montreal with less than 200 cases", 
+             "Daily new Covid-19 cases for Montreal boroughs with less than 200 cases", 
              group,
              mindate="20200405") +
   labs(caption = "graph by @coulsim, data compiled by @bouchecl from https://santemontreal.qc.ca/population/coronavirus-covid-19/")

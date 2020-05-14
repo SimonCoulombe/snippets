@@ -1,5 +1,5 @@
 ---
-title: covid19 cases in canadian health regions with over 1000 cumulative cases
+title: "Local Covid19 cases:   Canadian health regions and Montreal boroughs"
 author: simon
 date: '2020-05-10'
 slug: covid19-cases-in-canadian-health-regions-with-over-1000-cumulative-cases
@@ -9,19 +9,30 @@ categories:
 tags: []
 keywords:
   - tech
+thumbnailImage: "/post/2020-05-10-covid19-cases-in-canadian-health-regions-with-over-1000-cumulative-cases_files/montreal20200512.png" 
+thumbnailImagePosition: left      
 ---
 
 
 
-<p>Quick post inspired by the winning / nearly there / need action graphs by <span class="citation">@yaneerbaryam</span> at <a href="https://www.endcoronavirus.org/countries" class="uri">https://www.endcoronavirus.org/countries</a>.
-We’ll use the data compiled by Isha Berry &amp; friends at <a href="https://github.com/ishaberry/Covid19Canada" class="uri">https://github.com/ishaberry/Covid19Canada</a></p>
-<p>new to me : the new tidyeval that uses {{ }}, and using vars() inside facet_wrap to allow tidyevaluation.</p>
+<p>blo</p>
+<p>Quick post inspired by the winning / nearly there / need action graphs by <span class="citation">@yaneerbaryam</span> at <a href="https://www.endcoronavirus.org/countries" class="uri">https://www.endcoronavirus.org/countries</a>.</p>
+<div id="data" class="section level1">
+<h1>Data</h1>
+<p>Health regions date is compiled by Isha Berry &amp; friends <a href="https://github.com/ishaberry/Covid19Canada">github</a>.
+Montreal boroughs data is <a href="https://santemontreal.qc.ca/population/coronavirus-covid-19/">published daily</a>. They only keep the total and keep no history, so <span class="citation">@bouchecl</span> visits them every day and compiles the data in this <a href="https://docs.google.com/spreadsheets/d/1mOyyeCHwfI_F_T3pAalIdMBxhhfTbM7m5RvbciXIvPM/">google sheet</a></p>
+</div>
+<div id="code" class="section level1">
+<h1>Code</h1>
+<p>As usual, the code <a href="https://github.com/SimonCoulombe/snippets/blob/master/content/post/2020-05-10-covid19-cases-in-canadian-health-regions-with-over-1000-cumulative-cases.Rmd">for this post is on github</a>.</p>
+<p>New to me : the new tidyeval that uses {{ }}, and using vars() inside facet_wrap to allow tidyevaluation.</p>
+</div>
 <div id="canada---health-regions-with-over-1000-cumulative-cases" class="section level1">
 <h1>Canada - health regions with over 1000 cumulative cases</h1>
 <p><img src="/post/2020-05-10-covid19-cases-in-canadian-health-regions-with-over-1000-cumulative-cases_files/figure-html/canada-1.png" width="1152" style="display: block; margin: auto;" /></p>
 </div>
-<div id="provinces" class="section level1">
-<h1>Provinces</h1>
+<div id="provinces-all-health-regions" class="section level1">
+<h1>Provinces (all health regions)</h1>
 <pre><code>## [[1]]</code></pre>
 <p><img src="/post/2020-05-10-covid19-cases-in-canadian-health-regions-with-over-1000-cumulative-cases_files/figure-html/qc-1.png" width="1152" style="display: block; margin: auto;" /></p>
 <pre><code>## 
@@ -58,9 +69,9 @@ We’ll use the data compiled by Isha Berry &amp; friends at <a href="https://gi
 ## [[12]]</code></pre>
 <p><img src="/post/2020-05-10-covid19-cases-in-canadian-health-regions-with-over-1000-cumulative-cases_files/figure-html/qc-12.png" width="1152" style="display: block; margin: auto;" /></p>
 </div>
-<div id="montréal" class="section level1">
-<h1>Montréal</h1>
+<div id="montréal-boroughs" class="section level1">
+<h1>Montréal boroughs</h1>
 <p>données arrondissement montréal
 <img src="/post/2020-05-10-covid19-cases-in-canadian-health-regions-with-over-1000-cumulative-cases_files/figure-html/unnamed-chunk-3-1.png" width="1152" style="display: block; margin: auto;" /></p>
-<p><img src="/post/2020-05-10-covid19-cases-in-canadian-health-regions-with-over-1000-cumulative-cases_files/figure-html/unnamed-chunk-4-1.png" width="1152" style="display: block; margin: auto;" /></p>
+<p><img src="/post/2020-05-10-covid19-cases-in-canadian-health-regions-with-over-1000-cumulative-cases_files/figure-html/montreal-1.png" width="1152" style="display: block; margin: auto;" /></p>
 </div>
