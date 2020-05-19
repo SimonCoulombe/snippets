@@ -126,7 +126,8 @@ create_graph <- function(data, filter_exp, title, geo,mindate= "20200315"){
                                      small.mark=".", 
                                      small.interval=3), 
                               " cases"),
-              value = 0.9 * max(cases)
+              value =  0.9 *  max(avg_cases_last7, na.rm = TRUE)
+    
     ) %>%
     mutate(key="avg_cases_last7",
            date_report = lubridate::ymd(mindate)+1
@@ -134,13 +135,13 @@ create_graph <- function(data, filter_exp, title, geo,mindate= "20200315"){
   
   data  %>%
     filter( {{ filter_exp }}  & date_report >= lubridate::ymd(mindate)) %>%
-    gather(key=key, value= value, cases, avg_cases_last7) %>%
+    gather(key=key, value= value,  avg_cases_last7) %>% #cases,
     mutate(alpha = if_else(key == "cases", 0.5, 1)) %>%
     ggplot(aes(x=date_report, y= value, group = key))+
     facet_wrap( vars ({{ geo }})  , scales = "free" )+
     geom_line(aes( color = winning, alpha = key), size =1) + # linetype = key,
     dviz.supp::theme_dviz_grid()+
-    scale_y_continuous(breaks = scales::pretty_breaks(n =4) )+
+    scale_y_continuous(breaks = scales::pretty_breaks(n =5) )+
     theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1)) +
       scale_colour_manual(values = c("darkgreen", "darkorange", "darkred"), name = "(# of cases last week) / (# of cases worst week):",  labels= c("< 0.33", "0.33 to 0.67", " > 0.67"))  + # ,guide = "none"
     scale_alpha_manual(values = c(1, 0.3), labels= c("7-day average", "Daily count"),name =  "type:" ) + #  name = NULL , guide = "none"
@@ -180,7 +181,7 @@ get_province_graph <- function(.prov){
 
 cases <- prep_data(cases_timeseries_hr, pr_region)  
   
-#deaths <- prep_data(mortality_hr)
+#deaths <- prep_datpretty_ba(mortality_hr)
 
 lastdate  <- max(cases$date_report)
 
