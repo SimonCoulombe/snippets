@@ -1,0 +1,179 @@
+---
+title: getting xgboost tweedie prediction from link
+author: simon
+date: '2020-05-21'
+slug: getting-xgboost-tweedie-prediction-from-link
+categories: []
+tags: []
+keywords:
+  - tech
+---
+
+
+
+```{r setup, include =F, echo =F}
+#
+# TODO : valider ceci : Chunk options must be written in one line; no line breaks are allowed inside chunk options;
+# https://yihui.name/knitr/options/
+knitr::opts_chunk$set(echo = TRUE, 
+                      collapse = FALSE,
+                      warning = FALSE,
+                      error = FALSE,
+                      message = FALSE,
+                      fig.align= "center",
+                      fig.width = 10,
+                      highlight = TRUE,
+                      cache = FALSE,
+                      cache.lazy = FALSE) # fixes long vecto rnot supported quand on cache des gros éléments https://stackoverflow.com/questions/39417003/long-vectors-not-supported-yet-error-in-rmd-but-not-in-r-script
+```
+
+I've stumbled on something.. interesting.  
+
+To get the prediction for a Tweedie GLM, we take the link value then do exp(link), but to get prediction from an xgboost tweedie , we take the "link" value then do exp(link)/ 2 , dividing the result by 2.  
+
+Is this normal?   Below is a quick demo showing how I get the predictions for a 3-trees xgboost and a glm.
+
+the code has been  modified from the tweedie regression demo in the xgboost repository: https://github.com/dmlc/xgboost/blob/master/R-package/demo/tweedie_regression.R
+
+
+
+First, fit xgboost model and look at the trees :
+```{r}
+library(xgboost)
+library(data.table)
+library(cplm) # for insurance data
+library(statmod) # for tweedie glm
+data(AutoClaim)
+
+# auto insurance dataset analyzed by Yip and Yau (2005)
+dt <- data.table(AutoClaim)
+
+# exclude these columns from the model matrix
+exclude <-  c('POLICYNO', 'PLCYDATE', 'CLM_FREQ5', 'CLM_AMT5', 'CLM_FLAG', 'IN_YY')
+
+# retains the missing values
+# NOTE: this dataset is comes ready out of the box
+options(na.action = 'na.pass')
+x <- sparse.model.matrix(~ . - 1, data = dt[, -exclude, with = F])
+options(na.action = 'na.omit')
+
+# response
+y <- dt[, CLM_AMT5]
+
+d_train <- xgb.DMatrix(data = x, label = y, missing = NA)
+
+# the tweedie_variance_power parameter determines the shape of
+# distribution
+# - closer to 1 is more poisson like and the mass
+#   is more concentrated near zero
+# - closer to 2 is more gamma like and the mass spreads to the
+#   the right with less concentration near zero
+
+params <- list(
+  objective = 'reg:tweedie',
+  eval_metric = 'rmse',
+  tweedie_variance_power = 1.4,
+  max_depth = 2,
+  eta = 1)
+set.seed(42)
+bst <- xgb.train(
+  data = d_train,
+  params = params,
+  maximize = FALSE,
+  watchlist = list(train = d_train),
+  nrounds = 3)
+
+
+var_imp <- xgb.importance(attr(x, 'Dimnames')[[2]], model = bst)
+
+preds <- predict(bst, d_train)
+
+rmse <- sqrt(sum(mean((y - preds)^2)))
+
+xgb.plot.tree(model = bst)
+```
+
+Manually extract the values for the first record :
+```{r}
+x[1,]
+```
+
+travtime < 102, bluebook <61645 -->tree #1 value= 2.49922585
+revolkedyes <  -9.53674316e-07,   npolicy < 5.5 --> tree #2  value= 2.48586464
+REVOLKEDYes <  -9.53674316e-07, areaurban >  -9.53674316e-07 --> tree #3 value =  2.36028123
+
+
+```{r}
+link_gbm <-  2.49922585 +2.48586464+  2.36028123
+link_gbm
+
+
+```
+
+Take exp(link_gbm), divide by 2 (question: why??)
+```{r}
+exp(link_gbm ) / 2
+```
+
+Compare with prediction from xgboost .
+
+```{r}
+ predict(bst, d_train)[1]
+```
+
+Let's do the same with a GLM:  
+```{r}
+dt2 <-  dt[, -exclude, with = F]
+dt2$CLM_AMT5 <-  dt$CLM_AMT5
+
+tweedie_fit <-
+  glm(CLM_AMT5 ~ .,
+      family=tweedie(var.power=1.4, link.power=0),
+      data = dt2)
+ 
+summary(tweedie_fit)
+```
+Manually get the link value for the first record
+
+```{r}
+dt2[1,]
+```
+link =
+```{r}
+link_glm <- tweedie_fit$coefficients["(Intercept)"] +
+  14 * tweedie_fit$coefficients["TRAVTIME"] +
+  14230 * tweedie_fit$coefficients["BLUEBOOK"] +
+  11 * tweedie_fit$coefficients["RETAINED"]  +
+  1 * tweedie_fit$coefficients["NPOLICY"] +
+  1 * tweedie_fit$coefficients["CAR_TYPESedan"] +
+  1 * tweedie_fit$coefficients["RED_CARyes"] +
+  3 * tweedie_fit$coefficients["MVR_PTS"] +
+  60 * tweedie_fit$coefficients["AGE"] +
+  11 * tweedie_fit$coefficients["YOJ"] +
+  67349 * tweedie_fit$coefficients["INCOME"] +
+  1 * tweedie_fit$coefficients["GENDERM"] +
+  1 * tweedie_fit$coefficients["JOBCLASSProfessional"] +
+  1 * tweedie_fit$coefficients["MAX_EDUCPhD"] +
+  18 * tweedie_fit$coefficients["SAMEHOME"] +
+  1 * tweedie_fit$coefficients["AREAUrban"]
+
+link_glm
+```
+
+prediction is exp(link_glm)
+```{r}
+exp(link_glm)
+```
+
+compare with link and  prediction from glm ... yes, it's identical
+
+
+```{r}
+predict(tweedie_fit, type="link")[1]
+```
+
+```{r}
+predict(tweedie_fit, type="response")[1]
+```
+
+

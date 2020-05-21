@@ -1,0 +1,227 @@
+---
+title: getting xgboost tweedie prediction from link
+author: simon
+date: '2020-05-21'
+slug: getting-xgboost-tweedie-prediction-from-link
+categories: []
+tags: []
+keywords:
+  - tech
+---
+
+<script src="/rmarkdown-libs/htmlwidgets/htmlwidgets.js"></script>
+<script src="/rmarkdown-libs/viz/viz.js"></script>
+<link href="/rmarkdown-libs/DiagrammeR-styles/styles.css" rel="stylesheet" />
+<script src="/rmarkdown-libs/grViz-binding/grViz.js"></script>
+
+
+<p>I’ve stumbled on something.. interesting.</p>
+<p>To get the prediction for a Tweedie GLM, we take the link value then do exp(link), but to get prediction from an xgboost tweedie , we take the “link” value then do exp(link)/ 2 , dividing the result by 2.</p>
+<p>Is this normal? Below is a quick demo showing how I get the predictions for a 3-trees xgboost and a glm.</p>
+<p>the code has been modified from the tweedie regression demo in the xgboost repository: <a href="https://github.com/dmlc/xgboost/blob/master/R-package/demo/tweedie_regression.R" class="uri">https://github.com/dmlc/xgboost/blob/master/R-package/demo/tweedie_regression.R</a></p>
+<p>First, fit xgboost model and look at the trees :</p>
+<pre class="r"><code>library(xgboost)
+library(data.table)
+library(cplm) # for insurance data
+library(statmod) # for tweedie glm
+data(AutoClaim)
+
+# auto insurance dataset analyzed by Yip and Yau (2005)
+dt &lt;- data.table(AutoClaim)
+
+# exclude these columns from the model matrix
+exclude &lt;-  c(&#39;POLICYNO&#39;, &#39;PLCYDATE&#39;, &#39;CLM_FREQ5&#39;, &#39;CLM_AMT5&#39;, &#39;CLM_FLAG&#39;, &#39;IN_YY&#39;)
+
+# retains the missing values
+# NOTE: this dataset is comes ready out of the box
+options(na.action = &#39;na.pass&#39;)
+x &lt;- sparse.model.matrix(~ . - 1, data = dt[, -exclude, with = F])
+options(na.action = &#39;na.omit&#39;)
+
+# response
+y &lt;- dt[, CLM_AMT5]
+
+d_train &lt;- xgb.DMatrix(data = x, label = y, missing = NA)
+
+# the tweedie_variance_power parameter determines the shape of
+# distribution
+# - closer to 1 is more poisson like and the mass
+#   is more concentrated near zero
+# - closer to 2 is more gamma like and the mass spreads to the
+#   the right with less concentration near zero
+
+params &lt;- list(
+  objective = &#39;reg:tweedie&#39;,
+  eval_metric = &#39;rmse&#39;,
+  tweedie_variance_power = 1.4,
+  max_depth = 2,
+  eta = 1)
+set.seed(42)
+bst &lt;- xgb.train(
+  data = d_train,
+  params = params,
+  maximize = FALSE,
+  watchlist = list(train = d_train),
+  nrounds = 3)</code></pre>
+<pre><code>## [1]  train-rmse:9615.735352 
+## [2]  train-rmse:9587.709961 
+## [3]  train-rmse:9304.410156</code></pre>
+<pre class="r"><code>var_imp &lt;- xgb.importance(attr(x, &#39;Dimnames&#39;)[[2]], model = bst)
+
+preds &lt;- predict(bst, d_train)
+
+rmse &lt;- sqrt(sum(mean((y - preds)^2)))
+
+xgb.plot.tree(model = bst)</code></pre>
+<div id="htmlwidget-1" style="width:960px;height:480px;" class="grViz html-widget"></div>
+<script type="application/json" data-for="htmlwidget-1">{"x":{"diagram":"digraph {\n\ngraph [layout = \"dot\",\n       rankdir = \"LR\"]\n\nnode [color = \"DimGray\",\n      style = \"filled\",\n      fontname = \"Helvetica\"]\n\nedge [color = \"DimGray\",\n     arrowsize = \"1.5\",\n     arrowhead = \"vee\",\n     fontname = \"Helvetica\"]\n\n  \"1\" [label = \"Tree 2\nREVOLKEDYes\nCover: 3058266.75\nGain: 12600\", shape = \"rectangle\", fontcolor = \"black\", fillcolor = \"Beige\"] \n  \"2\" [label = \"AREAUrban\nCover: 1804138.75\nGain: 12257\", shape = \"rectangle\", fontcolor = \"black\", fillcolor = \"Beige\"] \n  \"3\" [label = \"MVR_PTS\nCover: 1254128\nGain: 182.5\", shape = \"rectangle\", fontcolor = \"black\", fillcolor = \"Beige\"] \n  \"4\" [label = \"Leaf\nCover: 140979.969\nValue: 2.05311394\", shape = \"oval\", fontcolor = \"black\", fillcolor = \"Khaki\"] \n  \"5\" [label = \"Leaf\nCover: 1663158.88\nValue: 2.36028123\", shape = \"oval\", fontcolor = \"black\", fillcolor = \"Khaki\"] \n  \"6\" [label = \"Leaf\nCover: 446809.75\nValue: 2.45033979\", shape = \"oval\", fontcolor = \"black\", fillcolor = \"Khaki\"] \n  \"7\" [label = \"Leaf\nCover: 807318.188\nValue: 2.47591925\", shape = \"oval\", fontcolor = \"black\", fillcolor = \"Khaki\"] \n  \"8\" [label = \"Tree 1\nREVOLKEDYes\nCover: 8081336.5\nGain: 252\", shape = \"rectangle\", fontcolor = \"black\", fillcolor = \"Beige\"] \n  \"9\" [label = \"NPOLICY\nCover: 4700905.5\nGain: 1066\", shape = \"rectangle\", fontcolor = \"black\", fillcolor = \"Beige\"] \n  \"10\" [label = \"TRAVTIME\nCover: 3380431\nGain: 30\", shape = \"rectangle\", fontcolor = \"black\", fillcolor = \"Beige\"] \n  \"11\" [label = \"Leaf\nCover: 4700843.5\nValue: 2.48586464\", shape = \"oval\", fontcolor = \"black\", fillcolor = \"Khaki\"] \n  \"12\" [label = \"Leaf\nCover: 62.0642242\nValue: -1.64023852\", shape = \"oval\", fontcolor = \"black\", fillcolor = \"Khaki\"] \n  \"13\" [label = \"Leaf\nCover: 3380429\nValue: 2.4972477\", shape = \"oval\", fontcolor = \"black\", fillcolor = \"Khaki\"] \n  \"14\" [label = \"Leaf\nCover: 1.77326357\nValue: -1.06568992\", shape = \"oval\", fontcolor = \"black\", fillcolor = \"Khaki\"] \n  \"15\" [label = \"Tree 0\nTRAVTIME\nCover: 21915046\nGain: 48\", shape = \"rectangle\", fontcolor = \"black\", fillcolor = \"Beige\"] \n  \"16\" [label = \"BLUEBOOK\nCover: 21915044\nGain: 16\", shape = \"rectangle\", fontcolor = \"black\", fillcolor = \"Beige\"] \n  \"17\" [label = \"Leaf\nCover: 2.3751142\nValue: -1.17285621\", shape = \"oval\", fontcolor = \"black\", fillcolor = \"Khaki\"] \n  \"18\" [label = \"Leaf\nCover: 21915044\nValue: 2.49922585\", shape = \"oval\", fontcolor = \"black\", fillcolor = \"Khaki\"] \n  \"19\" [label = \"Leaf\nCover: 1.1875571\nValue: -0.904781759\", shape = \"oval\", fontcolor = \"black\", fillcolor = \"Khaki\"] \n\"1\"->\"2\" [label = \"< -9.53674316e-07\", style = \"bold\"] \n\"2\"->\"4\" [label = \"< -9.53674316e-07\", style = \"bold\"] \n\"3\"->\"6\" [label = \"< 1.5\", style = \"bold\"] \n\"8\"->\"9\" [label = \"< -9.53674316e-07\", style = \"bold\"] \n\"9\"->\"11\" [label = \"< 5.5\", style = \"bold\"] \n\"10\"->\"13\" [label = \"< 86\", style = \"bold\"] \n\"15\"->\"16\" [label = \"< 102\", style = \"bold\"] \n\"16\"->\"18\" [label = \"< 61645\", style = \"bold\"] \n\"1\"->\"3\" [style = \"bold\", style = \"solid\"] \n\"2\"->\"5\" [style = \"solid\", style = \"solid\"] \n\"3\"->\"7\" [style = \"solid\", style = \"solid\"] \n\"8\"->\"10\" [style = \"solid\", style = \"solid\"] \n\"9\"->\"12\" [style = \"solid\", style = \"solid\"] \n\"10\"->\"14\" [style = \"solid\", style = \"solid\"] \n\"15\"->\"17\" [style = \"solid\", style = \"solid\"] \n\"16\"->\"19\" [style = \"solid\", style = \"solid\"] \n}","config":{"engine":"dot","options":null}},"evals":[],"jsHooks":[]}</script>
+<p>Manually extract the values for the first record :</p>
+<pre class="r"><code>x[1,]</code></pre>
+<pre><code>##              CLM_AMT             KIDSDRIV             TRAVTIME 
+##                    0                    0                   14 
+##       CAR_USEPrivate    CAR_USECommercial             BLUEBOOK 
+##                    1                    0                14230 
+##             RETAINED              NPOLICY       CAR_TYPEPickup 
+##                   11                    1                    0 
+##        CAR_TYPESedan   CAR_TYPESports Car          CAR_TYPESUV 
+##                    1                    0                    0 
+##          CAR_TYPEVan           RED_CARyes          REVOLKEDYes 
+##                    0                    1                    0 
+##              MVR_PTS                  AGE             HOMEKIDS 
+##                    3                   60                    0 
+##                  YOJ               INCOME              GENDERM 
+##                   11                67349                    1 
+##           MARRIEDYes           PARENT1Yes  JOBCLASSBlue Collar 
+##                    0                    0                    0 
+##     JOBCLASSClerical       JOBCLASSDoctor   JOBCLASSHome Maker 
+##                    0                    0                    0 
+##       JOBCLASSLawyer      JOBCLASSManager JOBCLASSProfessional 
+##                    0                    0                    1 
+##      JOBCLASSStudent    MAX_EDUCBachelors  MAX_EDUCHigh School 
+##                    0                    0                    0 
+##      MAX_EDUCMasters          MAX_EDUCPhD             HOME_VAL 
+##                    0                    1                    0 
+##             SAMEHOME            AREAUrban 
+##                   18                    1</code></pre>
+<p>travtime &lt; 102, bluebook &lt;61645 –&gt;tree #1 value= 2.49922585
+revolkedyes &lt; -9.53674316e-07, npolicy &lt; 5.5 –&gt; tree #2 value= 2.48586464
+REVOLKEDYes &lt; -9.53674316e-07, areaurban &gt; -9.53674316e-07 –&gt; tree #3 value = 2.36028123</p>
+<pre class="r"><code>link_gbm &lt;-  2.49922585 +2.48586464+  2.36028123
+link_gbm</code></pre>
+<pre><code>## [1] 7.345372</code></pre>
+<p>Take exp(link_gbm), divide by 2 (question: why??)</p>
+<pre class="r"><code>exp(link_gbm ) / 2</code></pre>
+<pre><code>## [1] 774.5053</code></pre>
+<p>Compare with prediction from xgboost .</p>
+<pre class="r"><code> predict(bst, d_train)[1]</code></pre>
+<pre><code>## [1] 774.5053</code></pre>
+<p>Let’s do the same with a GLM:</p>
+<pre class="r"><code>dt2 &lt;-  dt[, -exclude, with = F]
+dt2$CLM_AMT5 &lt;-  dt$CLM_AMT5
+
+tweedie_fit &lt;-
+  glm(CLM_AMT5 ~ .,
+      family=tweedie(var.power=1.4, link.power=0),
+      data = dt2)
+ 
+summary(tweedie_fit)</code></pre>
+<pre><code>## 
+## Call:
+## glm(formula = CLM_AMT5 ~ ., family = tweedie(var.power = 1.4, 
+##     link.power = 0), data = dt2)
+## 
+## Deviance Residuals: 
+##     Min       1Q   Median       3Q      Max  
+## -43.158  -18.230  -14.117    1.527  111.972  
+## 
+## Coefficients:
+##                        Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)           6.522e+00  3.008e-01  21.679   &lt;2e-16 ***
+## CLM_AMT              -3.075e-07  5.128e-06  -0.060   0.9522    
+## KIDSDRIV              7.061e-02  5.238e-02   1.348   0.1777    
+## TRAVTIME              5.026e-04  1.568e-03   0.321   0.7486    
+## CAR_USECommercial     1.112e-01  7.894e-02   1.408   0.1591    
+## BLUEBOOK             -4.049e-06  4.162e-06  -0.973   0.3307    
+## RETAINED              3.038e-03  5.925e-03   0.513   0.6082    
+## NPOLICY               7.364e-03  2.700e-02   0.273   0.7851    
+## CAR_TYPEPickup       -1.299e-01  1.309e-01  -0.992   0.3212    
+## CAR_TYPESedan        -7.295e-02  1.339e-01  -0.545   0.5859    
+## CAR_TYPESports Car    2.341e-01  1.721e-01   1.360   0.1739    
+## CAR_TYPESUV           4.914e-02  1.635e-01   0.301   0.7638    
+## CAR_TYPEVan           8.443e-02  1.256e-01   0.672   0.5014    
+## RED_CARyes            2.374e-02  7.178e-02   0.331   0.7409    
+## REVOLKEDYes           1.561e+00  5.421e-02  28.787   &lt;2e-16 ***
+## MVR_PTS               1.854e-01  9.657e-03  19.196   &lt;2e-16 ***
+## AGE                   1.263e-04  3.282e-03   0.038   0.9693    
+## HOMEKIDS             -2.321e-02  3.133e-02  -0.741   0.4588    
+## YOJ                   1.290e-02  7.084e-03   1.821   0.0686 .  
+## INCOME               -1.089e-06  9.030e-07  -1.206   0.2280    
+## GENDERM               1.796e-02  9.009e-02   0.199   0.8420    
+## MARRIEDYes           -1.164e-01  7.132e-02  -1.631   0.1028    
+## PARENT1Yes            3.731e-05  9.260e-02   0.000   0.9997    
+## JOBCLASSBlue Collar  -1.361e-01  1.513e-01  -0.900   0.3684    
+## JOBCLASSClerical     -3.559e-02  1.595e-01  -0.223   0.8235    
+## JOBCLASSDoctor       -3.375e-01  2.006e-01  -1.682   0.0925 .  
+## JOBCLASSHome Maker    8.188e-02  1.720e-01   0.476   0.6340    
+## JOBCLASSLawyer       -3.171e-01  1.397e-01  -2.270   0.0232 *  
+## JOBCLASSManager      -1.430e-01  1.351e-01  -1.058   0.2900    
+## JOBCLASSProfessional -8.701e-02  1.444e-01  -0.602   0.5469    
+## JOBCLASSStudent      -4.856e-02  1.763e-01  -0.275   0.7830    
+## MAX_EDUCBachelors     3.367e-03  9.966e-02   0.034   0.9731    
+## MAX_EDUCHigh School   4.401e-02  8.243e-02   0.534   0.5935    
+## MAX_EDUCMasters       8.209e-02  1.478e-01   0.555   0.5786    
+## MAX_EDUCPhD           1.384e-01  1.742e-01   0.794   0.4270    
+## HOME_VAL             -2.904e-07  2.872e-07  -1.011   0.3119    
+## SAMEHOME              9.668e-04  6.209e-03   0.156   0.8763    
+## AREAUrban             1.118e+00  8.589e-02  13.014   &lt;2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## (Dispersion parameter for Tweedie family taken to be 622.1081)
+## 
+##     Null deviance: 3887100  on 8162  degrees of freedom
+## Residual deviance: 2857179  on 8125  degrees of freedom
+##   (2133 observations deleted due to missingness)
+## AIC: NA
+## 
+## Number of Fisher Scoring iterations: 9</code></pre>
+<p>Manually get the link value for the first record</p>
+<pre class="r"><code>dt2[1,]</code></pre>
+<pre><code>##    CLM_AMT KIDSDRIV TRAVTIME CAR_USE BLUEBOOK RETAINED NPOLICY CAR_TYPE RED_CAR
+## 1:       0        0       14 Private    14230       11       1    Sedan     yes
+##    REVOLKED MVR_PTS AGE HOMEKIDS YOJ INCOME GENDER MARRIED PARENT1     JOBCLASS
+## 1:       No       3  60        0  11  67349      M      No      No Professional
+##    MAX_EDUC HOME_VAL SAMEHOME  AREA CLM_AMT5
+## 1:      PhD        0       18 Urban     4461</code></pre>
+<p>link =</p>
+<pre class="r"><code>link_glm &lt;- tweedie_fit$coefficients[&quot;(Intercept)&quot;] +
+  14 * tweedie_fit$coefficients[&quot;TRAVTIME&quot;] +
+  14230 * tweedie_fit$coefficients[&quot;BLUEBOOK&quot;] +
+  11 * tweedie_fit$coefficients[&quot;RETAINED&quot;]  +
+  1 * tweedie_fit$coefficients[&quot;NPOLICY&quot;] +
+  1 * tweedie_fit$coefficients[&quot;CAR_TYPESedan&quot;] +
+  1 * tweedie_fit$coefficients[&quot;RED_CARyes&quot;] +
+  3 * tweedie_fit$coefficients[&quot;MVR_PTS&quot;] +
+  60 * tweedie_fit$coefficients[&quot;AGE&quot;] +
+  11 * tweedie_fit$coefficients[&quot;YOJ&quot;] +
+  67349 * tweedie_fit$coefficients[&quot;INCOME&quot;] +
+  1 * tweedie_fit$coefficients[&quot;GENDERM&quot;] +
+  1 * tweedie_fit$coefficients[&quot;JOBCLASSProfessional&quot;] +
+  1 * tweedie_fit$coefficients[&quot;MAX_EDUCPhD&quot;] +
+  18 * tweedie_fit$coefficients[&quot;SAMEHOME&quot;] +
+  1 * tweedie_fit$coefficients[&quot;AREAUrban&quot;]
+
+link_glm</code></pre>
+<pre><code>## (Intercept) 
+##    8.299899</code></pre>
+<p>prediction is exp(link_glm)</p>
+<pre class="r"><code>exp(link_glm)</code></pre>
+<pre><code>## (Intercept) 
+##    4023.466</code></pre>
+<p>compare with link and prediction from glm … yes, it’s identical</p>
+<pre class="r"><code>predict(tweedie_fit, type=&quot;link&quot;)[1]</code></pre>
+<pre><code>##        1 
+## 8.299899</code></pre>
+<pre class="r"><code>predict(tweedie_fit, type=&quot;response&quot;)[1]</code></pre>
+<pre><code>##        1 
+## 4023.466</code></pre>
