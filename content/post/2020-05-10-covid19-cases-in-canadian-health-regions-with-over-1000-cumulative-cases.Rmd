@@ -93,15 +93,15 @@ prep_data <- function(data, group){
     ) %>%
     ungroup() %>%
     
-  mutate(
-  group = fct_reorder( {{ group }}, total, .desc =TRUE)
-  )
-
-
-
-gaa %>% 
-  left_join(gaa1) 
-
+    mutate(
+      group = fct_reorder( {{ group }}, total, .desc =TRUE)
+    )
+  
+  
+  
+  gaa %>% 
+    left_join(gaa1) 
+  
 }
 
 
@@ -115,7 +115,7 @@ gaa %>%
 # }
 # filter_func(mtcars, hp == 93)
 create_graph <- function(data, filter_exp, title, geo,mindate= "20200315"){
-  #browser()
+  
   labels <- data %>% 
     filter( {{ filter_exp }} ) %>% 
     group_by( {{ geo }} )%>%
@@ -125,13 +125,23 @@ create_graph <- function(data, filter_exp, title, geo,mindate= "20200315"){
                                      big.mark=" ",
                                      small.mark=".", 
                                      small.interval=3), 
-                              " cases"),
+                              " total cases"),
               value =  0.9 *  max(avg_cases_last7, na.rm = TRUE)
-    
+              
     ) %>%
     mutate(key="avg_cases_last7",
            date_report = lubridate::ymd(mindate)+1
     )
+  
+  last_value_label_data <-
+    data %>%
+    filter( {{ filter_exp }} ) %>% 
+    group_by( {{ geo }} )%>%
+    filter(date_report == max(date_report)) %>%
+    mutate(key="avg_cases_last7", 
+           label = paste0(round(avg_cases_last7)),
+           value = avg_cases_last7) %>%
+    ungroup()
   
   data  %>%
     filter( {{ filter_exp }}  & date_report >= lubridate::ymd(mindate)) %>%
@@ -143,7 +153,7 @@ create_graph <- function(data, filter_exp, title, geo,mindate= "20200315"){
     dviz.supp::theme_dviz_grid()+
     scale_y_continuous(breaks = scales::pretty_breaks(n =5) )+
     theme(axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1)) +
-      scale_colour_manual(values = c("darkgreen", "darkorange", "darkred"), name = "(# of cases last week) / (# of cases worst week):",  labels= c("< 0.33", "0.33 to 0.67", " > 0.67"))  + # ,guide = "none"
+    scale_colour_manual(values = c("darkgreen", "darkorange", "darkred"), name = "(# of cases last week) / (# of cases worst week):",  labels= c("< 0.33", "0.33 to 0.67", " > 0.67"))  + # ,guide = "none"
     scale_alpha_manual(values = c(1, 0.3), labels= c("7-day average", "Daily count"),name =  "type:" ) + #  name = NULL , guide = "none"
     labs(
       title = title,
@@ -155,7 +165,17 @@ create_graph <- function(data, filter_exp, title, geo,mindate= "20200315"){
     theme(legend.position="bottom") +
     geom_text(data= labels ,
               aes(label = label),
-              hjust = "left" )
+              hjust = "left" ) + 
+    expand_limits(y = 0) + 
+    ggrepel::geom_text_repel(
+      data = last_value_label_data,
+      aes(
+        label = label
+      )
+    ) 
+    
+    
+    #print(last_value_label_data)
 }
 
 
@@ -165,11 +185,11 @@ get_province_graph <- function(.prov){
   z <- cases %>% 
     filter(province == .prov) %>%
     mutate(health_region = fct_reorder(health_region, total, .desc =TRUE))
-
+  
   create_graph(z,
-             TRUE,
-             paste0("Daily new Covid-19 cases by health regions in ", .prov),
-             health_region)
+               TRUE,
+               paste0("Daily new Covid-19 cases by health regions in ", .prov),
+               health_region)
 }
 ```
 
@@ -180,7 +200,7 @@ get_province_graph <- function(.prov){
 ```{r canada }
 
 cases <- prep_data(cases_timeseries_hr, pr_region)  
-  
+
 #deaths <- prep_datpretty_ba(mortality_hr)
 
 lastdate  <- max(cases$date_report)
