@@ -148,7 +148,7 @@ create_graph <- function(data, filter_exp, title, geo,mindate= "20200315"){
     gather(key=key, value= value,  avg_cases_last7) %>% #cases,
     mutate(alpha = if_else(key == "cases", 0.5, 1)) %>%
     ggplot(aes(x=date_report, y= value, group = key))+
-    facet_wrap( vars ({{ geo }})  , scales = "free" )+
+    facet_wrap( vars ({{ geo }}),  scales = "free", labeller = label_wrap_gen(width=25) )+   
     geom_line(aes( color = winning, alpha = key), size =1) + # linetype = key,
     dviz.supp::theme_dviz_grid()+
     scale_y_continuous(breaks = scales::pretty_breaks(n =5) )+
@@ -172,7 +172,9 @@ create_graph <- function(data, filter_exp, title, geo,mindate= "20200315"){
       aes(
         label = label
       )
-    ) 
+    ) + 
+  theme(strip.text.x = element_text(angle = 0, hjust = 0))
+
     
     
     #print(last_value_label_data)
@@ -191,6 +193,21 @@ get_province_graph <- function(.prov){
                paste0("Daily new Covid-19 cases by health regions in ", .prov),
                health_region)
 }
+
+
+get_rss_graph <- function(.rss, .mindate){
+  
+  z <- rls_cases %>% 
+    filter(RSS == .rss) %>%
+    mutate(RLS = fct_reorder(RLS, total, .desc =TRUE))
+  
+  create_graph(z,
+               TRUE,
+               paste0("Daily new Covid-19 cases by RLS in ", .rss),
+               RLS,
+               mindate = .mindate)
+}
+
 ```
 
 
@@ -231,7 +248,7 @@ prout <- read_sheet(url_mtl_arrondissement)
 mtl  <- prout[1:which(prout$Quartier == "Westmount"), ] %>% 
   gather(key=key, value=cumulative_cases, -Quartier) %>%
   mutate(cumulative_cases = map_int(cumulative_cases, ~ as.integer(str_replace_all(.x, " ", "")))) %>% # remove spaces from numbers
-  mutate(date_report = lubridate::dmy(paste0(str_replace_all(str_replace_all(str_replace_all(key," mars","03"), " avr.", "04"), " mai", "05"), 2020))) %>%
+  mutate(date_report = lubridate::dmy(paste0(str_replace_all(str_replace_all(str_replace_all(str_replace_all(key," mars","03"), " avr.", "04"), " mai", "05"), "jui", "06"), 2020))) %>%
   select(-key) %>%
   group_by(Quartier) %>% 
   arrange(Quartier, desc(date_report)) %>% ## descending date to fix cumulative 
@@ -264,5 +281,61 @@ create_graph(mtl_cases ,
   labs(caption = "graph by @coulsim, data compiled by @bouchecl from https://santemontreal.qc.ca/population/coronavirus-covid-19/")
 
 
+```
+
+
+
+# RLS
+
+##  Worst RLS outside Montréal  
+
+
+```{r}
+url_rls <- "https://docs.google.com/spreadsheets/d/17eJ05pg6fkzKlwwiWn0ztdMvzBX9pGx3q6w7h3_vJw4/"
+gs4_deauth()
+prout <- read_sheet(url_rls)
+
+rls  <- prout[1:which(prout$NoRLS == 1801), ] %>% 
+  filter(!is.na(NoRLS)) %>% 
+  select(-No,  -NoRLS,  -Population)%>% 
+  gather(key=key, value=cumulative_cases, -RLS, -RSS) %>%
+  mutate_at( vars(cumulative_cases) , as.numeric) %>% 
+  filter(!is.na(cumulative_cases)) %>%
+  #filter(NoRLS == "0112") %>%
+  mutate(cumulative_cases = map_int(cumulative_cases, ~ as.integer(str_replace_all(.x, " ", "")))) %>% # remove spaces from numbers
+  mutate(date_report = lubridate::ymd(key)) %>% 
+  select(-key) %>%
+  group_by(RSS,RLS) %>% 
+  arrange( RSS,RLS, desc(date_report)) %>% ## descending date to fix cumulative 
+  mutate(cumulative_cases = if_else(cumulative_cases > cummin(cumulative_cases), cummin(cumulative_cases), cumulative_cases, cumulative_cases)) %>% ## cumulative can't be bigger than next day.. if so reduce to next day level.
+  arrange( RSS,RLS, date_report) %>% ## ascending date
+  mutate(slope = (lead(cumulative_cases)- cumulative_cases) / as.numeric(lead(date_report) - date_report)) %>%
+  complete(date_report = seq.Date(min(date_report), max(date_report), by = "day")) %>%
+  fill(slope, .direction= "down") %>%
+  mutate(cumulative_cases = floor(first(cumulative_cases) + cumsum(slope))) %>%   
+  select(-slope) %>%
+  mutate(cases = cumulative_cases - lag(cumulative_cases)) %>% 
+  ungroup() %>%
+  filter(!is.na(cases))%>%
+  mutate(shortname_rls = str_replace(str_extract(str_replace(RLS, "RLS de ","RLS " ),"RLS.+"),"RLS ", ""))
+
+
+rls_cases <- prep_data(rls, shortname_rls)
+firstdate <- min(rls_cases$date_report)
+lastdate  <- max(rls_cases$date_report)
+create_graph(rls_cases , 
+             total> 100 & RSS != "06 - Montréal",
+             paste0("Daily new Covid-19 cases for RLS outside Montréal with more than 100 cases since ", firstdate), 
+             group,
+             mindate= firstdate) +
+  labs(caption = "graph by @coulsim, data compiled by @bouchecl from https://www.inspq.qc.ca/covid-19/donnees/details/ ") 
+```
+#  All the  RLS in each RSS   
+
+```{r}
+
+firstdate <- min(rls_cases$date_report)
+lastdate  <- max(rls_cases$date_report)
+map(unique(rls_cases$RSS), ~get_rss_graph(.rss = .x, .mindate = firstdate))
 ```
 
