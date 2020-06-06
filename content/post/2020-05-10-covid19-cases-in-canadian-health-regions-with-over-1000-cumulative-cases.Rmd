@@ -290,7 +290,7 @@ create_graph(mtl_cases ,
 ##  Worst RLS outside Montréal  
 
 
-```{r}
+```{r worst_rls}
 url_rls <- "https://docs.google.com/spreadsheets/d/17eJ05pg6fkzKlwwiWn0ztdMvzBX9pGx3q6w7h3_vJw4/"
 gs4_deauth()
 prout <- read_sheet(url_rls)
@@ -332,10 +332,27 @@ create_graph(rls_cases ,
 ```
 #  All the  RLS in each RSS   
 
-```{r}
+```{r rss_rls}
 
 firstdate <- min(rls_cases$date_report)
 lastdate  <- max(rls_cases$date_report)
 map(unique(rls_cases$RSS), ~get_rss_graph(.rss = .x, .mindate = firstdate))
 ```
 
+
+<!-- #traitement csv cronjob -->
+<!-- crontab -e -->
+<!-- 0 8 * * * /usr/bin/wget  https://inspq.qc.ca/sites/default/files/covid/donnees/tableau-rls.csv  -O ~/cronjob/tableau-rls/tableau-rls$(date +%Y%m%d_> -->
+<!-- 0 8 * * * /usr/bin/wget  https://inspq.qc.ca/sites/default/files/covid/donnees/tableau-rpa.csv -O ~/cronjob/tableau-rpa/tableau-rpa$(date +%Y%m%d_%> -->
+<!-- 0 8 * * * /usr/bin/wget  -U "Opera 11.0" https://santemontreal.qc.ca/fileadmin/fichiers/Campagnes/coronavirus/situation-montreal/municipal.csv -O ~> -->
+
+               
+<!-- library(tidyverse) -->
+<!-- temp = list.files(path="/home/simon/cronjob/montreal", pattern="*.csv", full.names= TRUE) -->
+
+<!-- z <- map(temp, ~read_csv(.x )) -->
+
+<!-- test <- read_delim("/home/simon/cronjob/montreal/montreal20200603_084128.csv" , locale = locale(encoding = "latin1"), delim =";") %>% -->
+<!--   mutate(date_download = lubridate::ymd(str_sub(temp,38,45)), -->
+<!--          datetime_downlad = lubridate::ymd_hms(str_sub(temp,38,52)) -->
+<!--   ) -->
