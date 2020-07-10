@@ -183,7 +183,7 @@ create_graph <- function(data, filter_exp, title, geo,mindate= "20200315", type)
     labs(
       title = title,
       subtitle = paste0("As of ", format(lastdate, format="%B %d %Y")),
-      caption = "Graph by @coulsim, data by @ishaberry2 https://github.com/ishaberry/Covid19Canada"
+      caption = "Graph by @coulsim, data by @ishaberry2 & @jpsoucy https://github.com/ishaberry/Covid19Canada"
     ) +
     xlab("date")+
     ylab ( paste0("Daily new ", type_name)) +
@@ -501,6 +501,16 @@ East to West:
 ![](https://blogsimoncoulombe.s3.amazonaws.com/covid19/16+-+Mont%C3%A9r%C3%A9gie_cases.png)
 ![](https://blogsimoncoulombe.s3.amazonaws.com/covid19/17+-+Nunavik_cases.png)
 ![](https://blogsimoncoulombe.s3.amazonaws.com/covid19/18+-+Terres-Cries-de-la-Baie-James_cases.png)
+
+# Carte RLS cas 14 last days per 100k population   
+
+```{r}
+#htmltools::includeHTML("https://blogsimoncoulombe.s3.amazonaws.com/covid19/carte_covid_quebec.html") ## non , ça convertit toute la page en un gros leaflet
+```
+
+```{r, echo=FALSE}
+knitr::include_url("https://blogsimoncoulombe.s3.amazonaws.com/covid19/carte_covid_quebec.html")
+```
 
 
 <!-- ```{r} -->
