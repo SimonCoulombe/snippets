@@ -508,8 +508,8 @@ East to West:
 #htmltools::includeHTML("https://blogsimoncoulombe.s3.amazonaws.com/covid19/carte_covid_quebec.html") ## non , ça convertit toute la page en un gros leaflet
 ```
 
-```{r, echo=FALSE}
-knitr::include_url("https://blogsimoncoulombe.s3.amazonaws.com/covid19/carte_covid_quebec.html")
+```{r, out.width="100%"}
+knitr::include_url("https://blogsimoncoulombe.s3.amazonaws.com/covid19/carte_covid_quebec.html", height="1080px")
 ```
 
 
