@@ -40,8 +40,8 @@ rls_claude  &lt;- prout[1:which(prout$NoRLS == 1801), ] %&gt;%
   select(-key) 
 
 # cronjo data
-  
-  
+
+
 prepare_cronjob_data &lt;- function(mypath = &quot;~/cronjob/tableau-rls/&quot;){
   pouet &lt;- list.files(
     path =mypath,
@@ -85,7 +85,7 @@ prepare_cronjob_data &lt;- function(mypath = &quot;~/cronjob/tableau-rls/&quot;)
   rls_data &lt;- gaaa %&gt;%
     bind_rows() %&gt;%
     rename(cumulative_cases = Cas) 
-    
+  
 }
 
 myrls &lt;- prepare_cronjob_data() %&gt;% 
@@ -96,8 +96,8 @@ myrls &lt;- prepare_cronjob_data() %&gt;%
     Taux = if_else(Taux != &quot;n.d.&quot;, Taux, NA_character_)
   ) %&gt;%
   select(-No, -NoRLS, -Population, -Taux, -download_datetime)
-  
-  
+
+
 # combine both sources, fill in the blanks
 
 both &lt;- bind_rows(
@@ -130,7 +130,7 @@ rls &lt;- both %&gt;%
          RLS_code = str_extract(RLS, &quot;^\\d+&quot;)
   )
 
-  
+
 
 
 prep_data &lt;- function(data, group, type){
@@ -225,9 +225,9 @@ head(census_data_da %&gt;% st_drop_geometry)</code></pre>
 population of a dissemination area is spread proportionally to the area covered by each intersection.</p>
 <p>Table below shows the population for a sample of the intersections</p>
 <pre class="r"><code>intersections_populations &lt;- tongfen_estimate(
-    intersections,
-    census_data_da,
-    meta_for_additive_variables(&quot;census_data_da&quot;, &quot;Population&quot;)
+  intersections,
+  census_data_da,
+  meta_for_additive_variables(&quot;census_data_da&quot;, &quot;Population&quot;)
 )
 
 head(intersections_populations)</code></pre>
@@ -267,57 +267,79 @@ cases_cs &lt;- cases_intersections %&gt;%
   summarise(
     cases_last_14_days = sum(cases_last_14_days, na.rm = TRUE),
     Population = sum(Population, na.rm = TRUE),
-    ) %&gt;%
+    
+  ) %&gt;%
+  ungroup() %&gt;%
   mutate(
-    cases_last_14_days_per_100k = round(cases_last_14_days * 100000 / Population),
+    dailycases_per_1M_avg_14_days = round(cases_last_14_days * 1e6 /14 / Population,1),
+    
+    cases_last_14_days_per_100k = round(cases_last_14_days * 100000 / Population,1),
     cases_last_14_days = round(cases_last_14_days),
     Population = round(Population)
     
   )
 
 ggplot(data = cases_cs) +
-  geom_sf(aes(fill=cases_last_14_days_per_100k))+ 
-  labs(title = paste0(&quot;Nombre estimé de nouveaux cas de covid19 dans les 14 derniers jours par 100 000 habitants \n pour les commissions scolaires en date du  &quot;, lastdate))</code></pre>
+  geom_sf(aes(fill=dailycases_per_1M_avg_14_days))+ 
+  #scale_fill_viridis_c() + 
+  scale_fill_gradient(
+    
+    low = &quot;white&quot;,
+    high = &quot;red&quot;,
+    space = &quot;Lab&quot;,
+    na.value = &quot;grey50&quot;,
+    guide = &quot;colourbar&quot;,
+    aesthetics = &quot;fill&quot;
+  ) + 
+  labs(title = paste0(&quot;Nombre moyen de nouveaux cas de covid19 par million d&#39;habitants \n pour les 14 derniers jours pour les commissions scolaires en date du  &quot;, lastdate))+
+  theme_bw() +
+  theme(panel.grid.major = element_line(colour = &quot;transparent&quot;))</code></pre>
 <p><img src="/post/2020-08-24-covid_cs_files/figure-html/unnamed-chunk-8-1.png" width="12" height="10" style="display: block; margin: auto;" /></p>
 <pre class="r"><code>cases_cs %&gt;% 
+  ungroup %&gt;% 
   st_drop_geometry() %&gt;%
-  arrange(-cases_last_14_days_per_100k) %&gt;%
+  arrange(-dailycases_per_1M_avg_14_days) %&gt;%
+  mutate(rang = row_number())%&gt;%
+  select(rang, NOM_CS, dailycases_per_1M_avg_14_days, cases_last_14_days, Population) %&gt;% 
   kable(
-    caption  = paste0(&quot;Nombre estimé de nouveaux cas de covid19 dans les 14 derniers jours  par 100 000 habitants \n pour les commissions scolaires en date du  &quot;, lastdate),
-    col.names = c(&quot;Code Commission Scolaire&quot;, &quot;Nom Commission Scolaire&quot;, &quot;Nombre estimé de nouveaux cas sur le territoire de la commission scolaire dans les 14 derniers jours&quot;, &quot;Population 2016&quot;, &quot;Nombre de nouveaux cas par 100k habitants dans les 14 derniers jours&quot;)) %&gt;% 
+    caption  = paste0(&quot;Nombre moyen de nouveaux cas de covid19 par million d&#39;habitants \n pour les 14 derniers jours pour les commissions scolaires en date du  &quot;, lastdate),
+    col.names = c(&quot;Rang&quot;, &quot;Nom Commission Scolaire&quot;, &quot;Nombre moyen de cas par million dans les 14 derniers jours&quot;, &quot;Nombre de nouveaux cas dans les 14 derniers jours&quot;, &quot;Population 2016&quot;)) %&gt;% 
   kable_styling(bootstrap_options = c(&quot;striped&quot;, &quot;hover&quot;), full_width = FALSE, position = &quot;center&quot;) %&gt;% 
   row_spec(0, background = &quot;#555555&quot;, color = &quot;#fff&quot;)</code></pre>
 <table class="table table-striped table-hover" style="width: auto !important; margin-left: auto; margin-right: auto;">
 <caption>
-<span id="tab:unnamed-chunk-9">Table 1: </span>Nombre estimé de nouveaux cas de covid19 dans les 14 derniers jours par 100 000 habitants
-pour les commissions scolaires en date du 2020-08-25
+<span id="tab:unnamed-chunk-9">Table 1: </span>Nombre moyen de nouveaux cas de covid19 par million d’habitants
+pour les 14 derniers jours pour les commissions scolaires en date du 2020-08-25
 </caption>
 <thead>
 <tr>
-<th style="text-align:left;color: #fff !important;background-color: #555555 !important;">
-Code Commission Scolaire
+<th style="text-align:right;color: #fff !important;background-color: #555555 !important;">
+Rang
 </th>
 <th style="text-align:left;color: #fff !important;background-color: #555555 !important;">
 Nom Commission Scolaire
 </th>
 <th style="text-align:right;color: #fff !important;background-color: #555555 !important;">
-Nombre estimé de nouveaux cas sur le territoire de la commission scolaire dans les 14 derniers jours
+Nombre moyen de cas par million dans les 14 derniers jours
+</th>
+<th style="text-align:right;color: #fff !important;background-color: #555555 !important;">
+Nombre de nouveaux cas dans les 14 derniers jours
 </th>
 <th style="text-align:right;color: #fff !important;background-color: #555555 !important;">
 Population 2016
-</th>
-<th style="text-align:right;color: #fff !important;background-color: #555555 !important;">
-Nombre de nouveaux cas par 100k habitants dans les 14 derniers jours
 </th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td style="text-align:left;">
-842000
+<td style="text-align:right;">
+1
 </td>
 <td style="text-align:left;">
 CSS des Samares
+</td>
+<td style="text-align:right;">
+31.0
 </td>
 <td style="text-align:right;">
 90
@@ -325,16 +347,16 @@ CSS des Samares
 <td style="text-align:right;">
 207792
 </td>
-<td style="text-align:right;">
-43
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-752000
+<td style="text-align:right;">
+2
 </td>
 <td style="text-align:left;">
 CSS de la Région-de-Sherbrooke
+</td>
+<td style="text-align:right;">
+19.7
 </td>
 <td style="text-align:right;">
 49
@@ -342,16 +364,16 @@ CSS de la Région-de-Sherbrooke
 <td style="text-align:right;">
 179142
 </td>
-<td style="text-align:right;">
-28
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-831000
+<td style="text-align:right;">
+3
 </td>
 <td style="text-align:left;">
 CSS de Laval
+</td>
+<td style="text-align:right;">
+16.7
 </td>
 <td style="text-align:right;">
 99
@@ -359,33 +381,16 @@ CSS de Laval
 <td style="text-align:right;">
 423003
 </td>
-<td style="text-align:right;">
-23
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-852000
-</td>
-<td style="text-align:left;">
-CSS de la Rivière-du-Nord
-</td>
 <td style="text-align:right;">
-41
-</td>
-<td style="text-align:right;">
-190460
-</td>
-<td style="text-align:right;">
-22
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-867000
+4
 </td>
 <td style="text-align:left;">
 CSS des Grandes-Seigneuries
+</td>
+<td style="text-align:right;">
+15.9
 </td>
 <td style="text-align:right;">
 44
@@ -393,16 +398,33 @@ CSS des Grandes-Seigneuries
 <td style="text-align:right;">
 197898
 </td>
+</tr>
+<tr>
 <td style="text-align:right;">
-22
+5
+</td>
+<td style="text-align:left;">
+CSS de la Rivière-du-Nord
+</td>
+<td style="text-align:right;">
+15.4
+</td>
+<td style="text-align:right;">
+41
+</td>
+<td style="text-align:right;">
+190460
 </td>
 </tr>
 <tr>
-<td style="text-align:left;">
-851000
+<td style="text-align:right;">
+6
 </td>
 <td style="text-align:left;">
 CSS de la Seigneurie-des-Mille-Îles
+</td>
+<td style="text-align:right;">
+15.1
 </td>
 <td style="text-align:right;">
 61
@@ -410,67 +432,16 @@ CSS de la Seigneurie-des-Mille-Îles
 <td style="text-align:right;">
 291498
 </td>
-<td style="text-align:right;">
-21
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-762000
-</td>
-<td style="text-align:left;">
-CSS de Montréal
-</td>
 <td style="text-align:right;">
-202
-</td>
-<td style="text-align:right;">
-1014236
-</td>
-<td style="text-align:right;">
-20
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-771000
-</td>
-<td style="text-align:left;">
-CSS des Draveurs
-</td>
-<td style="text-align:right;">
-28
-</td>
-<td style="text-align:right;">
-140717
-</td>
-<td style="text-align:right;">
-20
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-772000
-</td>
-<td style="text-align:left;">
-CSS des Portages-de-l’Outaouais
-</td>
-<td style="text-align:right;">
-30
-</td>
-<td style="text-align:right;">
-153452
-</td>
-<td style="text-align:right;">
-20
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-773000
+7
 </td>
 <td style="text-align:left;">
 CSS au Coeur-des-Vallées
+</td>
+<td style="text-align:right;">
+14.4
 </td>
 <td style="text-align:right;">
 11
@@ -478,16 +449,67 @@ CSS au Coeur-des-Vallées
 <td style="text-align:right;">
 53662
 </td>
+</tr>
+<tr>
 <td style="text-align:right;">
-20
+8
+</td>
+<td style="text-align:left;">
+CSS de Montréal
+</td>
+<td style="text-align:right;">
+14.2
+</td>
+<td style="text-align:right;">
+202
+</td>
+<td style="text-align:right;">
+1014236
 </td>
 </tr>
 <tr>
+<td style="text-align:right;">
+9
+</td>
 <td style="text-align:left;">
-761000
+CSS des Draveurs
+</td>
+<td style="text-align:right;">
+14.2
+</td>
+<td style="text-align:right;">
+28
+</td>
+<td style="text-align:right;">
+140717
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+10
+</td>
+<td style="text-align:left;">
+CSS des Portages-de-l’Outaouais
+</td>
+<td style="text-align:right;">
+14.0
+</td>
+<td style="text-align:right;">
+30
+</td>
+<td style="text-align:right;">
+153452
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+11
 </td>
 <td style="text-align:left;">
 CSS de la Pointe-de-l’Île
+</td>
+<td style="text-align:right;">
+13.4
 </td>
 <td style="text-align:right;">
 59
@@ -495,16 +517,16 @@ CSS de la Pointe-de-l’Île
 <td style="text-align:right;">
 316733
 </td>
-<td style="text-align:right;">
-19
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-763000
+<td style="text-align:right;">
+12
 </td>
 <td style="text-align:left;">
 CSS Marguerite-Bourgeoys
+</td>
+<td style="text-align:right;">
+12.8
 </td>
 <td style="text-align:right;">
 109
@@ -512,16 +534,16 @@ CSS Marguerite-Bourgeoys
 <td style="text-align:right;">
 610999
 </td>
-<td style="text-align:right;">
-18
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-841000
+<td style="text-align:right;">
+13
 </td>
 <td style="text-align:left;">
 CSS des Affluents
+</td>
+<td style="text-align:right;">
+12.1
 </td>
 <td style="text-align:right;">
 45
@@ -529,16 +551,16 @@ CSS des Affluents
 <td style="text-align:right;">
 267561
 </td>
-<td style="text-align:right;">
-17
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-793000
+<td style="text-align:right;">
+14
 </td>
 <td style="text-align:left;">
 CSS de la Moyenne-Côte-Nord
+</td>
+<td style="text-align:right;">
+11.1
 </td>
 <td style="text-align:right;">
 1
@@ -546,16 +568,16 @@ CSS de la Moyenne-Côte-Nord
 <td style="text-align:right;">
 6424
 </td>
-<td style="text-align:right;">
-16
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-866000
+<td style="text-align:right;">
+15
 </td>
 <td style="text-align:left;">
 CSS du Val-des-Cerfs
+</td>
+<td style="text-align:right;">
+10.4
 </td>
 <td style="text-align:right;">
 21
@@ -563,16 +585,16 @@ CSS du Val-des-Cerfs
 <td style="text-align:right;">
 146620
 </td>
-<td style="text-align:right;">
-15
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-869000
+<td style="text-align:right;">
+16
 </td>
 <td style="text-align:left;">
 CSS des Trois-Lacs
+</td>
+<td style="text-align:right;">
+10.0
 </td>
 <td style="text-align:right;">
 21
@@ -580,16 +602,16 @@ CSS des Trois-Lacs
 <td style="text-align:right;">
 149319
 </td>
-<td style="text-align:right;">
-14
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-868000
+<td style="text-align:right;">
+17
 </td>
 <td style="text-align:left;">
 CSS de la Vallée-des-Tisserands
+</td>
+<td style="text-align:right;">
+9.5
 </td>
 <td style="text-align:right;">
 12
@@ -597,16 +619,16 @@ CSS de la Vallée-des-Tisserands
 <td style="text-align:right;">
 86777
 </td>
-<td style="text-align:right;">
-13
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-873000
+<td style="text-align:right;">
+18
 </td>
 <td style="text-align:left;">
 CSS des Chênes
+</td>
+<td style="text-align:right;">
+9.0
 </td>
 <td style="text-align:right;">
 13
@@ -614,33 +636,16 @@ CSS des Chênes
 <td style="text-align:right;">
 103398
 </td>
-<td style="text-align:right;">
-13
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-721000
-</td>
-<td style="text-align:left;">
-CSS du Pays-des-Bleuets
-</td>
 <td style="text-align:right;">
-6
-</td>
-<td style="text-align:right;">
-56735
-</td>
-<td style="text-align:right;">
-11
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-863000
+19
 </td>
 <td style="text-align:left;">
 CSS des Hautes-Rivières
+</td>
+<td style="text-align:right;">
+8.1
 </td>
 <td style="text-align:right;">
 18
@@ -648,16 +653,16 @@ CSS des Hautes-Rivières
 <td style="text-align:right;">
 155632
 </td>
-<td style="text-align:right;">
-11
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-865000
+<td style="text-align:right;">
+20
 </td>
 <td style="text-align:left;">
 CSS des Patriotes
+</td>
+<td style="text-align:right;">
+7.8
 </td>
 <td style="text-align:right;">
 29
@@ -665,16 +670,33 @@ CSS des Patriotes
 <td style="text-align:right;">
 270108
 </td>
+</tr>
+<tr>
 <td style="text-align:right;">
-11
+21
+</td>
+<td style="text-align:left;">
+CSS du Pays-des-Bleuets
+</td>
+<td style="text-align:right;">
+7.6
+</td>
+<td style="text-align:right;">
+6
+</td>
+<td style="text-align:right;">
+56735
 </td>
 </tr>
 <tr>
-<td style="text-align:left;">
-735000
+<td style="text-align:right;">
+22
 </td>
 <td style="text-align:left;">
 CSS de Portneuf
+</td>
+<td style="text-align:right;">
+6.7
 </td>
 <td style="text-align:right;">
 5
@@ -682,50 +704,16 @@ CSS de Portneuf
 <td style="text-align:right;">
 53072
 </td>
-<td style="text-align:right;">
-9
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-862000
-</td>
-<td style="text-align:left;">
-CSS de Saint-Hyacinthe
-</td>
 <td style="text-align:right;">
-9
-</td>
-<td style="text-align:right;">
-102679
-</td>
-<td style="text-align:right;">
-9
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-864000
-</td>
-<td style="text-align:left;">
-CSS Marie-Victorin
-</td>
-<td style="text-align:right;">
-30
-</td>
-<td style="text-align:right;">
-347095
-</td>
-<td style="text-align:right;">
-9
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-871000
+23
 </td>
 <td style="text-align:left;">
 CSS de la Riveraine
+</td>
+<td style="text-align:right;">
+6.6
 </td>
 <td style="text-align:right;">
 4
@@ -733,50 +721,50 @@ CSS de la Riveraine
 <td style="text-align:right;">
 43263
 </td>
+</tr>
+<tr>
+<td style="text-align:right;">
+24
+</td>
+<td style="text-align:left;">
+CSS de Saint-Hyacinthe
+</td>
+<td style="text-align:right;">
+6.3
+</td>
 <td style="text-align:right;">
 9
 </td>
-</tr>
-<tr>
-<td style="text-align:left;">
-713000
-</td>
-<td style="text-align:left;">
-CSS du Fleuve-et-des-Lacs
-</td>
 <td style="text-align:right;">
-2
-</td>
-<td style="text-align:right;">
-29130
-</td>
-<td style="text-align:right;">
-7
+102679
 </td>
 </tr>
 <tr>
+<td style="text-align:right;">
+25
+</td>
 <td style="text-align:left;">
-731000
-</td>
-<td style="text-align:left;">
-CSS de Charlevoix
+CSS Marie-Victorin
 </td>
 <td style="text-align:right;">
-2
+6.2
 </td>
 <td style="text-align:right;">
-28363
+30
 </td>
 <td style="text-align:right;">
-7
+347095
 </td>
 </tr>
 <tr>
-<td style="text-align:left;">
-733000
+<td style="text-align:right;">
+26
 </td>
 <td style="text-align:left;">
 CSS des Découvreurs
+</td>
+<td style="text-align:right;">
+5.1
 </td>
 <td style="text-align:right;">
 10
@@ -784,33 +772,50 @@ CSS des Découvreurs
 <td style="text-align:right;">
 138839
 </td>
+</tr>
+<tr>
 <td style="text-align:right;">
-7
+27
+</td>
+<td style="text-align:left;">
+CSS de Charlevoix
+</td>
+<td style="text-align:right;">
+5.0
+</td>
+<td style="text-align:right;">
+2
+</td>
+<td style="text-align:right;">
+28363
 </td>
 </tr>
 <tr>
+<td style="text-align:right;">
+28
+</td>
 <td style="text-align:left;">
-722000
-</td>
-<td style="text-align:left;">
-CSS du Lac-Saint-Jean
+CSS du Fleuve-et-des-Lacs
 </td>
 <td style="text-align:right;">
-3
+4.9
 </td>
 <td style="text-align:right;">
-52082
+2
 </td>
 <td style="text-align:right;">
-6
+29130
 </td>
 </tr>
 <tr>
-<td style="text-align:left;">
-732000
+<td style="text-align:right;">
+29
 </td>
 <td style="text-align:left;">
 CSS de la Capitale
+</td>
+<td style="text-align:right;">
+4.6
 </td>
 <td style="text-align:right;">
 18
@@ -818,67 +823,16 @@ CSS de la Capitale
 <td style="text-align:right;">
 278887
 </td>
-<td style="text-align:right;">
-6
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-774000
-</td>
-<td style="text-align:left;">
-CSS des Hauts-Bois-de-l’Outaouais
-</td>
 <td style="text-align:right;">
-2
-</td>
-<td style="text-align:right;">
-33871
-</td>
-<td style="text-align:right;">
-6
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-813000
-</td>
-<td style="text-align:left;">
-CSS René-Lévesque
-</td>
-<td style="text-align:right;">
-3
-</td>
-<td style="text-align:right;">
-48363
-</td>
-<td style="text-align:right;">
-6
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-824000
-</td>
-<td style="text-align:left;">
-CSS des Navigateurs
-</td>
-<td style="text-align:right;">
-11
-</td>
-<td style="text-align:right;">
-183344
-</td>
-<td style="text-align:right;">
-6
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-853000
+30
 </td>
 <td style="text-align:left;">
 CSS des Laurentides
+</td>
+<td style="text-align:right;">
+4.5
 </td>
 <td style="text-align:right;">
 6
@@ -886,16 +840,84 @@ CSS des Laurentides
 <td style="text-align:right;">
 92009
 </td>
+</tr>
+<tr>
 <td style="text-align:right;">
-6
+31
+</td>
+<td style="text-align:left;">
+CSS René-Lévesque
+</td>
+<td style="text-align:right;">
+4.4
+</td>
+<td style="text-align:right;">
+3
+</td>
+<td style="text-align:right;">
+48363
 </td>
 </tr>
 <tr>
+<td style="text-align:right;">
+32
+</td>
 <td style="text-align:left;">
-734000
+CSS des Navigateurs
+</td>
+<td style="text-align:right;">
+4.3
+</td>
+<td style="text-align:right;">
+11
+</td>
+<td style="text-align:right;">
+183344
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+33
+</td>
+<td style="text-align:left;">
+CSS du Lac-Saint-Jean
+</td>
+<td style="text-align:right;">
+4.1
+</td>
+<td style="text-align:right;">
+3
+</td>
+<td style="text-align:right;">
+52082
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+34
+</td>
+<td style="text-align:left;">
+CSS des Hauts-Bois-de-l’Outaouais
+</td>
+<td style="text-align:right;">
+4.1
+</td>
+<td style="text-align:right;">
+2
+</td>
+<td style="text-align:right;">
+33871
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+35
 </td>
 <td style="text-align:left;">
 CSS des Premières-Seigneuries
+</td>
+<td style="text-align:right;">
+3.8
 </td>
 <td style="text-align:right;">
 12
@@ -903,50 +925,16 @@ CSS des Premières-Seigneuries
 <td style="text-align:right;">
 230723
 </td>
-<td style="text-align:right;">
-5
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-751000
-</td>
-<td style="text-align:left;">
-CSS des Hauts-Cantons
-</td>
 <td style="text-align:right;">
-2
-</td>
-<td style="text-align:right;">
-51887
-</td>
-<td style="text-align:right;">
-5
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-753000
-</td>
-<td style="text-align:left;">
-CSS des Sommets
-</td>
-<td style="text-align:right;">
-4
-</td>
-<td style="text-align:right;">
-84188
-</td>
-<td style="text-align:right;">
-5
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-792000
+36
 </td>
 <td style="text-align:left;">
 CSS du Fer
+</td>
+<td style="text-align:right;">
+3.6
 </td>
 <td style="text-align:right;">
 2
@@ -954,16 +942,50 @@ CSS du Fer
 <td style="text-align:right;">
 39323
 </td>
+</tr>
+<tr>
 <td style="text-align:right;">
-5
+37
+</td>
+<td style="text-align:left;">
+CSS des Sommets
+</td>
+<td style="text-align:right;">
+3.5
+</td>
+<td style="text-align:right;">
+4
+</td>
+<td style="text-align:right;">
+84188
 </td>
 </tr>
 <tr>
+<td style="text-align:right;">
+38
+</td>
 <td style="text-align:left;">
-714000
+CSS des Hauts-Cantons
+</td>
+<td style="text-align:right;">
+3.4
+</td>
+<td style="text-align:right;">
+2
+</td>
+<td style="text-align:right;">
+51887
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+39
 </td>
 <td style="text-align:left;">
 CSS de Kamouraska-Rivière-du-Loup
+</td>
+<td style="text-align:right;">
+2.5
 </td>
 <td style="text-align:right;">
 2
@@ -971,33 +993,16 @@ CSS de Kamouraska-Rivière-du-Loup
 <td style="text-align:right;">
 55735
 </td>
-<td style="text-align:right;">
-4
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-821000
-</td>
-<td style="text-align:left;">
-CSS de la Côte-du-Sud
-</td>
 <td style="text-align:right;">
-2
-</td>
-<td style="text-align:right;">
-70534
-</td>
-<td style="text-align:right;">
-3
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-854000
+40
 </td>
 <td style="text-align:left;">
 CSS Pierre-Neveu
+</td>
+<td style="text-align:right;">
+2.0
 </td>
 <td style="text-align:right;">
 1
@@ -1005,33 +1010,33 @@ CSS Pierre-Neveu
 <td style="text-align:right;">
 35249
 </td>
-<td style="text-align:right;">
-3
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-741000
+<td style="text-align:right;">
+41
 </td>
 <td style="text-align:left;">
-CSS du Chemin-du-Roy
+CSS de la Côte-du-Sud
 </td>
 <td style="text-align:right;">
-3
-</td>
-<td style="text-align:right;">
-168945
+1.9
 </td>
 <td style="text-align:right;">
 2
 </td>
+<td style="text-align:right;">
+70534
+</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-782000
+<td style="text-align:right;">
+42
 </td>
 <td style="text-align:left;">
 CSS de Rouyn-Noranda
+</td>
+<td style="text-align:right;">
+1.7
 </td>
 <td style="text-align:right;">
 1
@@ -1039,16 +1044,16 @@ CSS de Rouyn-Noranda
 <td style="text-align:right;">
 41784
 </td>
-<td style="text-align:right;">
-2
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-822000
+<td style="text-align:right;">
+43
 </td>
 <td style="text-align:left;">
 CSS des Appalaches
+</td>
+<td style="text-align:right;">
+1.6
 </td>
 <td style="text-align:right;">
 1
@@ -1056,33 +1061,16 @@ CSS des Appalaches
 <td style="text-align:right;">
 45953
 </td>
-<td style="text-align:right;">
-2
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-823000
-</td>
-<td style="text-align:left;">
-CSS de la Beauce-Etchemin
-</td>
 <td style="text-align:right;">
-2
-</td>
-<td style="text-align:right;">
-123825
-</td>
-<td style="text-align:right;">
-2
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-861000
+44
 </td>
 <td style="text-align:left;">
 CSS de Sorel-Tracy
+</td>
+<td style="text-align:right;">
+1.4
 </td>
 <td style="text-align:right;">
 1
@@ -1090,16 +1078,50 @@ CSS de Sorel-Tracy
 <td style="text-align:right;">
 50995
 </td>
+</tr>
+<tr>
 <td style="text-align:right;">
-2
+45
+</td>
+<td style="text-align:left;">
+CSS du Chemin-du-Roy
+</td>
+<td style="text-align:right;">
+1.3
+</td>
+<td style="text-align:right;">
+3
+</td>
+<td style="text-align:right;">
+168945
 </td>
 </tr>
 <tr>
+<td style="text-align:right;">
+46
+</td>
 <td style="text-align:left;">
-872000
+CSS de la Beauce-Etchemin
+</td>
+<td style="text-align:right;">
+1.2
+</td>
+<td style="text-align:right;">
+2
+</td>
+<td style="text-align:right;">
+123825
+</td>
+</tr>
+<tr>
+<td style="text-align:right;">
+47
 </td>
 <td style="text-align:left;">
 CSS des Bois-Francs
+</td>
+<td style="text-align:right;">
+0.8
 </td>
 <td style="text-align:right;">
 1
@@ -1107,16 +1129,16 @@ CSS des Bois-Francs
 <td style="text-align:right;">
 94346
 </td>
-<td style="text-align:right;">
-1
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-711000
+<td style="text-align:right;">
+48
 </td>
 <td style="text-align:left;">
 CSS des Monts-et-Marées
+</td>
+<td style="text-align:right;">
+0.0
 </td>
 <td style="text-align:right;">
 0
@@ -1124,16 +1146,16 @@ CSS des Monts-et-Marées
 <td style="text-align:right;">
 39227
 </td>
-<td style="text-align:right;">
-0
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-712000
+<td style="text-align:right;">
+49
 </td>
 <td style="text-align:left;">
 CSS des Phares
+</td>
+<td style="text-align:right;">
+0.0
 </td>
 <td style="text-align:right;">
 0
@@ -1141,16 +1163,16 @@ CSS des Phares
 <td style="text-align:right;">
 74864
 </td>
-<td style="text-align:right;">
-0
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-723000
+<td style="text-align:right;">
+50
 </td>
 <td style="text-align:left;">
 CSS des Rives-du-Saguenay
+</td>
+<td style="text-align:right;">
+0.0
 </td>
 <td style="text-align:right;">
 0
@@ -1158,16 +1180,16 @@ CSS des Rives-du-Saguenay
 <td style="text-align:right;">
 100969
 </td>
-<td style="text-align:right;">
-0
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-724000
+<td style="text-align:right;">
+51
 </td>
 <td style="text-align:left;">
 CSS De La Jonquière
+</td>
+<td style="text-align:right;">
+0.0
 </td>
 <td style="text-align:right;">
 0
@@ -1175,16 +1197,16 @@ CSS De La Jonquière
 <td style="text-align:right;">
 66717
 </td>
-<td style="text-align:right;">
-0
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-742000
+<td style="text-align:right;">
+52
 </td>
 <td style="text-align:left;">
 CSS de l’Énergie
+</td>
+<td style="text-align:right;">
+0.0
 </td>
 <td style="text-align:right;">
 0
@@ -1192,16 +1214,16 @@ CSS de l’Énergie
 <td style="text-align:right;">
 97132
 </td>
-<td style="text-align:right;">
-0
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-781000
+<td style="text-align:right;">
+53
 </td>
 <td style="text-align:left;">
 CSS du Lac-Témiscamingue
+</td>
+<td style="text-align:right;">
+0.0
 </td>
 <td style="text-align:right;">
 0
@@ -1209,16 +1231,16 @@ CSS du Lac-Témiscamingue
 <td style="text-align:right;">
 15948
 </td>
-<td style="text-align:right;">
-0
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-783000
+<td style="text-align:right;">
+54
 </td>
 <td style="text-align:left;">
 CSS Harricana
+</td>
+<td style="text-align:right;">
+0.0
 </td>
 <td style="text-align:right;">
 0
@@ -1226,16 +1248,16 @@ CSS Harricana
 <td style="text-align:right;">
 24652
 </td>
-<td style="text-align:right;">
-0
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-784000
+<td style="text-align:right;">
+55
 </td>
 <td style="text-align:left;">
 CSS de l’Or-et-des-Bois
+</td>
+<td style="text-align:right;">
+0.0
 </td>
 <td style="text-align:right;">
 0
@@ -1243,16 +1265,16 @@ CSS de l’Or-et-des-Bois
 <td style="text-align:right;">
 43767
 </td>
-<td style="text-align:right;">
-0
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-785000
+<td style="text-align:right;">
+56
 </td>
 <td style="text-align:left;">
 CSS du Lac-Abitibi
+</td>
+<td style="text-align:right;">
+0.0
 </td>
 <td style="text-align:right;">
 0
@@ -1260,16 +1282,16 @@ CSS du Lac-Abitibi
 <td style="text-align:right;">
 20533
 </td>
-<td style="text-align:right;">
-0
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-791000
+<td style="text-align:right;">
+57
 </td>
 <td style="text-align:left;">
 CSS de l’Estuaire
+</td>
+<td style="text-align:right;">
+0.0
 </td>
 <td style="text-align:right;">
 0
@@ -1277,16 +1299,16 @@ CSS de l’Estuaire
 <td style="text-align:right;">
 41865
 </td>
-<td style="text-align:right;">
-0
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-801000
+<td style="text-align:right;">
+58
 </td>
 <td style="text-align:left;">
 CSS de la Baie-James
+</td>
+<td style="text-align:right;">
+0.0
 </td>
 <td style="text-align:right;">
 0
@@ -1294,16 +1316,16 @@ CSS de la Baie-James
 <td style="text-align:right;">
 16177
 </td>
-<td style="text-align:right;">
-0
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-811000
+<td style="text-align:right;">
+59
 </td>
 <td style="text-align:left;">
 CSS des Îles
+</td>
+<td style="text-align:right;">
+0.0
 </td>
 <td style="text-align:right;">
 0
@@ -1311,16 +1333,16 @@ CSS des Îles
 <td style="text-align:right;">
 12475
 </td>
-<td style="text-align:right;">
-0
-</td>
 </tr>
 <tr>
-<td style="text-align:left;">
-812000
+<td style="text-align:right;">
+60
 </td>
 <td style="text-align:left;">
 CSS des Chic-Chocs
+</td>
+<td style="text-align:right;">
+0.0
 </td>
 <td style="text-align:right;">
 0
@@ -1328,9 +1350,24 @@ CSS des Chic-Chocs
 <td style="text-align:right;">
 29447
 </td>
-<td style="text-align:right;">
-0
-</td>
 </tr>
 </tbody>
 </table>
+<pre class="r"><code>cases_cs %&gt;% 
+  arrange(-dailycases_per_1M_avg_14_days)  %&gt;%
+  mutate(NOM_CS = as.factor(NOM_CS) )%&gt;%
+  ggplot(aes(x= fct_reorder(NOM_CS, dailycases_per_1M_avg_14_days), y= dailycases_per_1M_avg_14_days )) + 
+  geom_col() +
+  coord_flip() +
+  geom_hline(yintercept = 20, color = &quot;red&quot;) +
+  cowplot::theme_half_open() +
+  cowplot::background_grid() +
+  colorblindr::scale_color_OkabeIto( ) +
+  labs(
+    title = &quot;Nombre de cas par 1 million d&#39;habitant au cours des 14 derniers jours&quot;,
+    subtitle = &quot;Selon le ministre Dubé, la pandémie est contrôlée sour 20 cas / million&quot;,
+    caption = paste0(&quot;En date du &quot; , format(lastdate, format=&quot;%B %d %Y&quot;)),
+    x = &quot;Commission scolaire&quot;,
+    y= &quot;Nombre de cas par million&quot;
+  )</code></pre>
+<p><img src="/post/2020-08-24-covid_cs_files/figure-html/unnamed-chunk-10-1.png" width="12" height="10" style="display: block; margin: auto;" /></p>

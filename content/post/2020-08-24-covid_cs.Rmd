@@ -78,8 +78,8 @@ rls_claude  <- prout[1:which(prout$NoRLS == 1801), ] %>%
   select(-key) 
 
 # cronjo data
-  
-  
+
+
 prepare_cronjob_data <- function(mypath = "~/cronjob/tableau-rls/"){
   pouet <- list.files(
     path =mypath,
@@ -123,7 +123,7 @@ prepare_cronjob_data <- function(mypath = "~/cronjob/tableau-rls/"){
   rls_data <- gaaa %>%
     bind_rows() %>%
     rename(cumulative_cases = Cas) 
-    
+  
 }
 
 myrls <- prepare_cronjob_data() %>% 
@@ -134,8 +134,8 @@ myrls <- prepare_cronjob_data() %>%
     Taux = if_else(Taux != "n.d.", Taux, NA_character_)
   ) %>%
   select(-No, -NoRLS, -Population, -Taux, -download_datetime)
-  
-  
+
+
 # combine both sources, fill in the blanks
 
 both <- bind_rows(
@@ -168,7 +168,7 @@ rls <- both %>%
          RLS_code = str_extract(RLS, "^\\d+")
   )
 
-  
+
 
 
 prep_data <- function(data, group, type){
@@ -278,9 +278,9 @@ Table below shows the population for a sample of the intersections
 
 ```{r}
 intersections_populations <- tongfen_estimate(
-    intersections,
-    census_data_da,
-    meta_for_additive_variables("census_data_da", "Population")
+  intersections,
+  census_data_da,
+  meta_for_additive_variables("census_data_da", "Population")
 )
 
 head(intersections_populations)
@@ -293,7 +293,7 @@ Then, sum the number of cases and population in each intersection to get the num
 
 The end result is this map and table:
 
-```{r,  fig.width = 12, fig.height = 10}
+```{r,  fig.width = 14, fig.height = 14}
 
 cases_intersections <- tongfen::proportional_reaggregate(
   data = intersections_populations,
@@ -309,29 +309,68 @@ cases_cs <- cases_intersections %>%
   summarise(
     cases_last_14_days = sum(cases_last_14_days, na.rm = TRUE),
     Population = sum(Population, na.rm = TRUE),
-    ) %>%
+    
+  ) %>%
+  ungroup() %>%
   mutate(
-    cases_last_14_days_per_100k = round(cases_last_14_days * 100000 / Population),
+    dailycases_per_1M_avg_14_days = round(cases_last_14_days * 1e6 /14 / Population,1),
+    
+    cases_last_14_days_per_100k = round(cases_last_14_days * 100000 / Population,1),
     cases_last_14_days = round(cases_last_14_days),
     Population = round(Population)
     
   )
 
 ggplot(data = cases_cs) +
-  geom_sf(aes(fill=cases_last_14_days_per_100k))+ 
-  labs(title = paste0("Nombre estimé de nouveaux cas de covid19 dans les 14 derniers jours par 100 000 habitants \n pour les commissions scolaires en date du  ", lastdate))
+  geom_sf(aes(fill=dailycases_per_1M_avg_14_days))+ 
+  #scale_fill_viridis_c() + 
+  scale_fill_gradient(
+    
+    low = "white",
+    high = "red",
+    space = "Lab",
+    na.value = "grey50",
+    guide = "colourbar",
+    aesthetics = "fill"
+  ) + 
+  labs(title = paste0("Nombre moyen de nouveaux cas de covid19 par million d'habitants \n pour les 14 derniers jours pour les commissions scolaires en date du  ", lastdate))+
+  theme_bw() +
+  theme(panel.grid.major = element_line(colour = "transparent"))
 ```
 
 ```{r}
 
 cases_cs %>% 
+  ungroup %>% 
   st_drop_geometry() %>%
-  arrange(-cases_last_14_days_per_100k) %>%
+  arrange(-dailycases_per_1M_avg_14_days) %>%
+  mutate(rang = row_number())%>%
+  select(rang, NOM_CS, dailycases_per_1M_avg_14_days, cases_last_14_days, Population) %>% 
   kable(
-    caption  = paste0("Nombre estimé de nouveaux cas de covid19 dans les 14 derniers jours  par 100 000 habitants \n pour les commissions scolaires en date du  ", lastdate),
-    col.names = c("Code Commission Scolaire", "Nom Commission Scolaire", "Nombre estimé de nouveaux cas sur le territoire de la commission scolaire dans les 14 derniers jours", "Population 2016", "Nombre de nouveaux cas par 100k habitants dans les 14 derniers jours")) %>% 
+    caption  = paste0("Nombre moyen de nouveaux cas de covid19 par million d'habitants \n pour les 14 derniers jours pour les commissions scolaires en date du  ", lastdate),
+    col.names = c("Rang", "Nom Commission Scolaire", "Nombre moyen de cas par million dans les 14 derniers jours", "Nombre de nouveaux cas dans les 14 derniers jours", "Population 2016")) %>% 
   kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE, position = "center") %>% 
   row_spec(0, background = "#555555", color = "#fff")
 ```
 
+
+```{r, fig.width = 12,fig.height = 20}
+cases_cs %>% 
+  arrange(-dailycases_per_1M_avg_14_days)  %>%
+  mutate(NOM_CS = as.factor(NOM_CS) )%>%
+  ggplot(aes(x= fct_reorder(NOM_CS, dailycases_per_1M_avg_14_days), y= dailycases_per_1M_avg_14_days )) + 
+  geom_col() +
+  coord_flip() +
+  geom_hline(yintercept = 20, color = "red") +
+  cowplot::theme_half_open() +
+  cowplot::background_grid() +
+  colorblindr::scale_color_OkabeIto( ) +
+  labs(
+    title = "Nombre de cas par 1 million d'habitant au cours des 14 derniers jours",
+    subtitle = "Selon le ministre Dubé, la pandémie est contrôlée sour 20 cas / million",
+    caption = paste0("En date du " , format(lastdate, format="%B %d %Y")),
+    x = "Commission scolaire",
+    y= "Nombre de cas par million"
+  )
+```
 
