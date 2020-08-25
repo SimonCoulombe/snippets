@@ -11,3 +11,4 @@ content/post/data/*
 !content/post/data/raw
 !content/post/data/interim/accidents.rdata
 blogdown
+.httr-oauth

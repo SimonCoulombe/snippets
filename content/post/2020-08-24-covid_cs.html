@@ -1,0 +1,1259 @@
+---
+title: Nombre de cas de covid dans les commissions scolaires
+author: simon
+date: '2020-08-24'
+slug: covid_cs
+categories: []
+tags: []
+keywords:
+  - tech
+---
+
+<script src="/rmarkdown-libs/kePrint/kePrint.js"></script>
+
+
+<p>This is a quick blog post to try and figure out which school boards are the “hottest zones” for covid.</p>
+<p>In this blog post, I will do the following:
+- get the shapefiles for both the school boards (commission scolaires, or CS) and the smallest possible health districts (réseau local de santé, or RLS)
+- find the intersection between school boards and RLS using sf::st_intersection()
+- find the population of each intersection using cancensus::get_census() and tongfen::tongfen_estimate()
+- assign the number of cases in each health district (RLS) to each intersection proportionnaly to the population using tongfen::proportional_reaggregate()
+- sum the number of cases for each school board (commissions scolaires).</p>
+<p>This post is massively dependent on Jens von Bergmann (<span class="citation">@vb_jens</span>) who created both the {cancensus} and the {tongfen} packages and also helped me getting started with tongfen. Thanks Jens!</p>
+<p>First, download the number of covid cases at the RLS level from Claude Boucher’s google spreadsheet:</p>
+<pre class="r"><code>url_rls &lt;- &quot;https://docs.google.com/spreadsheets/d/17eJ05pg6fkzKlwwiWn0ztdMvzBX9pGx3q6w7h3_vJw4/&quot;
+gs4_deauth()
+prout &lt;- read_sheet(url_rls)
+
+rls_population &lt;- prout %&gt;% select(RLS, Population) %&gt;% filter(RLS != &quot;Total&quot;) 
+
+rls  &lt;- prout[1:which(prout$NoRLS == 1801), ] %&gt;% 
+  filter(!is.na(NoRLS)) %&gt;% 
+  select(-No,  -NoRLS,  -Population)%&gt;% 
+  gather(key=key, value=cumulative_cases, -RLS, -RSS) %&gt;%
+  mutate_at( vars(cumulative_cases) , as.numeric) %&gt;% 
+  filter(!is.na(cumulative_cases)) %&gt;%
+  #filter(NoRLS == &quot;0112&quot;) %&gt;%
+  mutate(cumulative_cases = map_int(cumulative_cases, ~ as.integer(str_replace_all(.x, &quot; &quot;, &quot;&quot;)))) %&gt;% # remove spaces from numbers
+  mutate(date_report = lubridate::ymd(key)) %&gt;% 
+  select(-key) %&gt;%
+  group_by(RSS,RLS) %&gt;% 
+  arrange( RSS,RLS, desc(date_report)) %&gt;% ## descending date to fix cumulative 
+  mutate(cumulative_cases = if_else(cumulative_cases &gt; cummin(cumulative_cases), cummin(cumulative_cases), cumulative_cases, cumulative_cases)) %&gt;% ## cumulative can&#39;t be bigger than next day.. if so reduce to next day level.
+  arrange( RSS,RLS, date_report) %&gt;% ## ascending date
+  mutate(slope = (lead(cumulative_cases)- cumulative_cases) / as.numeric(lead(date_report) - date_report)) %&gt;%
+  complete(date_report = seq.Date(min(date_report), max(date_report), by = &quot;day&quot;)) %&gt;%
+  fill(slope, .direction= &quot;down&quot;) %&gt;%
+  mutate(cumulative_cases = floor(first(cumulative_cases) + cumsum(slope))) %&gt;%   
+  select(-slope) %&gt;%
+  mutate(cases = cumulative_cases - lag(cumulative_cases)) %&gt;% 
+  ungroup() %&gt;%
+  filter(!is.na(cases))%&gt;%
+  mutate(shortname_rls = str_replace(str_extract(str_replace(RLS, &quot;RLS de &quot;,&quot;RLS &quot; ),&quot;RLS.+&quot;),&quot;RLS &quot;, &quot;&quot;)) %&gt;%
+  left_join(rls_population) %&gt;%
+  mutate(cases_per_100k = cases * 1e5 / Population,
+         cases_last_14_days = (cumulative_cases - lag(cumulative_cases,14)),
+         cases_last_14_days_per_100k = cases_last_14_days * 1e5 / Population,
+         RLS_code = str_extract(RLS, &quot;^\\d+&quot;)
+  )
+
+
+prep_data &lt;- function(data, group, type){
+  
+  type_column &lt;- enquo(type)   ## this has to be !!
+  type_name &lt;- quo_name(type_column) ## its a string, dont !!
+  mean_name = paste0(&quot;avg_&quot;, type_name, &quot;_last7&quot;)   
+  mean_column &lt;- sym(mean_name)
+  gaa &lt;-   data %&gt;% 
+    group_by( {{ group }} ) %&gt;%
+    arrange(date_report) %&gt;% 
+    mutate(!!mean_name := ( !!type_column + lag(!!type_column, 1) + lag(!!type_column, 2) + lag(!!type_column, 3) + lag(!!type_column, 4) + lag(!!type_column, 5) + lag(!!type_column, 6)) / 7)  %&gt;%
+    ungroup() 
+  
+  gaa1 &lt;- gaa %&gt;%
+    group_by( {{ group }}) %&gt;%
+    summarise(total = sum(!!type_column),
+              worst7 = max(!!mean_column, na.rm = TRUE),
+              last7  = max(!!mean_column * (date_report == max(date_report)), na.rm = TRUE),
+              ratio = last7 / worst7,
+              winning = factor( 
+                case_when(ratio &lt; 0.33 ~ &quot;Winning&quot;,
+                          ratio &lt; 0.67 ~ &quot;Nearly there&quot;,
+                          TRUE ~ &quot;Needs action&quot;
+                )
+                , levels = c(&quot;Winning&quot;, &quot;Nearly there&quot;, &quot;Needs action&quot;))
+    ) %&gt;%
+    ungroup() %&gt;%
+    
+    mutate(
+      group = fct_reorder( {{ group }}, total, .desc =TRUE)
+    )
+  
+  gaa %&gt;% 
+    left_join(gaa1) 
+  
+}
+
+rls_cases &lt;- prep_data(rls, shortname_rls, type = cases)
+firstdate &lt;- min(rls_cases$date_report)
+lastdate  &lt;- max(rls_cases$date_report)</code></pre>
+<p>Quick map of the “commission scolaires”:</p>
+<pre class="r"><code>CS_FRA_SDA &lt;- read_sf(here::here(&quot;content/post/data/downloads/CS&quot;, &quot;CS_FRA_SDA.shp&quot;))%&gt;%
+  rmapshaper::ms_simplify()
+
+ggplot(data = CS_FRA_SDA) +
+  geom_sf()+
+  labs(title = paste0(&quot;There are &quot;, nrow(CS_FRA_SDA), &quot; commissions scolaires&quot;))</code></pre>
+<p><img src="/post/2020-08-24-covid_cs_files/figure-html/unnamed-chunk-3-1.png" width="12" height="10" style="display: block; margin: auto;" /></p>
+<p>Quick map of the “RLS” (health districts). There is a lot of overlap between the two.</p>
+<pre class="r"><code>rls_shp &lt;- read_sf(here::here(&quot;content/post/data/downloads/Territoires_RLS_2020.shp&quot;)) %&gt;%
+  st_transform(crs=4326) %&gt;%
+  rmapshaper::ms_simplify() %&gt;%
+  left_join(rls %&gt;% filter(date_report ==max(date_report)) %&gt;% select(date_report, RLS_code, cases_last_14_days_per_100k, cumulative_cases, cases_last_14_days, Population ))
+ggplot(data = rls_shp) +
+  geom_sf()+
+  labs(title = paste0(&quot;There are &quot;, nrow(rls_shp), &quot; RLS&quot;))</code></pre>
+<p><img src="/post/2020-08-24-covid_cs_files/figure-html/unnamed-chunk-4-1.png" width="12" height="10" style="display: block; margin: auto;" />
+Create the smallest common denominators (intersections) between the two geographies using sf::st_intersection() and st_collection_extract()</p>
+<pre class="r"><code>intersections &lt;- st_intersection(
+  rls_shp %&gt;% select(RLS_code),  ## RLS = région locale de service = health region,   RLS_code = health region id
+  CS_FRA_SDA %&gt;% select(CD_CS, NOM_CS)) %&gt;%  ## CS = school board, CD_CS = school board id
+  st_collection_extract(type=&quot;POLYGON&quot;) ## drop polylines
+
+ggplot(data = intersections) +
+  geom_sf()+
+  labs(title = paste0(&quot;There are &quot;, nrow(intersections), &quot; intersections&quot;))</code></pre>
+<p><img src="/post/2020-08-24-covid_cs_files/figure-html/unnamed-chunk-5-1.png" width="12" height="10" style="display: block; margin: auto;" /></p>
+<p>We will allocate the cases at the RLS to the lower geography level “intersections” proportionnally to the population of the intersections.</p>
+<p>First, we download census population and shapefile using cancensus::get_census()</p>
+<p>Table below shows the population for a sample of the dissemination areas (DA)</p>
+<pre class="r"><code>census_data_da &lt;- get_census(dataset=&#39;CA16&#39;, regions=list(PR=&quot;24&quot;), vectors=c(&quot;pop2016&quot;= &quot;v_CA16_401&quot;), level=&#39;DA&#39;,geo_format=&quot;sf&quot;) 
+
+head(census_data_da %&gt;% st_drop_geometry)</code></pre>
+<pre><code>##   Shape Area Type Households CD_UID Dwellings   GeoUID Population CSD_UID
+## 1   40.78502   DA        213   2401       254 24010018        465 2401042
+## 2    7.91099   DA        230   2401       261 24010019        496 2401023
+## 3   33.38888   DA        224   2401       248 24010020        523 2401023
+## 4    2.94327   DA        212   2401       235 24010021        524 2401023
+## 5    3.98348   DA        251   2401       285 24010022        530 2401023
+## 6    5.70935   DA        251   2401       301 24010023        542 2401023
+##   CMA_UID CT_UID              Region Name Area (sq km) pop2016
+## 1    &lt;NA&gt;   &lt;NA&gt;               Grosse-Île     40.78502     465
+## 2    &lt;NA&gt;   &lt;NA&gt; Les Îles-de-la-Madeleine      7.91099     496
+## 3    &lt;NA&gt;   &lt;NA&gt; Les Îles-de-la-Madeleine     33.38888     523
+## 4    &lt;NA&gt;   &lt;NA&gt; Les Îles-de-la-Madeleine      2.94327     524
+## 5    &lt;NA&gt;   &lt;NA&gt; Les Îles-de-la-Madeleine      3.98348     530
+## 6    &lt;NA&gt;   &lt;NA&gt; Les Îles-de-la-Madeleine      5.70935     542</code></pre>
+<p>Then we estimate the population of the “intersections” using tongfen::tongfen_estimate(). The estimates are “perfect” if the borders of the intersections line up with statcan’s “dissemination area”. When they dont, the
+population of a dissemination area is spread proportionally to the area covered by each intersection.</p>
+<p>Table below shows the population for a sample of the intersections</p>
+<pre class="r"><code>intersections_populations &lt;- tongfen_estimate(
+    intersections,
+    census_data_da,
+    meta_for_additive_variables(&quot;census_data_da&quot;, &quot;Population&quot;)
+)
+
+head(intersections_populations)</code></pre>
+<pre><code>## Simple feature collection with 6 features and 4 fields
+## geometry type:  MULTIPOLYGON
+## dimension:      XY
+## bbox:           xmin: -72.09877 ymin: 45.00646 xmax: -71.39747 ymax: 45.7684
+## geographic CRS: WGS 84
+##     Population RLS_code  CD_CS                NOM_CS
+## 1 1.501631e+01     0513 751000 CSS des Hauts-Cantons
+## 2 3.087784e-01     0513 751000 CSS des Hauts-Cantons
+## 3 2.717933e-01     0513 751000 CSS des Hauts-Cantons
+## 4 1.667248e+04     0514 751000 CSS des Hauts-Cantons
+## 5 1.741468e-01     0516 751000 CSS des Hauts-Cantons
+## 6 1.966473e-02     0517 751000 CSS des Hauts-Cantons
+##                         geometry
+## 1 MULTIPOLYGON (((-71.90947 4...
+## 2 MULTIPOLYGON (((-71.92083 4...
+## 3 MULTIPOLYGON (((-71.91972 4...
+## 4 MULTIPOLYGON (((-71.81586 4...
+## 5 MULTIPOLYGON (((-71.71563 4...
+## 6 MULTIPOLYGON (((-71.47856 4...</code></pre>
+<p>Assign the health districts covid cases to the lower geography level (intersections) using proportional_reaggregate(). This is population-weighted.
+Then, sum the number of cases and population in each intersection to get the number of cases and population at the school board (Commission scolaire) level.</p>
+<p>The end result is this map and table:</p>
+<pre class="r"><code>cases_intersections &lt;- tongfen::proportional_reaggregate(
+  data = intersections_populations,
+  parent_data = rls_shp ,
+  geo_match = c(&quot;RLS_code&quot; = &quot;RLS_code&quot;),
+  categories = c(&quot;cases_last_14_days&quot;),
+  base = &quot;Population&quot;
+)
+
+
+cases_cs &lt;- cases_intersections %&gt;% 
+  group_by(CD_CS, NOM_CS) %&gt;% 
+  summarise(
+    cases_last_14_days = sum(cases_last_14_days, na.rm = TRUE),
+    Population = sum(Population, na.rm = TRUE),
+    ) %&gt;%
+  mutate(
+    cases_last_14_days_per_100k = round(cases_last_14_days * 100000 / Population),
+    cases_last_14_days = round(cases_last_14_days),
+    Population = round(Population)
+    
+  )
+
+ggplot(data = cases_cs) +
+  geom_sf(aes(fill=cases_last_14_days_per_100k))+ 
+  labs(title = paste0(&quot;Nombre estimé de nouveaux cas de covid19 par 100 000 habitants \n pour les commissions scolaires en date du  &quot;, lastdate))</code></pre>
+<p><img src="/post/2020-08-24-covid_cs_files/figure-html/unnamed-chunk-8-1.png" width="12" height="10" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>cases_cs %&gt;% 
+  st_drop_geometry() %&gt;%
+  arrange(-cases_last_14_days_per_100k) %&gt;%
+  kable(
+    caption  = paste0(&quot;Nombre estimé de nouveaux cas de covid19 par 100 000 habitants \n pour les commissions scolaires en date du  &quot;, lastdate),
+    col.names = c(&quot;Code Commission Scolaire&quot;, &quot;Nom Commission Scolaire&quot;, &quot;Nombre estimé de nouveaux cas sur le territoire de la commission scolaire dans les 14 derniers jours&quot;, &quot;Population 2016&quot;, &quot;Nombre de nouveaux cas par 100k habitants dans les 14 derniers jours&quot;)) %&gt;% 
+  kable_styling(bootstrap_options = c(&quot;striped&quot;, &quot;hover&quot;), full_width = FALSE, position = &quot;center&quot;) %&gt;% 
+  row_spec(0, background = &quot;#555555&quot;, color = &quot;#fff&quot;)</code></pre>
+<table class="table table-striped table-hover" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>
+<span id="tab:unnamed-chunk-9">Table 1: </span>Nombre estimé de nouveaux cas de covid19 par 100 000 habitants
+pour les commissions scolaires en date du 2020-08-10
+</caption>
+<thead>
+<tr>
+<th style="text-align:left;color: #fff !important;background-color: #555555 !important;">
+Code Commission Scolaire
+</th>
+<th style="text-align:left;color: #fff !important;background-color: #555555 !important;">
+Nom Commission Scolaire
+</th>
+<th style="text-align:right;color: #fff !important;background-color: #555555 !important;">
+Nombre estimé de nouveaux cas sur le territoire de la commission scolaire dans les 14 derniers jours
+</th>
+<th style="text-align:right;color: #fff !important;background-color: #555555 !important;">
+Population 2016
+</th>
+<th style="text-align:right;color: #fff !important;background-color: #555555 !important;">
+Nombre de nouveaux cas par 100k habitants dans les 14 derniers jours
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+851000
+</td>
+<td style="text-align:left;">
+CSS de la Seigneurie-des-Mille-Îles
+</td>
+<td style="text-align:right;">
+125
+</td>
+<td style="text-align:right;">
+291498
+</td>
+<td style="text-align:right;">
+43
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+762000
+</td>
+<td style="text-align:left;">
+CSS de Montréal
+</td>
+<td style="text-align:right;">
+401
+</td>
+<td style="text-align:right;">
+1014236
+</td>
+<td style="text-align:right;">
+40
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+812000
+</td>
+<td style="text-align:left;">
+CSS des Chic-Chocs
+</td>
+<td style="text-align:right;">
+9
+</td>
+<td style="text-align:right;">
+29447
+</td>
+<td style="text-align:right;">
+31
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+831000
+</td>
+<td style="text-align:left;">
+CSS de Laval
+</td>
+<td style="text-align:right;">
+132
+</td>
+<td style="text-align:right;">
+423003
+</td>
+<td style="text-align:right;">
+31
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+841000
+</td>
+<td style="text-align:left;">
+CSS des Affluents
+</td>
+<td style="text-align:right;">
+84
+</td>
+<td style="text-align:right;">
+267561
+</td>
+<td style="text-align:right;">
+31
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+852000
+</td>
+<td style="text-align:left;">
+CSS de la Rivière-du-Nord
+</td>
+<td style="text-align:right;">
+58
+</td>
+<td style="text-align:right;">
+190460
+</td>
+<td style="text-align:right;">
+30
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+862000
+</td>
+<td style="text-align:left;">
+CSS de Saint-Hyacinthe
+</td>
+<td style="text-align:right;">
+31
+</td>
+<td style="text-align:right;">
+102679
+</td>
+<td style="text-align:right;">
+30
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+864000
+</td>
+<td style="text-align:left;">
+CSS Marie-Victorin
+</td>
+<td style="text-align:right;">
+105
+</td>
+<td style="text-align:right;">
+347095
+</td>
+<td style="text-align:right;">
+30
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+865000
+</td>
+<td style="text-align:left;">
+CSS des Patriotes
+</td>
+<td style="text-align:right;">
+79
+</td>
+<td style="text-align:right;">
+270108
+</td>
+<td style="text-align:right;">
+29
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+842000
+</td>
+<td style="text-align:left;">
+CSS des Samares
+</td>
+<td style="text-align:right;">
+58
+</td>
+<td style="text-align:right;">
+207792
+</td>
+<td style="text-align:right;">
+28
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+869000
+</td>
+<td style="text-align:left;">
+CSS des Trois-Lacs
+</td>
+<td style="text-align:right;">
+42
+</td>
+<td style="text-align:right;">
+149319
+</td>
+<td style="text-align:right;">
+28
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+761000
+</td>
+<td style="text-align:left;">
+CSS de la Pointe-de-l’Île
+</td>
+<td style="text-align:right;">
+86
+</td>
+<td style="text-align:right;">
+316733
+</td>
+<td style="text-align:right;">
+27
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+868000
+</td>
+<td style="text-align:left;">
+CSS de la Vallée-des-Tisserands
+</td>
+<td style="text-align:right;">
+24
+</td>
+<td style="text-align:right;">
+86777
+</td>
+<td style="text-align:right;">
+27
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+763000
+</td>
+<td style="text-align:left;">
+CSS Marguerite-Bourgeoys
+</td>
+<td style="text-align:right;">
+161
+</td>
+<td style="text-align:right;">
+610999
+</td>
+<td style="text-align:right;">
+26
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+867000
+</td>
+<td style="text-align:left;">
+CSS des Grandes-Seigneuries
+</td>
+<td style="text-align:right;">
+50
+</td>
+<td style="text-align:right;">
+197898
+</td>
+<td style="text-align:right;">
+25
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+751000
+</td>
+<td style="text-align:left;">
+CSS des Hauts-Cantons
+</td>
+<td style="text-align:right;">
+12
+</td>
+<td style="text-align:right;">
+51887
+</td>
+<td style="text-align:right;">
+24
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+863000
+</td>
+<td style="text-align:left;">
+CSS des Hautes-Rivières
+</td>
+<td style="text-align:right;">
+31
+</td>
+<td style="text-align:right;">
+155632
+</td>
+<td style="text-align:right;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+866000
+</td>
+<td style="text-align:left;">
+CSS du Val-des-Cerfs
+</td>
+<td style="text-align:right;">
+29
+</td>
+<td style="text-align:right;">
+146620
+</td>
+<td style="text-align:right;">
+19
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+771000
+</td>
+<td style="text-align:left;">
+CSS des Draveurs
+</td>
+<td style="text-align:right;">
+23
+</td>
+<td style="text-align:right;">
+140717
+</td>
+<td style="text-align:right;">
+17
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+772000
+</td>
+<td style="text-align:left;">
+CSS des Portages-de-l’Outaouais
+</td>
+<td style="text-align:right;">
+26
+</td>
+<td style="text-align:right;">
+153452
+</td>
+<td style="text-align:right;">
+17
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+822000
+</td>
+<td style="text-align:left;">
+CSS des Appalaches
+</td>
+<td style="text-align:right;">
+6
+</td>
+<td style="text-align:right;">
+45953
+</td>
+<td style="text-align:right;">
+14
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+773000
+</td>
+<td style="text-align:left;">
+CSS au Coeur-des-Vallées
+</td>
+<td style="text-align:right;">
+7
+</td>
+<td style="text-align:right;">
+53662
+</td>
+<td style="text-align:right;">
+13
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+801000
+</td>
+<td style="text-align:left;">
+CSS de la Baie-James
+</td>
+<td style="text-align:right;">
+2
+</td>
+<td style="text-align:right;">
+16177
+</td>
+<td style="text-align:right;">
+12
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+823000
+</td>
+<td style="text-align:left;">
+CSS de la Beauce-Etchemin
+</td>
+<td style="text-align:right;">
+15
+</td>
+<td style="text-align:right;">
+123825
+</td>
+<td style="text-align:right;">
+12
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+752000
+</td>
+<td style="text-align:left;">
+CSS de la Région-de-Sherbrooke
+</td>
+<td style="text-align:right;">
+20
+</td>
+<td style="text-align:right;">
+179142
+</td>
+<td style="text-align:right;">
+11
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+853000
+</td>
+<td style="text-align:left;">
+CSS des Laurentides
+</td>
+<td style="text-align:right;">
+9
+</td>
+<td style="text-align:right;">
+92009
+</td>
+<td style="text-align:right;">
+10
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+861000
+</td>
+<td style="text-align:left;">
+CSS de Sorel-Tracy
+</td>
+<td style="text-align:right;">
+5
+</td>
+<td style="text-align:right;">
+50995
+</td>
+<td style="text-align:right;">
+10
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+782000
+</td>
+<td style="text-align:left;">
+CSS de Rouyn-Noranda
+</td>
+<td style="text-align:right;">
+4
+</td>
+<td style="text-align:right;">
+41784
+</td>
+<td style="text-align:right;">
+9
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+854000
+</td>
+<td style="text-align:left;">
+CSS Pierre-Neveu
+</td>
+<td style="text-align:right;">
+3
+</td>
+<td style="text-align:right;">
+35249
+</td>
+<td style="text-align:right;">
+9
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+733000
+</td>
+<td style="text-align:left;">
+CSS des Découvreurs
+</td>
+<td style="text-align:right;">
+11
+</td>
+<td style="text-align:right;">
+138839
+</td>
+<td style="text-align:right;">
+8
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+811000
+</td>
+<td style="text-align:left;">
+CSS des Îles
+</td>
+<td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
+12475
+</td>
+<td style="text-align:right;">
+8
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+714000
+</td>
+<td style="text-align:left;">
+CSS de Kamouraska-Rivière-du-Loup
+</td>
+<td style="text-align:right;">
+4
+</td>
+<td style="text-align:right;">
+55735
+</td>
+<td style="text-align:right;">
+7
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+732000
+</td>
+<td style="text-align:left;">
+CSS de la Capitale
+</td>
+<td style="text-align:right;">
+18
+</td>
+<td style="text-align:right;">
+278887
+</td>
+<td style="text-align:right;">
+6
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+813000
+</td>
+<td style="text-align:left;">
+CSS René-Lévesque
+</td>
+<td style="text-align:right;">
+3
+</td>
+<td style="text-align:right;">
+48363
+</td>
+<td style="text-align:right;">
+6
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+824000
+</td>
+<td style="text-align:left;">
+CSS des Navigateurs
+</td>
+<td style="text-align:right;">
+10
+</td>
+<td style="text-align:right;">
+183344
+</td>
+<td style="text-align:right;">
+6
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+784000
+</td>
+<td style="text-align:left;">
+CSS de l’Or-et-des-Bois
+</td>
+<td style="text-align:right;">
+2
+</td>
+<td style="text-align:right;">
+43767
+</td>
+<td style="text-align:right;">
+5
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+785000
+</td>
+<td style="text-align:left;">
+CSS du Lac-Abitibi
+</td>
+<td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
+20533
+</td>
+<td style="text-align:right;">
+5
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+734000
+</td>
+<td style="text-align:left;">
+CSS des Premières-Seigneuries
+</td>
+<td style="text-align:right;">
+10
+</td>
+<td style="text-align:right;">
+230723
+</td>
+<td style="text-align:right;">
+4
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+735000
+</td>
+<td style="text-align:left;">
+CSS de Portneuf
+</td>
+<td style="text-align:right;">
+2
+</td>
+<td style="text-align:right;">
+53072
+</td>
+<td style="text-align:right;">
+4
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+821000
+</td>
+<td style="text-align:left;">
+CSS de la Côte-du-Sud
+</td>
+<td style="text-align:right;">
+2
+</td>
+<td style="text-align:right;">
+70534
+</td>
+<td style="text-align:right;">
+3
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+872000
+</td>
+<td style="text-align:left;">
+CSS des Bois-Francs
+</td>
+<td style="text-align:right;">
+3
+</td>
+<td style="text-align:right;">
+94346
+</td>
+<td style="text-align:right;">
+3
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+722000
+</td>
+<td style="text-align:left;">
+CSS du Lac-Saint-Jean
+</td>
+<td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
+52082
+</td>
+<td style="text-align:right;">
+2
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+742000
+</td>
+<td style="text-align:left;">
+CSS de l’Énergie
+</td>
+<td style="text-align:right;">
+2
+</td>
+<td style="text-align:right;">
+97132
+</td>
+<td style="text-align:right;">
+2
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+753000
+</td>
+<td style="text-align:left;">
+CSS des Sommets
+</td>
+<td style="text-align:right;">
+2
+</td>
+<td style="text-align:right;">
+84188
+</td>
+<td style="text-align:right;">
+2
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+871000
+</td>
+<td style="text-align:left;">
+CSS de la Riveraine
+</td>
+<td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
+43263
+</td>
+<td style="text-align:right;">
+2
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+873000
+</td>
+<td style="text-align:left;">
+CSS des Chênes
+</td>
+<td style="text-align:right;">
+2
+</td>
+<td style="text-align:right;">
+103398
+</td>
+<td style="text-align:right;">
+2
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+712000
+</td>
+<td style="text-align:left;">
+CSS des Phares
+</td>
+<td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
+74864
+</td>
+<td style="text-align:right;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+723000
+</td>
+<td style="text-align:left;">
+CSS des Rives-du-Saguenay
+</td>
+<td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
+100969
+</td>
+<td style="text-align:right;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+724000
+</td>
+<td style="text-align:left;">
+CSS De La Jonquière
+</td>
+<td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
+66717
+</td>
+<td style="text-align:right;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+741000
+</td>
+<td style="text-align:left;">
+CSS du Chemin-du-Roy
+</td>
+<td style="text-align:right;">
+2
+</td>
+<td style="text-align:right;">
+168945
+</td>
+<td style="text-align:right;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+711000
+</td>
+<td style="text-align:left;">
+CSS des Monts-et-Marées
+</td>
+<td style="text-align:right;">
+0
+</td>
+<td style="text-align:right;">
+39227
+</td>
+<td style="text-align:right;">
+0
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+713000
+</td>
+<td style="text-align:left;">
+CSS du Fleuve-et-des-Lacs
+</td>
+<td style="text-align:right;">
+0
+</td>
+<td style="text-align:right;">
+29130
+</td>
+<td style="text-align:right;">
+0
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+721000
+</td>
+<td style="text-align:left;">
+CSS du Pays-des-Bleuets
+</td>
+<td style="text-align:right;">
+0
+</td>
+<td style="text-align:right;">
+56735
+</td>
+<td style="text-align:right;">
+0
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+731000
+</td>
+<td style="text-align:left;">
+CSS de Charlevoix
+</td>
+<td style="text-align:right;">
+0
+</td>
+<td style="text-align:right;">
+28363
+</td>
+<td style="text-align:right;">
+0
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+774000
+</td>
+<td style="text-align:left;">
+CSS des Hauts-Bois-de-l’Outaouais
+</td>
+<td style="text-align:right;">
+0
+</td>
+<td style="text-align:right;">
+33871
+</td>
+<td style="text-align:right;">
+0
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+781000
+</td>
+<td style="text-align:left;">
+CSS du Lac-Témiscamingue
+</td>
+<td style="text-align:right;">
+0
+</td>
+<td style="text-align:right;">
+15948
+</td>
+<td style="text-align:right;">
+0
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+783000
+</td>
+<td style="text-align:left;">
+CSS Harricana
+</td>
+<td style="text-align:right;">
+0
+</td>
+<td style="text-align:right;">
+24652
+</td>
+<td style="text-align:right;">
+0
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+791000
+</td>
+<td style="text-align:left;">
+CSS de l’Estuaire
+</td>
+<td style="text-align:right;">
+0
+</td>
+<td style="text-align:right;">
+41865
+</td>
+<td style="text-align:right;">
+0
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+792000
+</td>
+<td style="text-align:left;">
+CSS du Fer
+</td>
+<td style="text-align:right;">
+0
+</td>
+<td style="text-align:right;">
+39323
+</td>
+<td style="text-align:right;">
+0
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+793000
+</td>
+<td style="text-align:left;">
+CSS de la Moyenne-Côte-Nord
+</td>
+<td style="text-align:right;">
+0
+</td>
+<td style="text-align:right;">
+6424
+</td>
+<td style="text-align:right;">
+0
+</td>
+</tr>
+</tbody>
+</table>

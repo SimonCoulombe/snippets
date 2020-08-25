@@ -1,0 +1,261 @@
+---
+title: Nombre de cas de covid dans les commissions scolaires
+author: simon
+date: '2020-08-24'
+slug: covid_cs
+categories: []
+tags: []
+keywords:
+  - tech
+---
+
+```{r setup, include =F, echo =F}
+#
+
+knitr::opts_chunk$set(echo = TRUE, 
+                      include = TRUE,
+                      collapse = FALSE,
+                      warning = FALSE,
+                      error = FALSE,
+                      message = FALSE,
+                      fig.align= "center",
+                      fig.width = 12,
+                      fig.height = 10,
+                      out.width = 12,
+                      out.height = 10,
+                      highlight = TRUE,
+                      cache = FALSE,
+                      cache.lazy = FALSE) # fixes long vecto rnot supported quand on cache des gros éléments https://stackoverflow.com/questions/39417003/long-vectors-not-supported-yet-error-in-rmd-but-not-in-r-script
+```
+
+
+This is a quick blog post to try and figure out which school boards are the "hottest zones" for covid.  
+
+In this blog post, I will do the following:
+- get the shapefiles for both the school boards (commission scolaires, or CS) and the smallest possible health districts (réseau local de santé, or RLS)
+- find the intersection between school boards and RLS   using sf::st_intersection()
+- find the population of each intersection  using cancensus::get_census() and tongfen::tongfen_estimate()
+- assign the number of cases in each health district (RLS) to each intersection proportionnaly to the population using tongfen::proportional_reaggregate()
+- sum the number of cases for each school board (commissions scolaires).
+
+This post is massively dependent on Jens von Bergmann (@vb_jens) who created both the {cancensus} and the {tongfen} packages and also helped me getting started with tongfen.  Thanks Jens!
+
+
+
+
+```{r, echo = F, include= F}
+#shapefile Ccommission scolaire https://www.donneesquebec.ca/recherche/fr/dataset/territoires-des-commissions-scolaires-du-quebec
+library(tidyverse)
+library(sf)
+#devtools::install_github("mountainmath/tongfen")
+library(tongfen)
+library(googlesheets4)
+library(mapview)
+library(cancensus)
+library(kableExtra)
+
+
+```
+
+First, download the number of covid cases at the RLS level from Claude Boucher's google spreadsheet:  
+```{r}
+
+url_rls <- "https://docs.google.com/spreadsheets/d/17eJ05pg6fkzKlwwiWn0ztdMvzBX9pGx3q6w7h3_vJw4/"
+gs4_deauth()
+prout <- read_sheet(url_rls)
+
+rls_population <- prout %>% select(RLS, Population) %>% filter(RLS != "Total") 
+
+rls  <- prout[1:which(prout$NoRLS == 1801), ] %>% 
+  filter(!is.na(NoRLS)) %>% 
+  select(-No,  -NoRLS,  -Population)%>% 
+  gather(key=key, value=cumulative_cases, -RLS, -RSS) %>%
+  mutate_at( vars(cumulative_cases) , as.numeric) %>% 
+  filter(!is.na(cumulative_cases)) %>%
+  #filter(NoRLS == "0112") %>%
+  mutate(cumulative_cases = map_int(cumulative_cases, ~ as.integer(str_replace_all(.x, " ", "")))) %>% # remove spaces from numbers
+  mutate(date_report = lubridate::ymd(key)) %>% 
+  select(-key) %>%
+  group_by(RSS,RLS) %>% 
+  arrange( RSS,RLS, desc(date_report)) %>% ## descending date to fix cumulative 
+  mutate(cumulative_cases = if_else(cumulative_cases > cummin(cumulative_cases), cummin(cumulative_cases), cumulative_cases, cumulative_cases)) %>% ## cumulative can't be bigger than next day.. if so reduce to next day level.
+  arrange( RSS,RLS, date_report) %>% ## ascending date
+  mutate(slope = (lead(cumulative_cases)- cumulative_cases) / as.numeric(lead(date_report) - date_report)) %>%
+  complete(date_report = seq.Date(min(date_report), max(date_report), by = "day")) %>%
+  fill(slope, .direction= "down") %>%
+  mutate(cumulative_cases = floor(first(cumulative_cases) + cumsum(slope))) %>%   
+  select(-slope) %>%
+  mutate(cases = cumulative_cases - lag(cumulative_cases)) %>% 
+  ungroup() %>%
+  filter(!is.na(cases))%>%
+  mutate(shortname_rls = str_replace(str_extract(str_replace(RLS, "RLS de ","RLS " ),"RLS.+"),"RLS ", "")) %>%
+  left_join(rls_population) %>%
+  mutate(cases_per_100k = cases * 1e5 / Population,
+         cases_last_14_days = (cumulative_cases - lag(cumulative_cases,14)),
+         cases_last_14_days_per_100k = cases_last_14_days * 1e5 / Population,
+         RLS_code = str_extract(RLS, "^\\d+")
+  )
+
+
+prep_data <- function(data, group, type){
+  
+  type_column <- enquo(type)   ## this has to be !!
+  type_name <- quo_name(type_column) ## its a string, dont !!
+  mean_name = paste0("avg_", type_name, "_last7")   
+  mean_column <- sym(mean_name)
+  gaa <-   data %>% 
+    group_by( {{ group }} ) %>%
+    arrange(date_report) %>% 
+    mutate(!!mean_name := ( !!type_column + lag(!!type_column, 1) + lag(!!type_column, 2) + lag(!!type_column, 3) + lag(!!type_column, 4) + lag(!!type_column, 5) + lag(!!type_column, 6)) / 7)  %>%
+    ungroup() 
+  
+  gaa1 <- gaa %>%
+    group_by( {{ group }}) %>%
+    summarise(total = sum(!!type_column),
+              worst7 = max(!!mean_column, na.rm = TRUE),
+              last7  = max(!!mean_column * (date_report == max(date_report)), na.rm = TRUE),
+              ratio = last7 / worst7,
+              winning = factor( 
+                case_when(ratio < 0.33 ~ "Winning",
+                          ratio < 0.67 ~ "Nearly there",
+                          TRUE ~ "Needs action"
+                )
+                , levels = c("Winning", "Nearly there", "Needs action"))
+    ) %>%
+    ungroup() %>%
+    
+    mutate(
+      group = fct_reorder( {{ group }}, total, .desc =TRUE)
+    )
+  
+  gaa %>% 
+    left_join(gaa1) 
+  
+}
+
+rls_cases <- prep_data(rls, shortname_rls, type = cases)
+firstdate <- min(rls_cases$date_report)
+lastdate  <- max(rls_cases$date_report)
+
+
+```
+
+Quick map of the "commission scolaires": 
+```{r}
+
+
+CS_FRA_SDA <- read_sf(here::here("content/post/data/downloads/CS", "CS_FRA_SDA.shp"))%>%
+  rmapshaper::ms_simplify()
+
+ggplot(data = CS_FRA_SDA) +
+  geom_sf()+
+  labs(title = paste0("There are ", nrow(CS_FRA_SDA), " commissions scolaires"))
+
+
+```
+
+
+Quick map of the "RLS" (health districts).  There is a lot of overlap between the two.
+
+```{r}
+rls_shp <- read_sf(here::here("content/post/data/downloads/Territoires_RLS_2020.shp")) %>%
+  st_transform(crs=4326) %>%
+  rmapshaper::ms_simplify() %>%
+  left_join(rls %>% filter(date_report ==max(date_report)) %>% select(date_report, RLS_code, cases_last_14_days_per_100k, cumulative_cases, cases_last_14_days, Population ))
+ggplot(data = rls_shp) +
+  geom_sf()+
+  labs(title = paste0("There are ", nrow(rls_shp), " RLS"))
+
+```
+Create the smallest common denominators (intersections) between the two geographies  using sf::st_intersection() and st_collection_extract()
+
+```{r}
+intersections <- st_intersection(
+  rls_shp %>% select(RLS_code),  ## RLS = région locale de service = health region,   RLS_code = health region id
+  CS_FRA_SDA %>% select(CD_CS, NOM_CS)) %>%  ## CS = school board, CD_CS = school board id
+  st_collection_extract(type="POLYGON") ## drop polylines
+
+ggplot(data = intersections) +
+  geom_sf()+
+  labs(title = paste0("There are ", nrow(intersections), " intersections"))
+
+
+```
+
+
+We will allocate the cases at the RLS to the lower geography level "intersections" proportionnally to the population of the intersections.  
+
+First, we download census population and shapefile  using cancensus::get_census() 
+
+Table below shows the population for a sample of the dissemination areas (DA)
+
+```{r}
+census_data_da <- get_census(dataset='CA16', regions=list(PR="24"), vectors=c("pop2016"= "v_CA16_401"), level='DA',geo_format="sf") 
+
+head(census_data_da %>% st_drop_geometry)
+
+```
+Then we estimate the population of the "intersections"  using tongfen::tongfen_estimate().  The estimates are "perfect" if the  borders of the intersections line up with statcan's "dissemination area".  When they dont, the
+population of a dissemination area is spread proportionally to the area covered by each intersection.  
+
+Table below shows the population for a sample of the intersections
+
+```{r}
+intersections_populations <- tongfen_estimate(
+    intersections,
+    census_data_da,
+    meta_for_additive_variables("census_data_da", "Population")
+)
+
+head(intersections_populations)
+```
+
+
+
+Assign the health districts covid cases to the lower geography level (intersections) using proportional_reaggregate(). This is population-weighted.
+Then, sum the number of cases and population in each intersection to get the number of cases and population at the school board (Commission scolaire) level.  
+
+The end result is this map and table:
+
+```{r}
+
+cases_intersections <- tongfen::proportional_reaggregate(
+  data = intersections_populations,
+  parent_data = rls_shp ,
+  geo_match = c("RLS_code" = "RLS_code"),
+  categories = c("cases_last_14_days"),
+  base = "Population"
+)
+
+
+cases_cs <- cases_intersections %>% 
+  group_by(CD_CS, NOM_CS) %>% 
+  summarise(
+    cases_last_14_days = sum(cases_last_14_days, na.rm = TRUE),
+    Population = sum(Population, na.rm = TRUE),
+    ) %>%
+  mutate(
+    cases_last_14_days_per_100k = round(cases_last_14_days * 100000 / Population),
+    cases_last_14_days = round(cases_last_14_days),
+    Population = round(Population)
+    
+  )
+
+ggplot(data = cases_cs) +
+  geom_sf(aes(fill=cases_last_14_days_per_100k))+ 
+  labs(title = paste0("Nombre estimé de nouveaux cas de covid19 par 100 000 habitants \n pour les commissions scolaires en date du  ", lastdate))
+```
+
+```{r}
+
+cases_cs %>% 
+  st_drop_geometry() %>%
+  arrange(-cases_last_14_days_per_100k) %>%
+  kable(
+    caption  = paste0("Nombre estimé de nouveaux cas de covid19 par 100 000 habitants \n pour les commissions scolaires en date du  ", lastdate),
+    col.names = c("Code Commission Scolaire", "Nom Commission Scolaire", "Nombre estimé de nouveaux cas sur le territoire de la commission scolaire dans les 14 derniers jours", "Population 2016", "Nombre de nouveaux cas par 100k habitants dans les 14 derniers jours")) %>% 
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE, position = "center") %>% 
+  row_spec(0, background = "#555555", color = "#fff")
+```
+
+
