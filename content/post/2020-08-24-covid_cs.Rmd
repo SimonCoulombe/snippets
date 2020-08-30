@@ -75,7 +75,8 @@ rls_claude  <- prout[1:which(prout$NoRLS == 1801), ] %>%
   #filter(NoRLS == "0112") %>%
   mutate(cumulative_cases = map_int(cumulative_cases, ~ as.integer(str_replace_all(.x, " ", "")))) %>% # remove spaces from numbers
   mutate(date_report = lubridate::ymd(key)) %>% 
-  select(-key) 
+  select(-key) %>%
+  filter(!is.na(cumulative_cases))
 
 # cronjo data
 
@@ -133,7 +134,8 @@ myrls <- prepare_cronjob_data() %>%
     cumulative_cases = as.numeric(str_replace_all(cumulative_cases, "\\s+", "")),
     Taux = if_else(Taux != "n.d.", Taux, NA_character_)
   ) %>%
-  select(-No, -NoRLS, -Population, -Taux, -download_datetime)
+  select(-No, -NoRLS, -Population, -Taux, -download_datetime) %>%
+  filter(!is.na(cumulative_cases))
 
 
 # combine both sources, fill in the blanks
@@ -150,23 +152,26 @@ both <- bind_rows(
 rls <- both %>% 
   group_by(RSS,RLS) %>% 
   arrange( RSS,RLS, desc(date_report)) %>% ## descending date to fix cumulative 
-  mutate(cumulative_cases = if_else(cumulative_cases > cummin(cumulative_cases), cummin(cumulative_cases), cumulative_cases, cumulative_cases)) %>% ## cumulative can't be bigger than next day.. if so reduce to next day level.
-  arrange( RSS,RLS, date_report) %>% ## ascending date
-  mutate(slope = (lead(cumulative_cases)- cumulative_cases) / as.numeric(lead(date_report) - date_report)) %>%
+  mutate(fix_cummin = cummin(replace_na(cumulative_cases, Inf))) %>% 
+  mutate(cumulative_cases = if_else(cumulative_cases > fix_cummin, fix_cummin, cumulative_cases, cumulative_cases)) %>% ## cumulative can't be bigger than next day.. if so reduce to next day level.
+  arrange( RSS,RLS, date_report) %>% 
+  mutate(slope = (lead(cumulative_cases)- cumulative_cases) / as.numeric(lead(date_report) - date_report))  %>%
   complete(date_report = seq.Date(min(date_report), max(date_report), by = "day")) %>%
-  fill(slope, .direction= "down") %>%
-  mutate(cumulative_cases = floor(first(cumulative_cases) + cumsum(slope))) %>%   
+  fill(slope, .direction= "down") %>%  
+  mutate(cumulative_cases = if_else(!is.na(cumulative_cases), cumulative_cases, floor(first(cumulative_cases) + cumsum(slope) - slope))    ) %>%   
   select(-slope) %>%
   mutate(cases = cumulative_cases - lag(cumulative_cases)) %>% 
   ungroup() %>%
   filter(!is.na(cases))%>%
   mutate(shortname_rls = str_replace(str_extract(str_replace(RLS, "RLS de ","RLS " ),"RLS.+"),"RLS ", "")) %>%
   left_join(rls_population) %>%
+  group_by(RSS, RLS) %>%
   mutate(cases_per_100k = cases * 1e5 / Population,
-         cases_last_14_days = (cumulative_cases - lag(cumulative_cases,14)),
-         cases_last_14_days_per_100k = cases_last_14_days * 1e5 / Population,
+         cases_last_7_days = (cumulative_cases - lag(cumulative_cases,7)),
+         cases_last_7_days_per_100k = cases_last_7_days * 1e5 / Population,
          RLS_code = str_extract(RLS, "^\\d+")
-  )
+  )%>%
+  ungroup()
 
 
 
@@ -222,13 +227,28 @@ We want to assign the covid cases from these  "RLS" (health districts)
 rls_shp <- read_sf(here::here("content/post/data/downloads/Territoires_RLS_2020.shp")) %>%
   st_transform(crs=4326) %>%
   rmapshaper::ms_simplify() %>%
-  left_join(rls %>% filter(date_report ==max(date_report)) %>% select(date_report, RLS_code, cases_last_14_days_per_100k, cumulative_cases, cases_last_14_days, Population ))
+  left_join(rls %>% filter(date_report ==max(date_report)) %>% select(date_report, RLS_code, cases_last_7_days_per_100k, cumulative_cases, cases_last_7_days, Population )) %>%
+  mutate(dailycases_per_1M_avg_7_days = round(cases_last_7_days * 1e6 /7 / Population,1))
 
-ggplot(data = rls_shp) +
-  geom_sf(aes(fill=cases_last_14_days))+
+ggplot(data = rls_shp )+
+  geom_sf(aes(fill=dailycases_per_1M_avg_7_days))+
   labs(title = paste0("There are ", nrow(rls_shp), " RLS"))
 
 ```
+```{r}
+rls_shp %>% arrange(desc(dailycases_per_1M_avg_7_days)) %>%  
+  mutate(rang = row_number())%>%
+  select(rang, RLS_nom, dailycases_per_1M_avg_7_days, cases_last_7_days, Population) %>% 
+  st_drop_geometry %>%
+  kable(
+    caption  = paste0("Nombre moyen de nouveaux cas de covid19 par million d'habitants \n pour les 7 derniers jours pour les RLS en date du  ", lastdate),
+    col.names = c("Rang", "Nom RLS", "Nombre moyen de cas par million dans les 7 derniers jours", "Nombre de nouveaux cas dans les 7 derniers jours", "Population 2016")
+    ) %>% 
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE, position = "center") %>% 
+  row_spec(0, background = "#555555", color = "#fff")
+```
+
+
 
 To these  "commission scolaires".
 ```{r,  fig.width = 12, fig.height = 10}
@@ -299,7 +319,7 @@ cases_intersections <- tongfen::proportional_reaggregate(
   data = intersections_populations,
   parent_data = rls_shp ,
   geo_match = c("RLS_code" = "RLS_code"),
-  categories = c("cases_last_14_days"),
+  categories = c("cases_last_7_days"),
   base = "Population"
 )
 
@@ -307,22 +327,22 @@ cases_intersections <- tongfen::proportional_reaggregate(
 cases_cs <- cases_intersections %>% 
   group_by(CD_CS, NOM_CS) %>% 
   summarise(
-    cases_last_14_days = sum(cases_last_14_days, na.rm = TRUE),
+    cases_last_7_days = sum(cases_last_7_days, na.rm = TRUE),
     Population = sum(Population, na.rm = TRUE),
     
   ) %>%
   ungroup() %>%
   mutate(
-    dailycases_per_1M_avg_14_days = round(cases_last_14_days * 1e6 /14 / Population,1),
+    dailycases_per_1M_avg_7_days = round(cases_last_7_days * 1e6 /7 / Population,1),
     
-    cases_last_14_days_per_100k = round(cases_last_14_days * 100000 / Population,1),
-    cases_last_14_days = round(cases_last_14_days),
+    cases_last_7_days_per_100k = round(cases_last_7_days * 100000 / Population,1),
+    cases_last_7_days = round(cases_last_7_days),
     Population = round(Population)
     
   )
 
 ggplot(data = cases_cs) +
-  geom_sf(aes(fill=dailycases_per_1M_avg_14_days))+ 
+  geom_sf(aes(fill=dailycases_per_1M_avg_7_days))+ 
   #scale_fill_viridis_c() + 
   scale_fill_gradient(
     
@@ -333,7 +353,7 @@ ggplot(data = cases_cs) +
     guide = "colourbar",
     aesthetics = "fill"
   ) + 
-  labs(title = paste0("Nombre moyen de nouveaux cas de covid19 par million d'habitants \n pour les 14 derniers jours pour les commissions scolaires en date du  ", lastdate))+
+  labs(title = paste0("Nombre moyen de nouveaux cas de covid19 par million d'habitants \n pour les 7 derniers jours pour les commissions scolaires \n en date du  ", lastdate))+
   theme_bw() +
   theme(panel.grid.major = element_line(colour = "transparent"))
 ```
@@ -343,12 +363,12 @@ ggplot(data = cases_cs) +
 cases_cs %>% 
   ungroup %>% 
   st_drop_geometry() %>%
-  arrange(-dailycases_per_1M_avg_14_days) %>%
+  arrange(-dailycases_per_1M_avg_7_days) %>%
   mutate(rang = row_number())%>%
-  select(rang, NOM_CS, dailycases_per_1M_avg_14_days, cases_last_14_days, Population) %>% 
+  select(rang, NOM_CS, dailycases_per_1M_avg_7_days, cases_last_7_days, Population) %>% 
   kable(
-    caption  = paste0("Nombre moyen de nouveaux cas de covid19 par million d'habitants \n pour les 14 derniers jours pour les commissions scolaires en date du  ", lastdate),
-    col.names = c("Rang", "Nom Commission Scolaire", "Nombre moyen de cas par million dans les 14 derniers jours", "Nombre de nouveaux cas dans les 14 derniers jours", "Population 2016")) %>% 
+    caption  = paste0("Nombre moyen de nouveaux cas de covid19 par million d'habitants \n pour les 7 derniers jours pour les commissions scolaires en date du  ", lastdate),
+    col.names = c("Rang", "Nom Commission Scolaire", "Nombre moyen de cas par million dans les 7 derniers jours", "Nombre de nouveaux cas dans les 7 derniers jours", "Population 2016")) %>% 
   kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE, position = "center") %>% 
   row_spec(0, background = "#555555", color = "#fff")
 ```
@@ -356,9 +376,9 @@ cases_cs %>%
 
 ```{r, fig.width = 12,fig.height = 20}
 cases_cs %>% 
-  arrange(-dailycases_per_1M_avg_14_days)  %>%
+  arrange(-dailycases_per_1M_avg_7_days)  %>%
   mutate(NOM_CS = as.factor(NOM_CS) )%>%
-  ggplot(aes(x= fct_reorder(NOM_CS, dailycases_per_1M_avg_14_days), y= dailycases_per_1M_avg_14_days )) + 
+  ggplot(aes(x= fct_reorder(NOM_CS, dailycases_per_1M_avg_7_days), y= dailycases_per_1M_avg_7_days )) + 
   geom_col() +
   coord_flip() +
   geom_hline(yintercept = 20, color = "red") +
@@ -366,8 +386,8 @@ cases_cs %>%
   cowplot::background_grid() +
   colorblindr::scale_color_OkabeIto( ) +
   labs(
-    title = "Nombre de cas par 1 million d'habitant au cours des 14 derniers jours",
-    subtitle = "Selon le ministre Dubé, la pandémie est contrôlée sour 20 cas / million",
+    title = "Nombre de cas par 1 million d'habitant au cours des 7 derniers jours",
+    subtitle = "Selon le critère établi par le ministre Dubé, la courbe est aplatie sour 20 cas / million",
     caption = paste0("En date du " , format(lastdate, format="%B %d %Y")),
     x = "Commission scolaire",
     y= "Nombre de cas par million"

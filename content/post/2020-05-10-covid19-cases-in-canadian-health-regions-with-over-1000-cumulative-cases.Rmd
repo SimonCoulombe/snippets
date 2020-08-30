@@ -352,18 +352,19 @@ rls  <- prout[1:which(prout$NoRLS == 1801), ] %>%
   mutate(cumulative_cases = map_int(cumulative_cases, ~ as.integer(str_replace_all(.x, " ", "")))) %>% # remove spaces from numbers
   mutate(date_report = lubridate::ymd(key)) %>% 
   select(-key) %>%
-  group_by(RSS,RLS) %>% 
+    group_by(RSS,RLS) %>% 
   arrange( RSS,RLS, desc(date_report)) %>% ## descending date to fix cumulative 
-  mutate(cumulative_cases = if_else(cumulative_cases > cummin(cumulative_cases), cummin(cumulative_cases), cumulative_cases, cumulative_cases)) %>% ## cumulative can't be bigger than next day.. if so reduce to next day level.
-  arrange( RSS,RLS, date_report) %>% ## ascending date
-  mutate(slope = (lead(cumulative_cases)- cumulative_cases) / as.numeric(lead(date_report) - date_report)) %>%
+  mutate(fix_cummin = cummin(replace_na(cumulative_cases, Inf))) %>% 
+  mutate(cumulative_cases = if_else(cumulative_cases > fix_cummin, fix_cummin, cumulative_cases, cumulative_cases)) %>% ## cumulative can't be bigger than next day.. if so reduce to next day level.
+  arrange( RSS,RLS, date_report) %>% 
+  mutate(slope = (lead(cumulative_cases)- cumulative_cases) / as.numeric(lead(date_report) - date_report))  %>%
   complete(date_report = seq.Date(min(date_report), max(date_report), by = "day")) %>%
-  fill(slope, .direction= "down") %>%
-  mutate(cumulative_cases = floor(first(cumulative_cases) + cumsum(slope))) %>%   
+  fill(slope, .direction= "down") %>%  
+  mutate(cumulative_cases = if_else(!is.na(cumulative_cases), cumulative_cases, floor(first(cumulative_cases) + cumsum(slope) - slope))    ) %>%   
   select(-slope) %>%
   mutate(cases = cumulative_cases - lag(cumulative_cases)) %>% 
   ungroup() %>%
-  filter(!is.na(cases))%>%
+  filter(!is.na(cases)) %>% 
   mutate(shortname_rls = str_replace(str_extract(str_replace(RLS, "RLS de ","RLS " ),"RLS.+"),"RLS ", ""))
 
 
