@@ -1,0 +1,743 @@
+---
+title: Animated map of ships, 1750-1799
+author: simon
+date: '2020-11-16'
+slug: animated-ships
+categories:
+  - rstats
+  - rspatial
+  - gganimate
+  - ggplot
+tags: []
+keywords:
+  - tech
+---
+
+
+
+<p>I learned about the <a href="https://www.historicalclimatology.com/cliwoc.html">Climatological Database for the World’s Oceans (CLIWOC)</a>, a super cool database containing 287 116 days of ship log entries that have been digitized to better understand climate change.</p>
+<p>Each record holds the date, the ship’s name, company and nationality, the latitude and longitude and a wealth of meteorological information.</p>
+<div id="objective" class="section level1">
+<h1>Objective</h1>
+<p>I want to make an animated map with a bunch of moving ships <strong>because I can</strong>.</p>
+</div>
+<div id="data" class="section level1">
+<h1>Data</h1>
+<p>I manually downloaded the <a href="https://www.historicalclimatology.com/uploads/4/5/1/4/4514421/cliwoc21.ods%22">CLIWOC 2.1 file</a> in libreoffice calc format (*.ODS), then used libreoffice calc to save export it as a CSV. I made that CSV available on my AWS S3 bucket at <a href="https://blogsimoncoulombe.s3.amazonaws.com/cliwoc/cliwoc21.csv" class="uri">https://blogsimoncoulombe.s3.amazonaws.com/cliwoc/cliwoc21.csv</a>.</p>
+<pre class="r"><code>aws.s3::put_object(file = &quot;/home/simon/git/adhoc_prive/data/downloads/cliwoc21.csv&quot;, 
+                   object = &quot;cliwoc/cliwoc21.csv&quot;, 
+                   bucket = &quot;blogsimoncoulombe&quot;,
+                   acl = &quot;public-read&quot;,
+                   headers=list(&quot;Content-Type&quot; = &quot;image/png&quot;)
+)</code></pre>
+</div>
+<div id="lets-do-this" class="section level1">
+<h1>Let’s do this</h1>
+<p>First we download and clean the data, convert the data frame to an sf data frame. I save it to an RDS object on AWS S3, so this should be faster to download (and cheaper for me to host..)</p>
+<pre class="r"><code>download cliwoc data (160MB)
+cliwoc &lt;- readr::read_csv(&quot;https://blogsimoncoulombe.s3.amazonaws.com/cliwoc/cliwoc21.csv&quot;) %&gt;% janitor::clean_names()
+
+mycliwoc &lt;- cliwoc %&gt;% select( yr, mo, dy, latitude, longitude, ship_name, company, nationality, voyage_ini, voyage_from, voyage_to) %&gt;%
+  mutate(mydate = lubridate::make_date(yr, mo, dy ),
+         voyage_ini_date = lubridate::ymd(voyage_ini),
+         voyage_ini_year = lubridate::year(voyage_ini_date)) %&gt;%
+  drop_na()  %&gt;%
+  st_as_sf(coords= c(&quot;longitude&quot;,&quot;latitude&quot;),
+           crs = 4326,
+           agr = &quot;constant&quot;,
+           remove = FALSE) %&gt;%
+  mutate(
+    nationality = factor(nationality, levels = c(&quot;BRITISH&quot;,&quot;DUTCH&quot;, &quot;SWEDISH&quot;,  &quot;FRENCH&quot;, &quot;DANISH&quot; ))
+  )
+
+write_rds(mycliwoc, &quot;mycliwoc.rds&quot;)
+
+aws.s3::put_object(file = &quot;/home/simon/git/snippets/content/post/mycliwoc.rds&quot;,
+                   object = &quot;cliwoc/mycliwoc.rds&quot;,
+                   bucket = &quot;blogsimoncoulombe&quot;,
+                   acl = &quot;public-read&quot;,
+                   headers=list(&quot;Content-Type&quot; = &quot;image/png&quot;)
+)</code></pre>
+</div>
+<div id="first-objective-draw-a-static-map-without-reprojecting" class="section level1">
+<h1>First objective: draw a static map without reprojecting</h1>
+<pre class="r"><code>#mycliwoc &lt;- read_rds(url(&quot;https://blogsimoncoulombe.s3.amazonaws.com/cliwoc/mycliwoc.rds&quot;))
+mycliwoc &lt;- read_rds(&quot;~/git/snippets/content/post/mycliwoc.rds&quot;)</code></pre>
+<p>Create a snapshot of the data for a single day (july 1st 1759)</p>
+<pre class="r"><code>boat_data_1day &lt;- mycliwoc %&gt;%   filter(yr  == 1759, mo==7 , dy == 1)
+boat_data_1month &lt;- mycliwoc %&gt;%   filter(yr  == 1759, mo==7)</code></pre>
+<p>first create a world map. This is a very slightly modified version from Claus Wilke’s post at <a href="https://wilkelab.org/practicalgg/articles/Winkel_tripel.html" class="uri">https://wilkelab.org/practicalgg/articles/Winkel_tripel.html</a></p>
+<pre class="r"><code>world &lt;- rnaturalearth::ne_countries(scale=&#39;medium&#39;,returnclass = &#39;sf&#39;)
+
+# create water polygon for background 
+lats &lt;- c(90:-90, -90:90, 90)
+longs &lt;- c(rep(c(180, -180), each = 181), 180)
+water_outline &lt;- 
+  list(cbind(longs, lats)) %&gt;%
+  st_polygon() %&gt;%
+  st_sfc( # create sf geometry list column
+    crs = &quot;+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs&quot;
+  ) %&gt;% 
+  st_sf()
+
+
+ggplot() +
+  geom_sf(data = water_outline, fill = &quot;#56B4E950&quot;)+  # blue-coloured water
+  geom_sf(data = world, 
+          fill = &quot;#E69F00B0&quot;)  + # brown-coloured background
+  cowplot::theme_map()</code></pre>
+<p><img src="/post/2020-11-16-animated-map-of-ships-1750-1799_files/figure-html/unnamed-chunk-5-1.png" width="672" style="display: block; margin: auto;" /></p>
+<p>then add the boatds</p>
+<pre class="r"><code>ggplot() +
+  geom_sf(data = water_outline, fill = &quot;#56B4E950&quot;)+  # blue-coloured water
+  geom_sf(data = world, 
+          fill = &quot;#E69F00B0&quot;)  + # brown-coloured background
+  cowplot::theme_map()  + 
+  geom_sf(data = boat_data_1day, size = 3)</code></pre>
+<p><img src="/post/2020-11-16-animated-map-of-ships-1750-1799_files/figure-html/unnamed-chunk-6-1.png" width="672" style="display: block; margin: auto;" /></p>
+<p>then color by nationality. BUT we want to show all possible values on the legend even though some nationalities aren’t present on this specific day</p>
+<pre class="r"><code>country_colors &lt;-c(&quot;#BA3F38&quot;, &quot;#E19C41&quot;, &quot;#FFCD00&quot;,&quot;#0072BB&quot;, &quot;darkgreen&quot; )
+names(country_colors) &lt;- c(&quot;BRITISH&quot;,&quot;DUTCH&quot;, &quot;SWEDISH&quot;,  &quot;FRENCH&quot;, &quot;DANISH&quot; )
+
+country_colors_scale &lt;- 
+  scale_colour_manual(
+    drop = TRUE,
+    limits = names(country_colors), ## les limits (+myColors?) c&#39;est nécessaire pour que toutes les valeurs apparaissent dans la légende même quand pas utilisée.
+    values = country_colors) </code></pre>
+<pre class="r"><code>ggplot() +
+  geom_sf(data = water_outline, fill = &quot;#56B4E950&quot;)+  # blue-coloured water
+  geom_sf(data = world, 
+          fill = &quot;#E69F00B0&quot;)  + # brown-coloured background
+  cowplot::theme_map()  + 
+  geom_sf(data = boat_data_1day, aes(color = nationality), size = 3 ) +
+  country_colors_scale</code></pre>
+<p><img src="/post/2020-11-16-animated-map-of-ships-1750-1799_files/figure-html/unnamed-chunk-8-1.png" width="672" style="display: block; margin: auto;" /></p>
+<p>Now let’s add ship names.
+We have to create a database with columns for the x and y position of the labels, to do this we us st_coordinates() to extract latitude and longitude of the boats.</p>
+<pre class="r"><code>ggplot() +
+  geom_sf(data = water_outline, fill = &quot;#56B4E950&quot;)+  # blue-coloured water
+  geom_sf(data = world, 
+          fill = &quot;#E69F00B0&quot;)  + # brown-coloured background
+  cowplot::theme_map()  + 
+  geom_sf(data = boat_data_1day, aes(color = nationality), size = 3 ) +
+  country_colors_scale +
+  ggrepel::geom_text_repel(
+    data = boat_data_1day %&gt;%
+      mutate(
+        proj_x= map_dbl( geometry, ~st_coordinates(.x)[1]), # trouver les coordonnées projetées
+        proj_y= map_dbl( geometry, ~st_coordinates(.x)[2])
+      ) %&gt;% st_drop_geometry(), # dropper la géométrie
+    aes(x = proj_x, y = proj_y, label = ship_name, color = nationality),   
+    fontface = &quot;bold&quot;,
+    size = 3, alpha = 1,
+    nudge_y = 5 # nudge 2 degrees north
+  )</code></pre>
+<p><img src="/post/2020-11-16-animated-map-of-ships-1750-1799_files/figure-html/unnamed-chunk-9-1.png" width="672" style="display: block; margin: auto;" />
+Next we replace the points with little boat icons. I saved a copy of the icon at “<a href="https://blogsimoncoulombe.s3.amazonaws.com/cliwod/sailboat-boat-svgrepo-com.svg" class="uri">https://blogsimoncoulombe.s3.amazonaws.com/cliwod/sailboat-boat-svgrepo-com.svg</a>”</p>
+<p>To do this, we have to use ggimage::geom_image() to display the boats instead of geom_sf()</p>
+<pre class="r"><code>aws.s3::put_object(file = &quot;/home/simon/git/adhoc_prive/data/downloads/sailboat-boat-svgrepo-com.svg&quot;,
+                   object = &quot;cliwod/sailboat-boat-svgrepo-com.svg&quot;,
+                   bucket = &quot;blogsimoncoulombe&quot;,
+                   acl = &quot;public-read&quot;,
+                   headers=list(&quot;Content-Type&quot; = &quot;image/png&quot;)
+)</code></pre>
+<pre class="r"><code>boat_url &lt;- &quot;https://blogsimoncoulombe.s3.amazonaws.com/cliwod/sailboat-boat-svgrepo-com.svg&quot;</code></pre>
+<pre class="r"><code>ggplot() +
+  geom_sf(data = water_outline, fill = &quot;#56B4E950&quot;)+  # blue-coloured water
+  geom_sf(data = world, 
+          fill = &quot;#E69F00B0&quot;)  + # brown-coloured background
+  cowplot::theme_map()  + 
+  #geom_sf(data = boat_data_1day, aes(color = nationality), size = 3 ) + ### replaced by boat icons
+  ggimage::geom_image(data = boat_data_1day %&gt;%
+                        mutate(
+                          proj_x= map_dbl( geometry, ~st_coordinates(.x)[1]), # trouver les coordonnées projetées
+                          proj_y= map_dbl( geometry, ~st_coordinates(.x)[2])
+                        ) %&gt;% st_drop_geometry(), # dropper la géométrie
+                      aes(x = proj_x, y = proj_y, color = nationality),
+                      size = 0.02,
+                      image = boat_url
+  )+ 
+  country_colors_scale +
+  ggrepel::geom_text_repel(
+    data = boat_data_1day %&gt;%
+      mutate(
+        proj_x= map_dbl( geometry, ~st_coordinates(.x)[1]), # trouver les coordonnées projetées
+        proj_y= map_dbl( geometry, ~st_coordinates(.x)[2])
+      ) %&gt;% st_drop_geometry(), # dropper la géométrie
+    aes(x = proj_x, y = proj_y, label = ship_name, color = nationality),   
+    fontface = &quot;bold&quot;,
+    size = 3, alpha = 1,
+    nudge_y = 5 # nudge 2 degrees north
+  )</code></pre>
+<p><img src="/post/2020-11-16-animated-map-of-ships-1750-1799_files/figure-html/unnamed-chunk-12-1.png" width="672" style="display: block; margin: auto;" />
+Add some labels (title, caption) and move the legend on the plot</p>
+<pre class="r"><code>ggplot() +
+  geom_sf(data = water_outline, fill = &quot;#56B4E950&quot;)+  # blue-coloured water
+  geom_sf(data = world, 
+          fill = &quot;#E69F00B0&quot;)  + # brown-coloured background
+  cowplot::theme_map()  + 
+  ggimage::geom_image(data = boat_data_1day %&gt;%
+                        mutate(
+                          proj_x= map_dbl( geometry, ~st_coordinates(.x)[1]), # trouver les coordonnées projetées
+                          proj_y= map_dbl( geometry, ~st_coordinates(.x)[2])
+                        ) %&gt;% st_drop_geometry(), # dropper la géométrie
+                      aes(x = proj_x, y = proj_y, color = nationality),
+                      size = 0.02,
+                      image = boat_url
+  )+ 
+  country_colors_scale +
+  ggrepel::geom_text_repel(
+    data = boat_data_1day %&gt;%
+      mutate(
+        proj_x= map_dbl( geometry, ~st_coordinates(.x)[1]), # trouver les coordonnées projetées
+        proj_y= map_dbl( geometry, ~st_coordinates(.x)[2])
+      ) %&gt;% st_drop_geometry(), # dropper la géométrie
+    aes(x = proj_x, y = proj_y, label = ship_name, color = nationality),   
+    fontface = &quot;bold&quot;,
+    size = 3, alpha = 1,
+    nudge_y = 5 # nudge 2 degrees north
+  ) + 
+  labs(title = &quot;Ship positions on July 1, 1959&quot;,
+       caption = &quot;Gossé par @coulsim \nSource: CLIWOC 2.1&quot;,
+       color = &quot;Nationality&quot;) + 
+  theme(legend.position= c(0.05,0.25)) </code></pre>
+<p><img src="/post/2020-11-16-animated-map-of-ships-1750-1799_files/figure-html/unnamed-chunk-13-1.png" width="672" style="display: block; margin: auto;" />
+Animate this map over a month using gganimate</p>
+<pre class="r"><code>plot_july_1959 &lt;- ggplot() +
+  geom_sf(data = water_outline, fill = &quot;#56B4E950&quot;)+  # blue-coloured water
+  geom_sf(data = world, 
+          fill = &quot;#E69F00B0&quot;)  + # brown-coloured background
+  cowplot::theme_map()  + 
+  ggimage::geom_image(data = boat_data_1month %&gt;%
+                        mutate(
+                          proj_x= map_dbl( geometry, ~st_coordinates(.x)[1]), # trouver les coordonnées projetées
+                          proj_y= map_dbl( geometry, ~st_coordinates(.x)[2])
+                        ) %&gt;% st_drop_geometry(), # dropper la géométrie
+                      aes(x = proj_x, y = proj_y, color = nationality),
+                      size = 0.02,
+                      image = boat_url
+  )+ 
+  country_colors_scale +
+  ggrepel::geom_text_repel(
+    data = boat_data_1month %&gt;%
+      mutate(
+        proj_x= map_dbl( geometry, ~st_coordinates(.x)[1]), # trouver les coordonnées projetées
+        proj_y= map_dbl( geometry, ~st_coordinates(.x)[2])
+      ) %&gt;% st_drop_geometry(), # dropper la géométrie
+    aes(x = proj_x, y = proj_y, label = ship_name, color = nationality),   
+    fontface = &quot;bold&quot;,
+    size = 3, alpha = 1,
+    nudge_y = 5 # nudge 2 degrees north
+  ) + 
+  labs(title = 
+         &quot;{paste(&#39;Ship positions on &#39;,
+               lubridate::month(frame_time, label = TRUE, abbr = FALSE),
+               lubridate::day(frame_time),
+               &#39;,&#39;, 
+               lubridate::year(frame_time)
+               )
+           }&quot;,
+       caption = &quot;Gossé par @coulsim \nSource: CLIWOC 2.1&quot;,
+       color = &quot;Nationality&quot;) + 
+  theme(legend.position= c(0.05,0.25)) + 
+  transition_time(mydate) +
+  ease_aes(&#39;linear&#39;) 
+
+animated_plot_july_1959 &lt;- animate(plot_july_1959, nframes = 36, fps = 10, end_pause = 5, width = 1300, height = 650) # make sure we have at least 1 frame per day.. else we get duplicate ships
+anim_save(&quot;animated_plot_july_1959.gif&quot;, animated_plot_july_1959)
+
+#version mp4 plus petite, mbonne qualité quand même 
+animated_plot_july_1959_mp4 &lt;- animate(plot1, 
+                        renderer = ffmpeg_renderer(
+                          options = list(vcodec = &quot;libvpx-vp9&quot;,
+                                         crf = &quot;10&quot;,
+                                         b = &quot;1600k&quot;
+                          )
+                        ),
+                        nframes = 36, 
+                        fps = 25, end_pause = 5, 
+                        width = 1300, height = 650)
+anim_save(&quot;animated_plot_july_1959.mp4&quot;, animated_plot_july_1959_mp4)
+
+
+aws.s3::put_object(file = &quot;/home/simon/git/snippets/content/post/animated_plot_july_1959.gif&quot;,
+                   object = &quot;cliwod/animated_plot_july_1959.gif&quot;,
+                   bucket = &quot;blogsimoncoulombe&quot;,
+                   acl = &quot;public-read&quot;,
+                   headers=list(&quot;Content-Type&quot; = &quot;image/png&quot;)
+)
+
+animated_plot_july_1959</code></pre>
+<p><img src="https://blogsimoncoulombe.s3.amazonaws.com/cliwod/animated_plot_july_1959.gif" /></p>
+</div>
+<div id="using-winkel-tripel-projection" class="section level1">
+<h1>Using Winkel-Tripel projection</h1>
+<p>This is NICE!!! .. but what if we’d like to use a projection instead of a rectangle?</p>
+<p>I’d like to use winkel-tripel because it’s the projection used by NatGeo.</p>
+<p>As far as I know, all we should need to do is
+1) reproject all the geom_sf layers (water_outline and world) to winkel-triple using <code>coord_sf("+proj=wintri")</code>
+2) manually reproject the labels (in our cases the output of geom_image() and geom_text_repel()) using <code>st_transform(crs= "+proj=wintri")</code> before extracting the coordinates</p>
+<p>BUT!!</p>
+<p>There is an issue when using Winkel-Tripel with ggplot2. When ggplot2 tries to create a graticule (the grid), it tries to invert the projection and fail (<a href="https://github.com/r-spatial/sf/issues/509#issuecomment-340480257" class="uri">https://github.com/r-spatial/sf/issues/509#issuecomment-340480257</a>).</p>
+<p>To get around this, we:</p>
+<ul>
+<li>remove the automatically generated graticule using <code>coord_sf(datum  = NULL)</code></li>
+<li>generate a new graticule using st_graticule() and display it.</li>
+</ul>
+<p>This is explaine by Edzer here (<a href="https://github.com/r-spatial/sf/issues/509#issuecomment-340492917" class="uri">https://github.com/r-spatial/sf/issues/509#issuecomment-340492917</a>) and implemented masterfully my Claus Wilke here (<a href="https://wilkelab.org/practicalgg/articles/Winkel_tripel.html" class="uri">https://wilkelab.org/practicalgg/articles/Winkel_tripel.html</a>)</p>
+<p>For the water outline, we go back to using geom_sf(data = water_outline) as changing the background added water below Antarctica
+Also note that the nudge on the ship name has to be increased to a very high number, since the units are different.</p>
+<pre class="r"><code>ggplot() +
+  geom_sf(data = water_outline , fill = &quot;#56B4E950&quot;)+  # blue-coloured water  
+  geom_sf(data = st_graticule(lat = c(-89.9, seq(-80, 80, 20), 89.9)), color = &quot;gray30&quot;, size = 0.25/.pt)+
+  geom_sf(data = world, 
+          fill = &quot;#E69F00B0&quot;)  + # brown-coloured background
+  cowplot::theme_map()  + 
+  ggimage::geom_image(data = boat_data_1day %&gt;%  st_transform(crs= &quot;+proj=wintri&quot;) %&gt;%
+                        mutate(
+                          proj_x= map_dbl( geometry, ~st_coordinates(.x)[1]), # trouver les coordonnées projetées
+                          proj_y= map_dbl( geometry, ~st_coordinates(.x)[2])
+                        ) %&gt;% st_drop_geometry(), # dropper la géométrie
+                      aes(x = proj_x, y = proj_y, color = nationality),
+                      size = 0.02,
+                      image = boat_url
+  )+ 
+  country_colors_scale +
+  ggrepel::geom_text_repel(
+    data = boat_data_1day %&gt;%  st_transform(crs= &quot;+proj=wintri&quot;) %&gt;%
+      mutate(
+        proj_x= map_dbl( geometry, ~st_coordinates(.x)[1]), # trouver les coordonnées projetées
+        proj_y= map_dbl( geometry, ~st_coordinates(.x)[2])
+      ) %&gt;% st_drop_geometry(), # dropper la géométrie
+    aes(x = proj_x, y = proj_y, label = ship_name, color = nationality),   
+    fontface = &quot;bold&quot;,
+    size = 3, alpha = 1,
+    nudge_y = 500000 # nudge 500000 units north when using winkel-tripel
+  ) + 
+  labs(title = &quot;Winkel-Tripel projection, datum = NULL, manual graticule&quot;,
+       caption = &quot;Gossé par @coulsim \nSource: CLIWOC 2.1&quot;,
+       color = &quot;Nationality&quot;) + 
+  theme(legend.position= c(0.03,0.1))  + 
+  
+  coord_sf(
+    crs = &quot;+proj=wintri&quot; ,
+    datum  = NULL
+  )</code></pre>
+<p><img src="/post/2020-11-16-animated-map-of-ships-1750-1799_files/figure-html/unnamed-chunk-15-1.png" width="672" style="display: block; margin: auto;" />
+One last thing: I’d like to move the caption and the title on the white space next to the globe.</p>
+<p>This is done using negative margins at the bottom for the title and at the top for the caption
+<code>theme(plot.title = element_text(margin = margin(b = -60)))</code>
+This solution comes from this stackoverflow post : #<a href="https://stackoverflow.com/questions/34805506/adjust-title-vertically-to-inside-the-plot-vjust-not-working" class="uri">https://stackoverflow.com/questions/34805506/adjust-title-vertically-to-inside-the-plot-vjust-not-working</a></p>
+<pre class="r"><code>ggplot() +
+  geom_sf(data = water_outline , fill = &quot;#56B4E950&quot;)+  # blue-coloured water  
+  geom_sf(data = st_graticule(lat = c(-89.9, seq(-80, 80, 20), 89.9)), color = &quot;gray30&quot;, size = 0.25/.pt)+
+  geom_sf(data = world, 
+          fill = &quot;#E69F00B0&quot;)  + # brown-coloured background
+  cowplot::theme_map()  + 
+  ggimage::geom_image(data = boat_data_1day %&gt;%  st_transform(crs= &quot;+proj=wintri&quot;) %&gt;%
+                        mutate(
+                          proj_x= map_dbl( geometry, ~st_coordinates(.x)[1]), # trouver les coordonnées projetées
+                          proj_y= map_dbl( geometry, ~st_coordinates(.x)[2])
+                        ) %&gt;% st_drop_geometry(), # dropper la géométrie
+                      aes(x = proj_x, y = proj_y, color = nationality),
+                      size = 0.02,
+                      image = boat_url
+  )+ 
+  country_colors_scale +
+  ggrepel::geom_text_repel(
+    data = boat_data_1day %&gt;%  st_transform(crs= &quot;+proj=wintri&quot;) %&gt;%
+      mutate(
+        proj_x= map_dbl( geometry, ~st_coordinates(.x)[1]), # trouver les coordonnées projetées
+        proj_y= map_dbl( geometry, ~st_coordinates(.x)[2])
+      ) %&gt;% st_drop_geometry(), # dropper la géométrie
+    aes(x = proj_x, y = proj_y, label = ship_name, color = nationality),   
+    fontface = &quot;bold&quot;,
+    size = 3, alpha = 1,
+    nudge_y = 500000 # nudge 500000 units north when using winkel-tripel
+  ) + 
+  labs(title = &quot;Ship positions on July 1, 1959&quot;,
+       caption = &quot;Gossé par @coulsim \nSource: CLIWOC 2.1&quot;,
+       color = &quot;Nationality&quot;) + 
+  theme(legend.position= c(0.03,0.1))  + 
+  
+  coord_sf(
+    crs = &quot;+proj=wintri&quot; ,
+    datum  = NULL
+  ) + 
+  theme(plot.title = element_text(margin = margin(b = -60))) +# title inside plot using margin 
+  theme(plot.caption = element_text(margin = margin(t = -60)))</code></pre>
+<p><img src="/post/2020-11-16-animated-map-of-ships-1750-1799_files/figure-html/unnamed-chunk-16-1.png" width="672" style="display: block; margin: auto;" /></p>
+<p>Let’s animate this</p>
+<pre class="r"><code>animated_plot_july_1959_winkel_tripel &lt;- ggplot() +
+  geom_sf(data = water_outline , fill = &quot;#56B4E950&quot;)+  # blue-coloured water  
+  geom_sf(data = st_graticule(lat = c(-89.9, seq(-80, 80, 20), 89.9)), color = &quot;gray30&quot;, size = 0.25/.pt)+
+  geom_sf(data = world, 
+          fill = &quot;#E69F00B0&quot;)  + # brown-coloured background
+  cowplot::theme_map()  + 
+  ggimage::geom_image(data = boat_data_1month %&gt;%  st_transform(crs= &quot;+proj=wintri&quot;) %&gt;%
+                        mutate(
+                          proj_x= map_dbl( geometry, ~st_coordinates(.x)[1]), # trouver les coordonnées projetées
+                          proj_y= map_dbl( geometry, ~st_coordinates(.x)[2])
+                        ) %&gt;% st_drop_geometry(), # dropper la géométrie
+                      aes(x = proj_x, y = proj_y, color = nationality),
+                      size = 0.02,
+                      image = boat_url
+  )+ 
+  country_colors_scale +
+  ggrepel::geom_text_repel(
+    data = boat_data_1month %&gt;%  st_transform(crs= &quot;+proj=wintri&quot;) %&gt;%
+      mutate(
+        proj_x= map_dbl( geometry, ~st_coordinates(.x)[1]), # trouver les coordonnées projetées
+        proj_y= map_dbl( geometry, ~st_coordinates(.x)[2])
+      ) %&gt;% st_drop_geometry(), # dropper la géométrie
+    aes(x = proj_x, y = proj_y, label = ship_name, color = nationality),   
+    fontface = &quot;bold&quot;,
+    size = 3, alpha = 1,
+    nudge_y = 500000 # nudge 500000 units north when using winkel-tripel
+  ) + 
+  labs(title = 
+         &quot;{paste(&#39;Ship positions on &#39;,
+               lubridate::month(frame_time, label = TRUE, abbr = FALSE),
+               lubridate::day(frame_time),
+               &#39;,&#39;, 
+               lubridate::year(frame_time)
+               )
+           }&quot;,
+       caption = &quot;Gossé par @coulsim \nSource: CLIWOC 2.1&quot;,
+       color = &quot;Nationality&quot;) + 
+  theme(legend.position= c(0.03,0.1))  + 
+  
+  coord_sf(
+    crs = &quot;+proj=wintri&quot; ,
+    datum  = NULL
+  ) + 
+  theme(plot.title = element_text(margin = margin(b = -60))) +# title inside plot using margin 
+  theme(plot.caption = element_text(margin = margin(t = -60))) +
+  transition_time(mydate) +
+  ease_aes(&#39;linear&#39;) </code></pre>
+<pre class="r"><code>animated_plot_july_1959_winkel_tripel &lt;- animate(animated_plot_july_1959_winkel_tripel, nframes = 36, fps = 10, end_pause = 5, width = 1300, height = 650) # make sure we have at least 1 frame per day.. else we get duplicate ships
+anim_save(&quot;animated_plot_july_1959_winkel_tripel.gif&quot;, animated_plot_july_1959_winkel_tripel)
+
+
+aws.s3::put_object(file = &quot;/home/simon/git/snippets/content/post/animated_plot_july_1959_winkel_tripel.gif&quot;,
+                   object = &quot;cliwod/animated_plot_july_1959_winkel_tripel.gif&quot;,
+                   bucket = &quot;blogsimoncoulombe&quot;,
+                   acl = &quot;public-read&quot;,
+                   headers=list(&quot;Content-Type&quot; = &quot;image/png&quot;)
+)</code></pre>
+<pre class="r"><code>animated_plot_july_1959_winkel_tripel</code></pre>
+<p><img src="/post/2020-11-16-animated-map-of-ships-1750-1799_files/figure-html/unnamed-chunk-19-1.gif" style="display: block; margin: auto;" /></p>
+<p><img src="https://blogsimoncoulombe.s3.amazonaws.com/cliwod/animated_plot_july_1959_winkel_tripel.gif" /></p>
+<div id="a-hope-for-faster-animation-parallel-processing-using-pull-request-403-in-september-2020" class="section level2">
+<h2>a hope for faster animation : parallel processing using pull request 403 in September 2020</h2>
+<p>This pull request enables parallel processing: <a href="https://github.com/thomasp85/gganimate/issues/78#issuecomment-689855700" class="uri">https://github.com/thomasp85/gganimate/issues/78#issuecomment-689855700</a></p>
+<pre class="r"><code>devtools::install_github(&quot;thomasp85/gganimate&quot;, ref = github_pull(403), force= TRUE) </code></pre>
+<p>After installing, we have to define the number of workers, then run the renderer as usual. I ran into an issue when trying to run on 4 workers</p>
+<pre class="r"><code>future::plan(&quot;multiprocess&quot;, workers = 4L)
+
+
+my_end_pause = 50 
+my_frames &lt;- as.numeric(max(boat_data_1month$mydate) - min(boat_data_1month$mydate)) + 1 + my_end_pause
+
+
+animated_mp4 &lt;- animate(animated_plot_july_1959_winkel_tripel, 
+                        renderer = ffmpeg_renderer(
+                          options = list(vcodec = &quot;libvpx-vp9&quot;,
+                                         crf = &quot;10&quot;,
+                                         b = &quot;1600k&quot;
+                          )
+                        ),
+                        nframes = my_frames, 
+                        fps = 25, end_pause = my_end_pause, 
+                        width = 1300, height = 650)
+anim_save(&quot;animated_plot_july_1959_winkel_tripel_parallel.mp4&quot;, animated_mp4)</code></pre>
+<pre class="r"><code>[image2 @ 0x5609cbb2e840] Could not open file : /tmp/Rtmph2T1pL/21dc8dee6d6f/gganim_plot0009.png
+Input #0, image2, from &#39;/tmp/Rtmph2T1pL/21dc8dee6d6f/gganim_plot%4d.png&#39;:
+  Duration: 00:00:01.20, start: 0.000000, bitrate: N/A
+    Stream #0:0: Video: png, rgb24(pc), 1300x650, 25 fps, 25 tbr, 25 tbn, 25 tbc
+Please use -b:a or -b:v, -b is ambiguous
+Stream mapping:
+  Stream #0:0 -&gt; #0:0 (png (native) -&gt; vp9 (libvpx-vp9))
+Press [q] to stop, [?] for help
+[image2 @ 0x5609cbb2e840] Could not open file : /tmp/Rtmph2T1pL/21dc8dee6d6f/gganim_plot0009.png
+/tmp/Rtmph2T1pL/21dc8dee6d6f/gganim_plot%4d.png: Input/output error
+[libvpx-vp9 @ 0x5609cbb37cc0] v1.8.2
+Output #0, webm, to &#39;/tmp/Rtmph2T1pL/file21dc843a1ae4f.webm&#39;:
+  Metadata:
+    encoder         : Lavf58.29.100
+    Stream #0:0: Video: vp9 (libvpx-vp9), gbrp, 1300x650, q=-1--1, 1600 kb/s, 25 fps, 1k tbn, 25 tbc
+    Metadata:
+      encoder         : Lavc58.54.100 libvpx-vp9
+    Side data:
+      cpb: bitrate max/min/avg: 0/0/0 buffer size: 0 vbv_delay: -1
+[image2 @ 0x5609cbb2e840] Could not open file : /tmp/Rtmph2T1pL/21dc8dee6d6f/gganim_plot0009.png
+/tmp/Rtmph2T1pL/21dc8dee6d6f/gganim_plot%4d.png: Input/output error
+[image2 @ 0x5609cbb2e840] Could not open file : /tmp/Rtmph2T1pL/21dc8dee6d6f/gganim_plot0009.png
+/tmp/Rtmph2T1pL/21dc8dee6d6f/gganim_plot%4d.png: Input/output error
+[image2 @ 0x5609cbb2e840] Could not open file : /tmp/Rtmph2T1pL/21dc8dee6d6f/gganim_plot0009.png
+/tmp/Rtmph2T1pL/21dc8dee6d6f/gganim_plot%4d.png: Input/output error
+[image2 @ 0x5609cbb2e840] Could not open file : /tmp/Rtmph2T1pL/21dc8dee6d6f/gganim_plot0009.png
+/tmp/Rtmph2T1pL/21dc8dee6d6f/gganim_plot%4d.png: Input/output error
+[image2 @ 0x5609cbb2e840] Could not open file : /tmp/Rtmph2T1pL/21dc8dee6d6f/gganim_plot0009.png
+/tmp/Rtmph2T1pL/21dc8dee6d6f/gganim_plot%4d.png: Input/output error
+[image2 @ 0x5609cbb2e840] Could not open file : /tmp/Rtmph2T1pL/21dc8dee6d6f/gganim_plot0009.png
+/tmp/Rtmph2T1pL/21dc8dee6d6f/gganim_plot%4d.png: Input/output error
+[image2 @ 0x5609cbb2e840] Could not open file : /tmp/Rtmph2T1pL/21dc8dee6d6f/gganim_plot0009.png
+/tmp/Rtmph2T1pL/21dc8dee6d6f/gganim_plot%4d.png: Input/output error
+frame=    7 fps=0.0 q=0.0 Lsize=     244kB time=00:00:00.24 bitrate=8299.9kbits/s speed=0.245x    
+video:244kB audio:0kB subtitle:0kB other streams:0kB global headers:0kB muxing overhead: 0.273107%</code></pre>
+</div>
+</div>
+<div id="creating-lines-trips-from-points-example-using-the-hudson-bay-company" class="section level1">
+<h1>Creating lines (trips) from Points : example using The Hudson Bay Company</h1>
+<p>There is one last thing I wanted to do with this dataset. I wanted to show the “lines” of the trips, and I also wanted to zoom into a specific part of the globe.</p>
+<p>To do this, we will try to map the trips by the Hudson Bay Company, which are all between England and the Hudson Bay in Canada.</p>
+<p>I picked the projection “EPSG: 3574 North Pole LAEA Atlantic”. So we have to do like we did for winkel-tripel: <code>coord_sf( crs = "+init=epsg:3574")</code> for geom_sf() object and <code>st_transform(crs= 3574)</code> for geom_image() and geom_text_repel().</p>
+<p>There is an additional difficulty: to zoom into an area, I have to specify <code>coords_sf(xlim = c(), ylim = c())</code>. I found approximage an xlim/ylim window by geocoding two cities I wanted to see on the map (Quebec City and London), then projecting these lat/longs to EPSG 3574 and then adjusting through trial and errors to cover the Hudson Bay.</p>
+<pre class="r"><code>opencage_forward(placename = &quot;Quebec city&quot;) %&gt;% 
+  .$results %&gt;% 
+  select(geometry.lat, geometry.lng) %&gt;% 
+  st_as_sf(coords= c(&quot;geometry.lng&quot;,&quot;geometry.lat&quot;),
+           crs = 4326, 
+           agr = &quot;constant&quot;,
+           remove = FALSE) %&gt;%
+  st_transform(crs = 3574) %&gt;% 
+  st_coordinates()</code></pre>
+<pre><code>##          X        Y
+## 1 -2437821 -4019742</code></pre>
+<pre class="r"><code>opencage_forward(placename = &quot;London, UK&quot;) %&gt;% 
+  .$results %&gt;%  
+  head(1) %&gt;%
+  select(geometry.lat, geometry.lng) %&gt;% 
+  st_as_sf(coords= c(&quot;geometry.lng&quot;,&quot;geometry.lat&quot;),
+           crs = 4326, 
+           agr = &quot;constant&quot;,
+           remove = FALSE) %&gt;%
+  st_transform(crs = 3574) %&gt;% 
+  st_coordinates()</code></pre>
+<pre><code>##         X        Y
+## 1 2701047 -3233585</code></pre>
+<p>Quebec City is projected to about X = -2.5 million and Y = -4 million.
+London is projected to about 3 million and -3 million.</p>
+<p>My initial window was xlim = c(-3e6, 3e6) and ylim = c(-5e6, -3e6), but trial and error showed that I needed to add space to the West to reach the Hudson Bay and North to include Greenland, so I ended up with the following limits:</p>
+<pre class="r"><code>coord_sf(
+  crs = &quot;+init=epsg:3574&quot;, 
+  xlim = c(-5e6,  5e6), ylim = c(-5e6, -1e6)
+)</code></pre>
+<p>Transformed coordinates used by geom_image() and geom_text_repel() to EPSG 3574 by using the st_transform() function. The result is below:</p>
+<pre class="r"><code>ggplot() +
+  geom_sf(data = water_outline , fill = &quot;#56B4E950&quot;)+  # blue-coloured water
+  geom_sf(data = world, 
+          fill = &quot;#E69F00B0&quot;)  + # brown-coloured background
+  cowplot::theme_map()  + 
+  ggimage::geom_image(data = boat_data_1day %&gt;%  st_transform(crs= 3574) %&gt;%
+                        mutate(
+                          proj_x= map_dbl( geometry, ~st_coordinates(.x)[1]), # trouver les coordonnées projetées
+                          proj_y= map_dbl( geometry, ~st_coordinates(.x)[2])
+                        ) %&gt;% st_drop_geometry(), # dropper la géométrie
+                      aes(x = proj_x, y = proj_y, color = nationality),
+                      size = 0.02,
+                      image = boat_url
+  )+ 
+  country_colors_scale +
+  ggrepel::geom_text_repel(
+    data = boat_data_1day %&gt;%  st_transform(crs= 3574) %&gt;%
+      mutate(
+        proj_x= map_dbl( geometry, ~st_coordinates(.x)[1]), # trouver les coordonnées projetées
+        proj_y= map_dbl( geometry, ~st_coordinates(.x)[2])
+      ) %&gt;% st_drop_geometry(), # dropper la géométrie
+    aes(x = proj_x, y = proj_y, label = ship_name, color = nationality),   
+    fontface = &quot;bold&quot;,
+    size = 3, alpha = 1,
+    nudge_y = 5 # nudge 2 degrees north
+  ) + 
+  labs(title = &quot;Ship positions on July 1, 1959&quot;,
+       caption = &quot;Gossé par @coulsim \nSource: CLIWOC 2.1&quot;,
+       color = &quot;Nationality&quot;) + 
+  theme(legend.position= &quot;bottom&quot;) +
+  coord_sf(
+    crs = &quot;+init=epsg:3574&quot;, 
+    xlim = c(-3e6,  3e6), ylim = c(-5e6, -2e6)
+  )</code></pre>
+<p><img src="/post/2020-11-16-animated-map-of-ships-1750-1799_files/figure-html/unnamed-chunk-26-1.png" width="672" style="display: block; margin: auto;" />
+This isnt too bad, but my water outline is gone.</p>
+<p>The easiest workaround I found is to change the plot background to blue using <code>theme(panel.background = element_rect(fill = "#56B4E950"))</code>.</p>
+<pre class="r"><code>ggplot() +
+  #geom_sf(data = water_outline , fill = &quot;#56B4E950&quot;)+  # blue-coloured water
+  geom_sf(data = world, 
+          fill = &quot;#E69F00B0&quot;)  + # brown-coloured background
+  cowplot::theme_map()  + 
+  ggimage::geom_image(data = boat_data_1day %&gt;%  st_transform(crs= 3574) %&gt;%
+                        mutate(
+                          proj_x= map_dbl( geometry, ~st_coordinates(.x)[1]), # trouver les coordonnées projetées
+                          proj_y= map_dbl( geometry, ~st_coordinates(.x)[2])
+                        ) %&gt;% st_drop_geometry(), # dropper la géométrie
+                      aes(x = proj_x, y = proj_y, color = nationality),
+                      size = 0.02,
+                      image = boat_url
+  )+ 
+  country_colors_scale +
+  ggrepel::geom_text_repel(
+    data = boat_data_1day %&gt;%  st_transform(crs= 3574) %&gt;%
+      mutate(
+        proj_x= map_dbl( geometry, ~st_coordinates(.x)[1]), # trouver les coordonnées projetées
+        proj_y= map_dbl( geometry, ~st_coordinates(.x)[2])
+      ) %&gt;% st_drop_geometry(), # dropper la géométrie
+    aes(x = proj_x, y = proj_y, label = ship_name, color = nationality),   
+    fontface = &quot;bold&quot;,
+    size = 3, alpha = 1,
+    nudge_y = 5 # nudge 2 degrees north
+  ) + 
+  labs(title = &quot;Ship positions on July 1, 1959&quot;,
+       caption = &quot;Gossé par @coulsim \nSource: CLIWOC 2.1&quot;,
+       color = &quot;Nationality&quot;) + 
+  theme(legend.position= &quot;bottom&quot;) +
+  coord_sf(
+    crs = &quot;+init=epsg:3574&quot;, 
+    xlim = c(-3e6,  3e6), ylim = c(-5e6, -2e6)
+  )+ 
+  theme(panel.background = element_rect(fill = &quot;#56B4E950&quot;))</code></pre>
+<p><img src="/post/2020-11-16-animated-map-of-ships-1750-1799_files/figure-html/unnamed-chunk-27-1.png" width="672" style="display: block; margin: auto;" />
+Let’s add points of interests to the map.
+We just geocode 6 cities using <code>opencage</code>and project them using st_transform() then add them using geom_text_repel() and geom_point()</p>
+<pre class="r"><code>moose_factory &lt;- opencage_forward(placename = &quot;Moose Factory, Ontario&quot;) %&gt;%
+  .$results %&gt;% head(1) %&gt;% 
+  select(geometry.lat, geometry.lng) %&gt;% 
+  mutate(nom = &quot;Moose Factory&quot;)
+
+
+york_factory &lt;- opencage_forward(placename = &quot;York Factory, Manitoba&quot;) %&gt;%
+  .$results %&gt;% head(1) %&gt;% 
+  select(geometry.lat, geometry.lng) %&gt;% 
+  mutate(nom = &quot;York Factory&quot;)
+
+
+churchill &lt;- opencage_forward(placename = &quot;Churchill, Manitoba&quot;) %&gt;%
+  .$results %&gt;% head(1) %&gt;% 
+  select(geometry.lat, geometry.lng) %&gt;% 
+  mutate(nom = &quot;Churchill&quot;)
+
+gravesend &lt;- opencage_forward(placename = &quot;GRAVESEND, ENGLAND&quot;) %&gt;%
+  .$results %&gt;% head(1) %&gt;% 
+  select(geometry.lat, geometry.lng) %&gt;% 
+  mutate(nom = &quot;Gravesend&quot;)
+
+kinsale &lt;- opencage_forward(placename = &quot;KINSALE, IRELAND&quot;) %&gt;%
+  .$results %&gt;% head(1) %&gt;% 
+  select(geometry.lat, geometry.lng) %&gt;% 
+  mutate(nom = &quot;Kinsale&quot;)
+
+london &lt;- opencage_forward(placename = &quot;LONDON, ENGLAND&quot;) %&gt;%
+  .$results %&gt;% head(1) %&gt;% 
+  select(geometry.lat, geometry.lng) %&gt;% 
+  mutate(nom = &quot;London&quot;)
+
+
+villes &lt;- bind_rows(
+  moose_factory, york_factory, churchill, kinsale, gravesend, london
+) %&gt;% 
+  st_as_sf(coords= c(&quot;geometry.lng&quot;,&quot;geometry.lat&quot;),
+           crs = 4326, 
+           agr = &quot;constant&quot;,
+           remove = FALSE)</code></pre>
+<pre class="r"><code>ggplot() +
+  #geom_sf(data = water_outline , fill = &quot;#56B4E950&quot;)+  # blue-coloured water
+  geom_sf(data = world, 
+          fill = &quot;#E69F00B0&quot;)  + # brown-coloured background
+  cowplot::theme_map()  + 
+  ggimage::geom_image(data = boat_data_1day %&gt;%  st_transform(crs= 3574) %&gt;%
+                        mutate(
+                          proj_x= map_dbl( geometry, ~st_coordinates(.x)[1]), # trouver les coordonnées projetées
+                          proj_y= map_dbl( geometry, ~st_coordinates(.x)[2])
+                        ) %&gt;% st_drop_geometry(), # dropper la géométrie
+                      aes(x = proj_x, y = proj_y, color = nationality),
+                      size = 0.02,
+                      image = boat_url
+  )+ 
+  country_colors_scale +
+  ggrepel::geom_text_repel(
+    data = boat_data_1day %&gt;%  st_transform(crs= 3574) %&gt;%
+      mutate(
+        proj_x= map_dbl( geometry, ~st_coordinates(.x)[1]), # trouver les coordonnées projetées
+        proj_y= map_dbl( geometry, ~st_coordinates(.x)[2])
+      ) %&gt;% st_drop_geometry(), # dropper la géométrie
+    aes(x = proj_x, y = proj_y, label = ship_name, color = nationality),   
+    fontface = &quot;bold&quot;,
+    size = 3, alpha = 1,
+    nudge_y = 5 # nudge 2 degrees north
+  ) + 
+  labs(title = &quot;Ship positions on July 1, 1959&quot;,
+       caption = &quot;Gossé par @coulsim \nSource: CLIWOC 2.1&quot;,
+       color = &quot;Nationality&quot;) + 
+  theme(legend.position= &quot;bottom&quot;) +
+  coord_sf(
+    crs = &quot;+init=epsg:3574&quot;, 
+    xlim = c(-3e6,  3e6), ylim = c(-5e6, -2e6)
+  )+ 
+  theme(panel.background = element_rect(fill = &quot;#56B4E950&quot;))  + 
+  geom_point(data = villes %&gt;%
+                             st_transform(crs= 3574) %&gt;%  # projeter les villes 
+                             mutate(
+                               lon= map_dbl( geometry, ~st_coordinates(.x)[1]), # trouver les coordonnées projetées
+                               lat= map_dbl( geometry, ~st_coordinates(.x)[2])
+                             ) %&gt;% st_drop_geometry(), # dropper la géométrie
+                           aes(x = lon, y = lat)
+  ) +
+  ggrepel::geom_text_repel(data = villes %&gt;%
+                             st_transform(crs= 3574) %&gt;%  # projeter les villes 
+                             mutate(
+                               lon= map_dbl( geometry, ~st_coordinates(.x)[1]), # trouver les coordonnées projetées
+                               lat= map_dbl( geometry, ~st_coordinates(.x)[2])
+                             ) %&gt;% st_drop_geometry(), # dropper la géométrie
+                           aes(x = lon, y = lat, label = nom),  # 
+                           fontface = &quot;bold&quot;
+  ) </code></pre>
+<p><img src="/post/2020-11-16-animated-map-of-ships-1750-1799_files/figure-html/unnamed-chunk-29-1.png" width="672" style="display: block; margin: auto;" /></p>
+<p>Finally, we create lines to represent all the trips made by the Hudson Bay Company back over that period.</p>
+<pre class="r"><code>trips_hudson_bay_company &lt;- mycliwoc  %&gt;%
+  filter(company == &quot;HUDSON BAY COMPANY&quot;)  %&gt;%
+  group_by(ship_name, voyage_ini, voyage_ini_year)%&gt;%
+  arrange(mydate) %&gt;%
+  summarize(., do_union = FALSE) %&gt;%
+  st_cast(&quot;LINESTRING&quot;)</code></pre>
+<pre class="r"><code>ggplot() +
+  geom_sf(data = world, 
+          fill = &quot;#E69F00B0&quot;)  + # brown-coloured background
+  cowplot::theme_map()  + 
+  geom_sf(data =trips_hudson_bay_company,
+          aes(color = as.factor(voyage_ini_year)),
+          alpha =0.7)+ 
+  
+  labs(
+    title = &quot;Voyages de 4 bateaux de la Compagnie de la Baie d&#39;Hudson (1760-1799)&quot;,
+    subtitle = &quot;On nomme les postes de traite &#39;factory&#39; (manufactures), car en anglais le nom d’un commerçant est dit &#39;factor&#39;&quot;,
+    caption = &quot;Source: CLIWOC 2.1 (https://www.historicalclimatology.com/uploads/4/5/1/4/4514421/cliwoc21.ods) \n
+    gossé par @coulsim, couleurs de @ClausWilke, projection: EPSG: 3574 North Pole LAEA Atlantic&quot;,
+    color = &quot;Année&quot;
+  ) + 
+  coord_sf(
+    crs = &quot;+init=epsg:3574&quot;, 
+    xlim = c(-3e6,  3e6), ylim = c(-5e6, -1e6)
+  )+ 
+  theme(panel.background = element_rect(fill = &quot;#56B4E950&quot;)) + 
+  geom_point(data = villes %&gt;%
+                             st_transform(crs= 3574) %&gt;%  # projeter les villes 
+                             mutate(
+                               lon= map_dbl( geometry, ~st_coordinates(.x)[1]), # trouver les coordonnées projetées
+                               lat= map_dbl( geometry, ~st_coordinates(.x)[2])
+                             ) %&gt;% st_drop_geometry(), # dropper la géométrie
+                           aes(x = lon, y = lat)
+  ) +
+  ggrepel::geom_text_repel(data = villes %&gt;%
+                             st_transform(crs= 3574) %&gt;%  # projeter les villes 
+                             mutate(
+                               lon= map_dbl( geometry, ~st_coordinates(.x)[1]), # trouver les coordonnées projetées
+                               lat= map_dbl( geometry, ~st_coordinates(.x)[2])
+                             ) %&gt;% st_drop_geometry(), # dropper la géométrie
+                           aes(x = lon, y = lat, label = nom),  # 
+                           fontface = &quot;bold&quot;
+  )  + 
+  facet_wrap(~ ship_name)</code></pre>
+<p><img src="/post/2020-11-16-animated-map-of-ships-1750-1799_files/figure-html/unnamed-chunk-31-1.png" width="672" style="display: block; margin: auto;" /></p>
+<p>that’s it folks!</p>
+</div>
