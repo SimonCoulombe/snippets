@@ -1,5 +1,5 @@
 ---
-title: How far are cyclists willing to go to use a cycling path? Part 1 - Graphhopper  
+title: How far are cyclists willing to go to use a cycling path? A good excuse to try out Graphhopper  
 author: simon
 date: '2020-04-13'
 slug: map-matching-bike
@@ -30,15 +30,12 @@ knitr::opts_chunk$set(echo = FALSE,
                       cache.lazy = FALSE) # fixes long vecto rnot supported quand on cache des gros éléments https://stackoverflow.com/questions/39417003/long-vectors-not-supported-yet-error-in-rmd-but-not-in-r-script
 ```
 
-I made a twitter survey a couple of weeks before the apocalypse to help me pick my next blog post topic and alll 3 members of the crowd overwhelmingly agreed that I should use bike gps data and graphhopper to find out how far cyclists are willing to go to use safer infrastructure.  
+I made a twitter survey a couple of months before the apocalypse to help me pick my next blog post topic and all 3 members of the crowd overwhelmingly agreed that I should use bike gps data and graphhopper to find out how far cyclists are willing to go to use safer infrastructure.  
 
 
 
 This is awesome, because I had been looking for a use for [this open data that contains GPS data for ~ 5000 bike trips in Montreal](http://donnees.ville.montreal.qc.ca/dataset/trajets-individuels-velo-enregistre-mon-resovelo) for a while.  
 
-```{r echo=FALSE}
-blogdown::shortcode('tweet', '1232450391398207488')
-```
 
 
 ```{r, include = F}
@@ -98,6 +95,8 @@ In my example, the ratio is 2.0, as the cyclists are willing to do 6 kilometers 
 This turned out to be quite an undertaking.  I have hit many snags, and I don't have an answer yet.  I dont think I ever will, but hopefully putting this in the open will help someone get started with graphhopper.    
 
 
+The interested reader might also want to look at this [deck](https://onedrive.live.com/View.aspx?resid=7FDB50284B101E16!998&wdSlideId=297&wdModeSwitchTime=1580151620030&authkey=!AP87EZGhzCcIvns) by Licker Geospatial Consulting Co. (@LGeospatial on twitter).
+
 # Code  
 
 As usual, the code for this post is available on [github](https://github.com/SimonCoulombe/snippets/tree/master/content/post).  
@@ -113,13 +112,13 @@ It includes a linestring geometry depicting the path travelled,a column named "l
 trips %>% head(5) %>% glimpse
 ```
 
+The map below shows the routes 56 and 10044 that we will often use as examples in this blog post.  
 ```{r}
 mymap <- trips %>% 
-  filter(id=="10044") %>%
+  filter(id  %in% c("10044", "56")) %>%
   mapview(zcol ="id",
           color = colorblindr::palette_OkabeIto[1:nrow(.)]
   ) 
-
 
 mapshot(mymap, file = here::here("static/post/2020-01-28-how-far-are-cyclists-willing-to-go-to-use-a-cycling-path", "original_bike_path.png"))
 
@@ -135,7 +134,6 @@ Since the map matching tool requires GPX files as input, we convert the linestri
 ```{r}
 
 if (switch_generate_interim_data){
-  
   # convert linestring to multipoints
   z <- trips %>% 
     mutate( 
@@ -164,8 +162,8 @@ We download the latest openstreetmap  data for the province of Quebec from [GeoF
 
 Graphhopper ([github](https://github.com/graphhopper/graphhopper) is an "open source routing engine".    It includes many tools/servers, and we will use the following two for this project:
 
-* The [map matching program](https://github.com/graphhopper/map-matching) is a command-line tool that takes a GPS path and returns a list of points "snapped" to the road.  
-* The [routing engine](https://github.com/graphhopper/graphhopper) is a web service that returns the shortest path (with instruction) between two points.  It can be called using an API.  
+* The [map matching program](https://github.com/graphhopper/map-matching) that takes a GPS path and returns a list of points "snapped" to the road.  It is available as a command-line tool or as a web server that can be called using an API.  We will use the web server because the command-line tool doesnt return the distance travelled by road class.
+* The [routing engine](https://github.com/graphhopper/graphhopper) returns the shortest path (with instruction) between two points.  It is only available as a web server that can be called using an API.  
 
 
 
@@ -190,20 +188,48 @@ mvn package -DskipTests
 wget http://download.geofabrik.de/north-america/canada/quebec-latest.osm.pbf --quiet
 java -jar matching-web/target/graphhopper-map-matching-web-1.0-SNAPSHOT.jar import quebec-latest.osm.pbf --vehicle='bike'
 ```
+<!--   datareader.file: quebec-latest.osm.pbf # OSM input file (example data) -->
+<!--   graph.location: graph-cache -->
+<!--  # graph.flag_encoders: car, bike -->
+<!--   graph.flag_encoders: bike -->
+<!--   profiles: -->
+<!-- #    - name: car -->
+<!-- #      vehicle: car -->
+<!-- #      weighting: fastest -->
+<!--     - name: bike -->
+<!--       vehicle: bike -->
+<!--       weighting: fastest -->
 
-Once the quebec map has been imported into the mapmatching tool, we can invoke it from the command line  and ask it to map-match all the we put GPXs in the folder.  This takes about 10 minutes on my computer.  
+<!-- server: -->
+<!--   application_connectors: -->
+<!--   - type: http -->
+<!--     port: 8998 -->
+<!--     # for security reasons bind to localhost -->
+<!--     bind_host: localhost -->
+<!--   admin_connectors: -->
+<!--   - type: http -->
+<!--     port: 8999 -->
+<!--     bind_host: localhost -->
 
+
+
+
+
+~~Once the quebec map has been imported into the mapmatching tool, we can invoke it from the command line  and ask it to map-match all the we put GPXs in the folder.  This takes about 10 minutes on my computer.~~   <-- While this is true (and the code below works), the CLI tool doesnt return the road class travelled.  We will use the web app instead.  
 
 ```
 cd ~/git/map-matching   
 java -jar ~/git/map-matching/matching-web/target/graphhopper-map-matching-web-1.0-SNAPSHOT.jar match ~/git/snippets/content/post/data/interim/bikegps/*.gpx
 ```
+
+
+
 ```{r}
 
 if (switch_generate_interim_data){
   tic()
   system("cd ~/git/map-matching && java -jar ~/git/map-matching/matching-web/target/graphhopper-map-matching-web-1.0-SNAPSHOT.jar match ~/git/snippets/content/post/data/interim/bikegps/*.gpx",  intern = TRUE)
-  toc() # 591.865 sec elapsed
+  toc() # 591.865 sec elapsdewww.s
 }
 ```
 
@@ -362,7 +388,7 @@ Here is the JSON returned for a short route between two points near park in gati
 
 
 
-```{r}
+```{r, echo= T}
 api_results <- fromJSON("http://localhost:8989/route?point=45.381271%2C-75.809054&point=45.380759%2C-75.82253&vehicle=bike&details=road_class&points_encoded=false")
 api_results %>% str
 ```
@@ -689,7 +715,7 @@ Yeah.. there is some thinking to do here.  The travelled distance is much longer
 Ah well, at least I learned to use graphhopper and got to publish my first docker image along the way.
 
 
-
+NOTE/QUESTION: I didnt find a way to return the "edge id" of the path returned by graphhopper.  I think it would be interesting to find which dangerous roads are most often ignored even though they offer a short path.  
 
 ```{r}
 
