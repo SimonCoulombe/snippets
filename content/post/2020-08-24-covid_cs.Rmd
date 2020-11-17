@@ -19,10 +19,7 @@ knitr::opts_chunk$set(echo = TRUE,
                       error = FALSE,
                       message = FALSE,
                       fig.align= "center",
-                      fig.width = 12,
-                      fig.height = 10,
-                      out.width = 12,
-                      out.height = 10,
+                      fig.width = 10,
                       highlight = TRUE,
                       cache = FALSE,
                       cache.lazy = FALSE) # fixes long vecto rnot supported quand on cache des gros éléments https://stackoverflow.com/questions/39417003/long-vectors-not-supported-yet-error-in-rmd-but-not-in-r-script
@@ -96,6 +93,8 @@ prepare_cronjob_data <- function(mypath = "~/cronjob/tableau-rls/"){
     }
   }
   dates <- lubridate::ymd(pouet %>% str_sub(start=-19, end = -12))
+  
+  
   datetimes <- lubridate::ymd_hms(
     paste0(
       pouet %>% str_sub(
@@ -243,7 +242,7 @@ rls_shp %>% arrange(desc(dailycases_per_1M_avg_7_days)) %>%
   kable(
     caption  = paste0("Nombre moyen de nouveaux cas de covid19 par million d'habitants \n pour les 7 derniers jours pour les RLS en date du  ", lastdate),
     col.names = c("Rang", "Nom RLS", "Nombre moyen de cas par million dans les 7 derniers jours", "Nombre de nouveaux cas dans les 7 derniers jours", "Population 2016")
-    ) %>% 
+  ) %>% 
   kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE, position = "center") %>% 
   row_spec(0, background = "#555555", color = "#fff")
 ```
@@ -353,7 +352,10 @@ ggplot(data = cases_cs) +
     guide = "colourbar",
     aesthetics = "fill"
   ) + 
-  labs(title = paste0("Nombre moyen de nouveaux cas de covid19 par million d'habitants \n pour les 7 derniers jours pour les commissions scolaires \n en date du  ", lastdate))+
+  labs(title = paste0("Nombre moyen de nouveaux cas de covid19 par million d'habitants pour les 7 derniers jours pour les commissions scolaires"),
+       fill = "Cas par 1M habitants",
+       caption = paste0("En date du " , format(lastdate, format="%B %d %Y"), ". Les données sont publiées au niveau des RLS (réseau local de service) et distribuées aux CSS proportionnellement à la population lorsque le RLS couvre plus d'une CSS")
+  )+
   theme_bw() +
   theme(panel.grid.major = element_line(colour = "transparent"))
 ```
@@ -379,16 +381,20 @@ cases_cs %>%
   arrange(-dailycases_per_1M_avg_7_days)  %>%
   mutate(NOM_CS = as.factor(NOM_CS) )%>%
   ggplot(aes(x= fct_reorder(NOM_CS, dailycases_per_1M_avg_7_days), y= dailycases_per_1M_avg_7_days )) + 
+  scale_y_continuous(expand = c(0, 0), limits = c(0, NA))+
   geom_col() +
+  geom_hline(yintercept = 20, color = "red", size =2 ) +
+  geom_text(x=1, y=1, hjust="left", label= "Selon le critère établi par le ministre Dubé, la courbe est aplatie sous 20 cas / million")+
+  
   coord_flip() +
-  geom_hline(yintercept = 20, color = "red") +
+  
   cowplot::theme_half_open() +
   cowplot::background_grid() +
   colorblindr::scale_color_OkabeIto( ) +
   labs(
-    title = "Nombre de cas par 1 million d'habitant au cours des 7 derniers jours",
-    subtitle = "Selon le critère établi par le ministre Dubé, la courbe est aplatie sour 20 cas / million",
-    caption = paste0("En date du " , format(lastdate, format="%B %d %Y")),
+    title = "Nombre estimé de cas par 1 million d'habitant au cours des 7 derniers jours",
+    subtitle = paste0("En date du " , format(lastdate, format="%B %d %Y")), 
+    caption = paste0(". Les données sont publiées au niveau des RLS (réseau local de service) et distribuées aux CSS proportionnellement à la population lorsque le RLS couvre plus d'une CSS"),
     x = "Commission scolaire",
     y= "Nombre de cas par million"
   )
