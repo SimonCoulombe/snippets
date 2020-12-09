@@ -56,7 +56,7 @@ library(purrr) # to evaluate the loglikelihood of each parameter set in the rand
 require("DiceKriging") # mlrmbo requires this
 require("rgenoud") # mlrmbo requires this
 
-switch_generate_interim_data <- FALSE
+switch_generate_interim_data <- TRUE
 ``` 
 
 
@@ -259,7 +259,7 @@ if (switch_generate_interim_data){
         early_stopping_rounds = 50,
         verbose = 0)
       
-      function_return <- list(Score = cv$evaluation_log[, max(test_poisson_nloglik_mean)], # l'itération qui a la plus haute moyenne de nloglik sur toutes les cv folds
+      function_return <- list(Score = cv$evaluation_log[, min(test_poisson_nloglik_mean)], # l'itération qui a la plus haute moyenne de nloglik sur toutes les cv folds
                               Pred = 0)
       
       message(paste0("Score :", function_return$Score))
@@ -311,7 +311,7 @@ obj.fun  <- smoof::makeSingleObjectiveFunction(
       early_stopping_rounds = 10,
       verbose = 0)
     
-    cv$evaluation_log[, max(test_poisson_nloglik_mean)]
+    cv$evaluation_log[, min(test_poisson_nloglik_mean)]
   },
   par.set = makeParamSet(
     makeNumericParam("eta",              lower = 0.001, upper = 0.05),
@@ -321,7 +321,7 @@ obj.fun  <- smoof::makeSingleObjectiveFunction(
     makeNumericParam("subsample",        lower = 0.2,   upper = 1),
     makeNumericParam("colsample_bytree", lower = 0.2,   upper = 1)
   ),
-  minimize = FALSE
+  minimize = TRUE
 )
 
 ```
@@ -437,7 +437,9 @@ First, we have to define a special function that return a list of two values tha
 
 This function will be named  `xgb_cv_bayes` : 
 ```{r}
-xgb_cv_bayes <- 
+#Bayesian Optimization wants "a function to be maximized".. so we will take the negative of the negative log likelihood.. lol
+
+xgb_cv_bayes_times_minus_1 <- 
   function(max_depth=4, 
            min_child_weight=1, 
            gamma=0,
@@ -466,7 +468,7 @@ xgb_cv_bayes <-
       early_stopping_rounds = 50,
       verbose = 0)
     
-    list(Score = cv$evaluation_log[, max(test_poisson_nloglik_mean)],
+    list(Score = -1 * cv$evaluation_log[, min(test_poisson_nloglik_mean)],
          Pred = 0)
   }
 ```
@@ -613,7 +615,7 @@ bayesian_results_continued_from_bayesian$History  %>%
 
 # Conclusion
 
-The table below shows the loglikelihood and hyperparameters for the hardcoded `simon_param` model, and the best models found by random search, mlrMBO and rBayesianOptimisation.  
+The table below shows the negative-loglikelihood (lower is better) and hyperparameters for the hardcoded `simon_param` model, and the best models found by random search, mlrMBO and rBayesianOptimisation.  
 
 
 Bayesian optimization using mlrMBO and rBayesianOptimization both yield the best results.  The gain in loglikelihood above the "hardcoded" `simon_param` or the random search isnt that great, however, so it may not be necessary to implement `mlrMBO` in a non-kaggle setting.
@@ -624,14 +626,14 @@ Bayesian optimization using mlrMBO and rBayesianOptimization both yield the best
 hardcoded <- random_grid_results[1,] %>%
   pull(data) %>% .[[1]] %>%
   mutate(type = "hardcoded") %>%
-  mutate(loglikelihood= random_grid_results[1,"Score"] %>% as.numeric())
+  mutate(nloglikelihood= random_grid_results[1,"Score"] %>% as.numeric())
 best_random <- random_grid_results %>% 
-  filter(Score == max(Score)) %>% pull(data) %>% .[[1]] %>% 
+  filter(Score == min(Score)) %>% pull(data) %>% .[[1]] %>% 
   mutate(type = "random_grid") %>%
-  mutate(loglikelihood = max(random_grid_results$Score))
+  mutate(nloglikelihood = min(random_grid_results$Score))
 
 best_mlrMBO <- run$opt.path$env$path  %>% 
-  filter(y == max(y))  %>%
+  filter(y == min(y))  %>%
   mutate(type = "mlrMBO") %>%
   mutate(loglikelihood= run$y ) %>%
   head(1)
@@ -639,7 +641,7 @@ best_rBayesianOptimization <-
   bayesian_results_continued_from_bayesian$History %>%
   filter(Value == max(Value)) %>%
   mutate(type = "rBayesianOptimization") %>%
-  mutate(loglikelihood = max(bayesian_results_continued_from_bayesian$History$Value))
+  mutate(nloglikelihood = -1 * max(bayesian_results_continued_from_bayesian$History$Value))
 hardcoded %>% 
   bind_rows(best_random) %>% 
   bind_rows(best_mlrMBO) %>%

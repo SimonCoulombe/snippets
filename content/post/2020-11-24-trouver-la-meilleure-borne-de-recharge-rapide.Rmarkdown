@@ -1,0 +1,119 @@
+---
+title: Trouver la meilleure borne de recharge rapide
+author: simon
+date: '2020-11-24'
+slug: trouver-la-meilleure-borne-de-recharge-rapide
+categories: []
+tags: []
+keywords:
+  - tech
+---
+
+
+
+```{r setup, include =F, echo =F}
+#
+
+knitr::opts_chunk$set(echo = TRUE, 
+                      include = TRUE,
+                      collapse = FALSE,
+                      warning = FALSE,
+                      error = FALSE,
+                      message = FALSE,
+                      fig.align= "center",
+                      #                      fig.width = 12,
+                      #                      fig.height = 10,
+                      #                      out.width = 12,
+                      #                      out.height = 10,
+                      highlight = TRUE,
+                      cache = FALSE,
+                      cache.lazy = FALSE) # fixes long vecto rnot supported quand on cache des gros éléments https://stackoverflow.com/questions/39417003/long-vectors-not-supported-yet-error-in-rmd-but-not-in-r-script
+```
+
+```{r}
+library(tidyverse)
+library(sf)
+library(janitor)
+library(osmdata)
+library(purrr)
+```
+
+
+liste des bornes sf
+
+```{r}
+degres_longitude_pour_1km <- function(latitude_degres){
+  earth_diameter <- 40075
+  line_of_longitude_length <- cos(latitude_degres * 2 * pi / 360) * earth_diameter
+  degres_longitude_pour_1km = 1*  360 / line_of_longitude_length
+  return(degres_longitude_pour_1km)
+}
+
+degres_latitude_pour_1km = 360 / 40075
+```
+
+
+```{r}
+bornes <- read_csv("https://lecircuitelectrique-data.s3.ca-central-1.amazonaws.com/stations/export_sites_fr.csv") %>% janitor::clean_names()
+brcc <- bornes %>% 
+  filter(niveau_de_recharge == "BRCC") %>%
+  st_as_sf(coords= c("longitude","latitude"),
+           crs = 4326,
+           agr = "constant", 
+           remove = FALSE) %>%
+  mutate(borne_bbox = purrr::map2(longitude, latitude, 
+                                  ~ matrix(
+                                    data = c(.x - degres_longitude_pour_1km(.x),.y - degres_latitude_pour_1km,.x + degres_longitude_pour_1km(.x), .y + degres_latitude_pour_1km), 
+                                    ncol = 2, 
+                                    dimnames = list(c("x", "y"), c("min", "max")) 
+                                  )
+  )
+  )
+
+
+```
+
+
+```{r}
+# 
+# get_stuff <- function(bbox, key, value= NULL ){
+#   temp <- osmdata::opq(bbox = bbox) %>%
+#     add_osm_feature(key = key, value = value)  %>% #  c("bar", "pub", "nightclub")
+#     osmdata_sf(.) #%>% 
+#   
+#   temp <- bind_rows(temp$osm_points, temp$osm_polygons)
+#   # .$osm_points  %>% 
+#   
+#   
+#   temp %>% 
+#     select(one_of(c("name", "osm_id", key, "addr.housenumber", "addr.street", "addr.postcode", "addr.city") ))# %>%
+#     #rename(type = "key")
+# }
+# # get_stuff(bbox =brcc$borne_bbox[[1]], key = "amenity", value =  c("bar", "pub", "nightclub"))
+# boire <- get_stuff(bbox =brcc$borne_bbox[[1]], key = "amenity", value =  c("bar", "pub", "nightclub"))
+# manger <- get_stuff(bbox =brcc$borne_bbox[[1]], key = "amenity", value =  c("restaurant", "cafe","fast_food", "food_court"))
+# biblio <- get_stuff(bbox =brcc$borne_bbox[[1]], key = "amenity", value =  c("library", "public_bookcase"))
+# swim <- get_stuff(bbox =brcc$borne_bbox[[1]], key = "leisure", value =  c("swimming_pool", "swimming_area"))
+# park <- get_stuff(bbox =brcc$borne_bbox[[1]], key = "leisure", value =  c("park"))
+
+# 
+# mapview::mapview(leisure)
+# leisure <- opq(bbox = brcc$borne_bbox[[1]])%>%
+#   add_osm_feature(key = "leisure")  %>%
+#   osmdata_sf(.) %>% 
+#   .$osm_polygons # %>%
+# #select(one_of(c("name", "osm_id", "leisure","addr.housenumber", "addr.street", "addr.postcode", "addr.city") ))
+
+```
+
+```{r}
+# library(ggplot2)
+# ggplot()+
+#   geom_sf(data = brcc %>% head(1)) + 
+#   geom_sf(data = manger, color = "green")+ 
+#   geom_sf(data = boire, color = "blue") + 
+#   geom_sf(data = swim, color = "orange") +
+#   geom_sf(data = leisure, color = "red") 
+
+```
+
