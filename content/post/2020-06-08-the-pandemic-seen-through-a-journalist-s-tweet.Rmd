@@ -40,8 +40,8 @@ blogdown::shortcode('tweet', '1269321756289925122')
 
 @Paul_Laurier a eu la superbe idée de regarder les données pour voir de quoi il en était.  
 
-```{r}
-blogdown::shortcode('tweet', '1269726307342000139')
+```{r, eval = FALSE}
+#blogdown::shortcode('tweet', '1269726307342000139')
 ```
 
 
@@ -215,13 +215,13 @@ Quel est le tweet le plus négatif ?
 
 
 # most negative tweets
-
-tweet_sentiments %>% filter(sentiment_tweet == min(sentiment_tweet)) %>%
-  inner_join(twit)%>% 
-  select(date, status_id, sentiment_tweet, negative, positive, text) %>%
-  head(1) %>%
-  pull(status_id) %>%
-  blogdown::shortcode('tweet', .)
+# 
+# tweet_sentiments %>% filter(sentiment_tweet == min(sentiment_tweet)) %>%
+#   inner_join(twit)%>% 
+#   select(date, status_id, sentiment_tweet, negative, positive, text) %>%
+#   head(1) %>%
+#   pull(status_id) %>%
+#   blogdown::shortcode('tweet', .)
 ```
 
 

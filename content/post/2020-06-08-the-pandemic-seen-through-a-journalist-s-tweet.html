@@ -9,12 +9,12 @@ keywords:
   - tech
 ---
 
+<script src="/rmarkdown-libs/header-attrs/header-attrs.js"></script>
 
 
 <p>Le dernier scandale est arrivé car le premier ministre <span class="citation">@francoislegault</span> a bloqué le journaliste <span class="citation">@aardon_derfel</span> sur twitter, affirmant que ce dernier le taggait beaucoup trop souvent:</p>
-{{% tweet "1269321756289925122" %}}
+<p>{{% tweet "1269321756289925122" %}}</p>
 <p><span class="citation">@Paul_Laurier</span> a eu la superbe idée de regarder les données pour voir de quoi il en était.</p>
-{{% tweet "1269726307342000139" %}}
 <p>Dans ce post, je m’intéresse aussi au nombre de mentions avant de faire un petit peu de “sentiment analysis” pour s’amuser un peu.</p>
 <p>disclaimer: c’est pas fait pour se prendre au sérieux ce truc. aussi, c’est pas mal mon premier NLP (natural language processing), donc on va y aller avec la base.<br />
 code disponible sur github, comme d’habitude.</p>
@@ -33,6 +33,14 @@ code disponible sur github, comme d’habitude.</p>
 <p><img src="/post/2020-06-08-the-pandemic-seen-through-a-journalist-s-tweet_files/figure-html/unnamed-chunk-8-1.png" width="12" height="10" style="display: block; margin: auto;" /></p>
 <p>Mais qu’a-t-il dit lors de cette journée si positive?</p>
 <table>
+<colgroup>
+<col width="3%" />
+<col width="5%" />
+<col width="4%" />
+<col width="2%" />
+<col width="2%" />
+<col width="81%" />
+</colgroup>
 <thead>
 <tr class="header">
 <th align="left">date</th>
@@ -45,145 +53,168 @@ code disponible sur github, comme d’habitude.</p>
 </thead>
 <tbody>
 <tr class="odd">
-<td align="left">2020-05-18</td>
-<td align="left">1262172975727509507</td>
+<td align="left">2021-05-07</td>
+<td align="left">1390468227415912451</td>
+<td align="right">1</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="left">Je tiens à féliciter tous les finalistes du Prix Judith-Jasmin, dont j’admire beaucoup leur travail. Je suis également très honoré d’avoir remporté le Grand Prix. Espérons que les changements nécessaires soient entrepris pour améliorer les soins aux personnes âgées au Québec.</td>
+</tr>
+<tr class="even">
+<td align="left">2021-05-07</td>
+<td align="left">1390469375560388617</td>
+<td align="right">1</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="left"><span class="citation">@Alec_Castonguay</span> Et félicitations à toi, Alec, pour ton prix Judith-Jasmin si bien mérité, ainsi que ton livre formidable, Le Printemps le plus longue.</td>
+</tr>
+<tr class="odd">
+<td align="left">2021-05-07</td>
+<td align="left">1390473148588507137</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="right">1</td>
+<td align="left"><span class="citation">@ihachey</span> Merci Isabelle! Encore une fois, j’ai été vraiment impressionné par ton courage et ton journalisme lorsque tu as fait du bénévolat au CHSLD de LaSalle lors de la première vague et tu as écrit sur l’expérience. J’ai aussi aimé le tweet d’aujourd’hui sur une certaine chronique….</td>
+</tr>
+<tr class="even">
+<td align="left">2021-05-07</td>
+<td align="left">1390479281231388681</td>
+<td align="right">3</td>
+<td align="right">0</td>
+<td align="right">3</td>
+<td align="left"><span class="citation">@katelynthomas</span> Ah, that’s so nice, Katelyn. By the way, you’re doing fine, fine work at the <span class="citation">@mtlgazette</span>!</td>
+</tr>
+<tr class="odd">
+<td align="left">2021-05-07</td>
+<td align="left">1390482279219310593</td>
+<td align="right">2</td>
+<td align="right">0</td>
+<td align="right">2</td>
+<td align="left"><span class="citation">@ericforest</span> I really mean it, Eric. Also, Jean-Nicolas is also very accessible and helpful.</td>
+</tr>
+<tr class="even">
+<td align="left">2021-05-07</td>
+<td align="left">1390498297454940161</td>
+<td align="right">3</td>
+<td align="right">0</td>
+<td align="right">3</td>
+<td align="left">Premier François Legault announced Thursday Quebec is working on a plan to ease restrictions in the province that is partly inspired by an easy-to-understand reopening schedule unveiled by Saskatchewan. In this thread, I will address some of the logistics of doing this.</td>
+</tr>
+<tr class="odd">
+<td align="left">2021-05-07</td>
+<td align="left">1390499178216833033</td>
+<td align="right">1</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="left">Another criterion should be the number of #COVID19 outbreaks in Quebec. Unfortunately, for the past two days it appears the Health Ministry has not updated its daily tally of clusters in different sectors. Again, what is the minimum number of “tolerable” outbreaks to reopen?</td>
+</tr>
+<tr class="even">
+<td align="left">2021-05-07</td>
+<td align="left">1390499331262779392</td>
+<td align="right">-2</td>
+<td align="right">2</td>
+<td align="right">0</td>
+<td align="left">Then there are the so-called #COVID19 variants of concern. Quebec has to date confirmed five different such variants, with the B.1.1.7 strain that was first detected in the U.K. the most predominant. Will Quebec cite any criteria involving variants? This must be addressed too.</td>
+</tr>
+<tr class="odd">
+<td align="left">2021-05-07</td>
+<td align="left">1390499476297629702</td>
+<td align="right">2</td>
+<td align="right">0</td>
+<td align="right">2</td>
+<td align="left">On Thursday, Montreal again posted the greatest number of confirmed variant cases, 175. It’s also noteworthy that Chaudière-Appalaches, a previous #COVID19 hot spot, declared the second highest number of variant cases, 79. Please see the chart below.</td>
+</tr>
+<tr class="even">
+<td align="left">2021-05-07</td>
+<td align="left">1390500015026626568</td>
+<td align="right">2</td>
+<td align="right">0</td>
+<td align="right">2</td>
+<td align="left">In the meantime, #COVID19 cases in schools have not flared up as much as some feared amid the #pandemic restrictions and vaccinations among teachers and others. The chart below by the Education Ministry shows some modest improvement in the number of classes and schools closed.</td>
+</tr>
+<tr class="odd">
+<td align="left">2021-05-07</td>
+<td align="left">1390500220790837249</td>
 <td align="right">-1</td>
 <td align="right">1</td>
 <td align="right">0</td>
-<td align="left"><span class="citation">@rstjac1032</span> <span class="citation">@mtlgazette</span> You’re welcome, Renée. Please try not to worry about your father, especially given that he is in a well-run CHSLD in la capitale. As you know, Montreal is the epicenter of the #pandemic.</td>
+<td align="left">Quebec experts with whom I’ve spoken have said #COVID19 outbreaks will likely continue for the rest of the year and probably into 2022. But with 40% of Quebec’s population partially vaccinated, real hope is now on the horizon. End of thread. Please limit your social contacts.</td>
 </tr>
 <tr class="even">
-<td align="left">2020-05-18</td>
-<td align="left">1262178977432645632</td>
-<td align="right">0</td>
-<td align="right">1</td>
-<td align="right">1</td>
-<td align="left"><span class="citation">@fauchonmathieu</span> I’m not that yummy, Savage, but I do take it as a compliment.</td>
-</tr>
-<tr class="odd">
-<td align="left">2020-05-18</td>
-<td align="left">1262440637250535424</td>
+<td align="left">2021-05-07</td>
+<td align="left">1390501567913201669</td>
 <td align="right">-1</td>
 <td align="right">1</td>
 <td align="right">0</td>
-<td align="left"><span class="citation">@JudithSeidman</span> <span class="citation">@mtlgazette</span> You’re welcome, Senator. Will keep working hard on this story.</td>
+<td align="left"><span class="citation">@fauchonmathieu</span> Thanks, Savage!</td>
+</tr>
+<tr class="odd">
+<td align="left">2021-05-07</td>
+<td align="left">1390518578198237190</td>
+<td align="right">-1</td>
+<td align="right">1</td>
+<td align="right">0</td>
+<td align="left"><span class="citation">@johnkenneyphoto</span> Thanks, John! You looking forward to the upcoming <span class="citation">@bobdylan</span> bootleg instalment drawn from the Infidels sessions?</td>
 </tr>
 <tr class="even">
-<td align="left">2020-05-18</td>
-<td align="left">1262517281772503041</td>
+<td align="left">2021-05-07</td>
+<td align="left">1390648125291995137</td>
 <td align="right">1</td>
 <td align="right">0</td>
 <td align="right">1</td>
-<td align="left">Premier <span class="citation">@francoislegault</span> announced Monday that most retail stores will reopen in Montreal next Monday, after all. In this thread, I will try to explain some of the logistical challenges ahead as the city reported its lowest single-day increase in #COVID deaths in four weeks.</td>
+<td align="left"><span class="citation">@KayLaframboise</span> Thanks, Kalina! Much appreciated.</td>
 </tr>
 <tr class="odd">
-<td align="left">2020-05-18</td>
-<td align="left">1262517494109155328</td>
-<td align="right">0</td>
-<td align="right">1</td>
-<td align="right">1</td>
-<td align="left">Health Minister Danielle McCann said hospitals will run their operating rooms longer, including on weekends. But that will be easier said than done, given the shortage of personnel and the fact that many nurses are still on loan to long-term care centres (CHSLDs).</td>
-</tr>
-<tr class="even">
-<td align="left">2020-05-18</td>
-<td align="left">1262517764314607617</td>
-<td align="right">1</td>
-<td align="right">1</td>
+<td align="left">2021-05-07</td>
+<td align="left">1390659980953522176</td>
 <td align="right">2</td>
-<td align="left">At the same time, some hospitals and CHSLDs are still susceptible to #COVID outbreaks, as I pointed out in my thread last night about the Maimonides Geriatric Centre in Côte-Saint-Luc. And as the weather improves, #SocialDistancing in Montreal parks will be harder to maintain.</td>
-</tr>
-<tr class="odd">
-<td align="left">2020-05-18</td>
-<td align="left">1262517987116027904</td>
-<td align="right">2</td>
-<td align="right">1</td>
-<td align="right">3</td>
-<td align="left">The Premier will be under pressure to reopen houses of worship, where again, #PhysicalDistancing will be difficult to enforce. He sounded enthusiastic about opening summer camps, where children and teens will be eager to play together.</td>
-</tr>
-<tr class="even">
-<td align="left">2020-05-18</td>
-<td align="left">1262518162593140737</td>
-<td align="right">2</td>
-<td align="right">1</td>
-<td align="right">3</td>
-<td align="left">Legault said he’s also in favor of a smartphone app to trace contacts of #COVID19 patients. But Alberta’s experience and those in some U.S. states show the apps are terribly glitchy and need lots of users to be effective. Can this work in Montreal’s low-income hot spots?</td>
-</tr>
-<tr class="odd">
-<td align="left">2020-05-18</td>
-<td align="left">1262518521440940040</td>
 <td align="right">0</td>
 <td align="right">2</td>
+<td align="left"><span class="citation">@jacobserebrin</span> Very kind words, Jacob. Thanks! I’ve been impressed with a lot of incredible journalism during this #pandemic, in Quebec, Canada, and from around the world.</td>
+</tr>
+<tr class="even">
+<td align="left">2021-05-07</td>
+<td align="left">1390675580945944576</td>
+<td align="right">1</td>
+<td align="right">0</td>
+<td align="right">1</td>
+<td align="left"><span class="citation">@BiellaColeman</span> Congratulations!</td>
+</tr>
+<tr class="odd">
+<td align="left">2021-05-07</td>
+<td align="left">1390728643064774670</td>
 <td align="right">2</td>
-<td align="left">Undoubtedly, progress is being made in the #pandemic. For several days now, the number of #COVID hospitalizations across Quebec has remained stable, in the high 1,700s. The initial fear that Montreal’s intensive-care units would be swamped by patients never materialized.</td>
-</tr>
-<tr class="even">
-<td align="left">2020-05-18</td>
-<td align="left">1262518983296770058</td>
-<td align="right">1</td>
 <td align="right">0</td>
-<td align="right">1</td>
-<td align="left">Although Montreal crossed the 22,000 #COVID milestone Monday, the orange line in the chart below reveals a modest decrease in new cases despite more tests. Still, I caution against relying too much on this metric, as a resurgence is expected with the ramp-up in screening.</td>
-</tr>
-<tr class="odd">
-<td align="left">2020-05-18</td>
-<td align="left">1262519230009933830</td>
-<td align="right">1</td>
-<td align="right">0</td>
-<td align="right">1</td>
-<td align="left">It’s the dramatic drop in #COVID deaths that is heartening. The epicenter of Canada’s #pandemic declared 20 new deaths, of which probably only a handful occurred on Sunday — with the others likely being added to the tally from previous days.</td>
-</tr>
-<tr class="even">
-<td align="left">2020-05-18</td>
-<td align="left">1262519400604852231</td>
-<td align="right">-5</td>
-<td align="right">5</td>
-<td align="right">0</td>
-<td align="left">But the mortality drop is also disturbing, as it suggests #COVID19 has torn through the CHSLDs. Also of concern is these places are not only still vulnerable to outbreaks, but act as #coronavirus incubators, placing at risk of infection those visiting and working in them.</td>
-</tr>
-<tr class="odd">
-<td align="left">2020-05-18</td>
-<td align="left">1262519771041607686</td>
-<td align="right">1</td>
-<td align="right">0</td>
-<td align="right">1</td>
-<td align="left">And although #COVID cases are stable in about six Montreal neighborhoods, there are an equal number that are observing new daily cases in the double digits, with the biggest increases occurring in Mercier-Hochelaga-Maisonnueve for at least three days in a row.</td>
-</tr>
-<tr class="even">
-<td align="left">2020-05-18</td>
-<td align="left">1262519895977275392</td>
-<td align="right">1</td>
-<td align="right">1</td>
 <td align="right">2</td>
-<td align="left">All this points to a delicate balancing act for authorities: containing #COVID outbreaks, ramping up delayed surgeries, reopening stores while preventing what has already occurred in other jurisdictions: a second wave, the subject of tomorrow’s thread. Stay safe, everyone.</td>
-</tr>
-<tr class="odd">
-<td align="left">2020-05-18</td>
-<td align="left">1262522402619232256</td>
-<td align="right">1</td>
-<td align="right">0</td>
-<td align="right">1</td>
-<td align="left"><span class="citation">@clauderivest</span> <span class="citation">@francoislegault</span> I love it!!!!</td>
+<td align="left"><span class="citation">@ToulasTake</span> Bravo! Cool shot.</td>
 </tr>
 <tr class="even">
-<td align="left">2020-05-18</td>
-<td align="left">1262524319265173506</td>
-<td align="right">1</td>
+<td align="left">2021-05-07</td>
+<td align="left">1390806291099144198</td>
+<td align="right">-2</td>
+<td align="right">2</td>
 <td align="right">0</td>
-<td align="right">1</td>
-<td align="left"><span class="citation">@anniemdupuis</span> <span class="citation">@francoislegault</span> Good question. There are some excellent epidemiologists and physicians writing daily threads about Ontario, but I don’t know whether a journalist is doing this for Toronto.</td>
+<td align="left">Breaking: St. Mary’s Hospital ER staff outbreak may have spread to some family members at home. My #COVID19 Twitter thread to come later tonight.</td>
 </tr>
 <tr class="odd">
-<td align="left">2020-05-18</td>
-<td align="left">1262524602640666632</td>
+<td align="left">2021-05-07</td>
+<td align="left">1390809991049879552</td>
+<td align="right">-1</td>
+<td align="right">1</td>
+<td align="right">0</td>
+<td align="left"><span class="citation">@DrToddLee</span> It’s not clear, although the CIUSSS has stated the outbreak did not spread to patients.</td>
+</tr>
+<tr class="even">
+<td align="left">2021-05-07</td>
+<td align="left">1390812483322097667</td>
 <td align="right">1</td>
 <td align="right">0</td>
 <td align="right">1</td>
-<td align="left"><span class="citation">@RousseauMC</span> Excellent points from a surgeon in the field.</td>
+<td align="left"><span class="citation">@katemckenna8</span> <span class="citation">@cbcfifth</span> Congratulations, Kate!</td>
 </tr>
 </tbody>
 </table>
 <p>Quel est le tweet le plus négatif ?</p>
-{{% tweet "1268736556355014657" %}}
 <p>Le graphique ci-bas montre l’évolution de 10 sentiments dans les tweet de Aaron. Il semble plus positif et moins ressentir de peur depuis quelques jours. hourra :)</p>
 <p><img src="/post/2020-06-08-the-pandemic-seen-through-a-journalist-s-tweet_files/figure-html/unnamed-chunk-11-1.png" width="12" height="10" style="display: block; margin: auto;" /></p>
 <p>that’s it folks.</p>
