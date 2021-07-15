@@ -14,7 +14,7 @@ keywords:
 ```{r setup, include =F, echo =F}
 #
 
-knitr::opts_chunk$set(echo = TRUE, 
+knitr::opts_chunk$set(echo = FALSE, 
                       include = TRUE,
                       collapse = FALSE,
                       warning = FALSE,
@@ -30,7 +30,7 @@ knitr::opts_chunk$set(echo = TRUE,
                       cache.lazy = FALSE) # fixes long vecto rnot supported quand on cache des gros éléments https://stackoverflow.com/questions/39417003/long-vectors-not-supported-yet-error-in-rmd-but-not-in-r-script
 ```
 
-```{r}
+```{r, echo = FALSE, include = FALSE}
 library(tidyverse)
 library(sf)
 library(janitor)
@@ -39,9 +39,10 @@ library(purrr)
 ```
 
 
-liste des bornes sf
+unfinished post, please move on
 
 ```{r}
+#liste des bornes sf
 degres_longitude_pour_1km <- function(latitude_degres){
   earth_diameter <- 40075
   line_of_longitude_length <- cos(latitude_degres * 2 * pi / 360) * earth_diameter
