@@ -1,0 +1,104 @@
+---
+title: ashton
+author: simon
+date: '2021-07-14'
+slug: ashton
+categories:
+  - R
+tags: []
+keywords:
+  - tech
+---
+(code volé à un dude qui a fait la même chose pour les costco à Anchorage, Alaska)
+
+Petit projet  avec utilisation de:
+-  osmdata pour trouver les ashton
+- (new to me) de mapboxapi pour les isochrones
+- et raster/fasterize pour combiner les multiples isochrones 
+
+```{r}
+suppressMessages(
+  suppressWarnings({
+    library(mapboxapi)
+    library(tidyverse)
+    library(mapdeck)
+    library(osmdata)
+    library(leaflet)
+    library(sf)
+    library(raster)
+    library(rgeos)
+    library(fasterize)
+    library(rgdal)
+    library(sf)
+    library(dplyr)
+    library(purrr)
+    library(mapview)
+  })
+)
+```
+
+
+
+step 1 : trouver les ashton avec osmdata
+```{r}
+# 
+# mapboxapi::mb_access_token(Sys.getenv("mapbox"),
+#                            install = TRUE,
+#                            overwrite = TRUE)
+
+bb <- getbb("Quebec, QC") 
+
+x <- bb %>% opq() %>%
+  add_osm_feature(key= "name", value = c("ASHTON", "ASTHON"),
+                  value_exact = FALSE, match_case = FALSE
+  )%>%
+  osmdata_sf()
+
+mapview::mapview(x$osm_points)
+```
+
+step 2 : trouver les isochrone 1 à 30 minutes de marche autour des ashton
+```{r}
+points <- x$osm_points %>% 
+  filter(!(osm_id %in% c(1750439777,1750439789, 1750439808, 1750439833,  1750439845, 1616297363, 1616297367, 1616297399))) ## multiple points for a single greasy spoon
+
+
+string_latlon <- points %>% st_coordinates() %>% as_tibble() %>% mutate(latlon = paste0( X, ",", Y)) %>% pull(latlon) # this is ugly.. find better way
+
+isochrones <- map(string_latlon,
+                  ~  mb_isochrone(location =.x, profile = "walking", time = 1:30 ))
+
+
+iso_sf <- bind_rows(isochrones)
+
+mapview(iso_sf)
+
+
+```
+
+
+step 3 : combiner tous les polygons et garder la valeur du  ashton le plus proche  avec fasterize::raster et fasterize::fasterize
+```{r}
+# iso_union <- iso_sf %>%
+#   group_by(time) %>%
+#   summarise()
+# 
+# mapview(iso_union)
+
+isos_proj <- st_transform(iso_sf, 32619) # on converti en UTM pour faire le raster
+
+template <- fasterize::raster(isos_proj, resolution = 100) # on crée un template de raster 100x100
+
+iso_surface <- fasterize::fasterize(isos_proj, template, field = "time", fun = "min")  ## opour chaque carré des rasters  on prend le minimum de time de tous les polygones qui lui touche
+
+pal <- colorNumeric("viridis", isos_proj$time, na.color = "transparent")
+
+leaflet() %>%
+  addProviderTiles(providers$Stamen.Toner) %>%
+  addRasterImage(iso_surface, colors = pal, opacity = 0.5) %>%
+  addLegend(values = isos_proj$time, pal = pal,
+            title = "Temps de marche vers le Ashton le plus proche (minutes)") %>%
+  addMarkers(data = x$osm_points)
+```
+
+
