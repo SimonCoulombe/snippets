@@ -10,5 +10,5 @@ content/post/*.rds
 content/post/data/*
 !content/post/data/raw
 !content/post/data/interim/accidents.rdata
-blogdown
+/blogdown
 .httr-oauth
