@@ -1,0 +1,128 @@
+---
+title: 'cangetpop: Un package R pour obtenir la population dans n''importe quelle
+  zone'
+author: ''
+date: '2021-08-05'
+slug: cangetpop
+categories: []
+tags: []
+keywords:
+  - tech
+---
+
+I created a very tiny R package based off Jens (@vb_jens) 's excellent {cancensus} and {tongfen} packages.  
+
+The goal of cangetpop is to return the canadian population within a polygon.
+There are helper functions to generate a circle of any given radius (in kilometers) around a given longitude.  
+
+
+## Installation
+
+You can install cangetpop from github using
+
+```{r, eval = FALSE}
+devtools::install_github("simoncoulombe/cangetpop")
+```
+
+
+
+
+
+IMPORTANT: make sure to get the development version of tongfen (0.3.2) from github using
+```{r, eval = FALSE}
+devtools::install_github("mountainmath/tongfen")
+```
+
+
+
+
+The cran version (0.3.0) will return an error about "data.1" or something..
+
+
+## Example
+
+This is a basic example which shows you how to solve a common problem:
+
+```{r example}
+suppressMessages(
+  suppressWarnings({
+    
+    library(magrittr)
+    library(cangetpop)
+    library(mapview) # pour cartes 
+    library(dplyr) # pour exemple ashton
+    library(osmdata) # pour exemple ashton
+    library(sf)  #pour exemple ashton 
+    library(purrr)  #pour exemple ashton 
+    
+  })
+)
+## basic example code
+```
+
+
+get_populations_from_address_radius() needs an address (without the postal code) and a radius in kilometers:
+
+```{r}
+data1 <- get_populations_from_address_radius("CN tower, toronto, canada", 1 )
+print(data1)
+```
+
+
+```{r, fig.width=12}
+mapview(data1)
+```
+
+get_populations_from_lat_lon_radius() needs a latitude and longitude (in degrees)  and a radius in kilometers:
+
+```{r}
+data2 <- get_populations_from_lat_lon_radius(45, -65, 1 )
+data2
+```
+
+```{r, fig.width=12}
+mapview::mapview(data2)
+```
+
+
+get_populations_from_polygon() simply takes a polygon as input
+
+```{r}
+bb_sf <- getbb("Quebec, QC", format_out = "sf_polygon")[1,] ## polygon of quebec city
+data3 <- get_populations_from_polygon((bb_sf))
+data3
+```
+
+```{r, fig.width=12}
+mapview(data3, zcol ="Population")
+```
+
+
+Here's an example returning the population around the 14 "Ashton" restaurants in Quebec city
+
+Voici les coordonnées des restaurants Ashton de Québec trouvées avec {osmdata}
+
+```{r}
+bb <- osmdata::getbb("Quebec, QC")
+x <- bb %>% osmdata::opq() %>%
+  osmdata::add_osm_feature(key= "name", value = c("ASHTON", "ASTHON"),
+                  value_exact = FALSE, match_case = FALSE
+  )%>%
+  osmdata::osmdata_sf()
+ashton <- x$osm_points %>% 
+  dplyr::filter(!(osm_id %in% c(1750439777,1750439789, 1750439808, 1750439833,  1750439845, 1616297363, 1616297367, 1616297399)))  %>% ## some restaurants have multiple points.. keep only one
+  dplyr::mutate(longitude = sf::st_coordinates(.)[,1],
+                latitude = sf::st_coordinates(.)[,2])
+data0 <- ashton %>% 
+  st_drop_geometry() %>% 
+  dplyr::select(osm_id, latitude, longitude) %>% 
+  dplyr::mutate( pouet = pmap(list(latitude, longitude, 1),
+                       get_populations_from_lat_lon_radius)
+  )
+final_ashton_data <- bind_rows(data0$pouet) %>% bind_cols(data0 %>% select(-pouet)) %>% mutate(Population = round(Population))
+final_ashton_data
+```
+
+```{r, fig.width=12}
+mapview(final_ashton_data, zcol = "Population")
+```

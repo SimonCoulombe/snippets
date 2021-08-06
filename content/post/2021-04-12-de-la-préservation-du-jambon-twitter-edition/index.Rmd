@@ -1,0 +1,25 @@
+---
+title: De la préservation du jambon (twitter edition)
+author: 'Simon'
+date: '2021-04-12'
+slug: jambon
+categories: []
+tags: []
+keywords:
+  - tech
+---
+
+edit août 2021:   Ça a pris une semaine et @jefffillion a changé de nom pour transférer ses abonnés sur un compte de fausse "mère de famille" et il a créé un nouveau compte "jefffillion", mais celui-là est malheureusement sur invitation.  J'ai recyclé le bot vers eric duhaime, mais une erreur de manipulation m'a fait perdre le priviliège de tweeter avec un robot.  Le robot est donc maintenant désactivé.
+
+
+
+On sait ce que Platon a dit il y a 2500 ans.  Ce serait fou de perdre les paroles d'un grand contemporain après 3 semaines.
+
+En clair, @JeffFillion efface ses tweets après trois semaines pour pouvoir s'offrir le luxe de dire "je n'ai jamais dit ça" lorsque quelque chose lui explose au nez.  
+
+C'est pourquoi j'ai créé un programme qui regarde chaque 2 minutes s'il y a des nouveaux tweets et les retweete.  
+
+Le programme R dégueux est là https://github.com/SimonCoulombe/jambon
+(voir screenshot_jambon.R et retweet_jambon.R)
+
+Le robot twitter qui fait le travail est https://twitter.com/PerroquetdeJeff
