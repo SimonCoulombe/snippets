@@ -2,7 +2,7 @@
 title: De la préservation du jambon (twitter edition)
 author: 'Simon'
 date: '2021-04-12'
-slug: jambon
+slug: jambon2
 categories: []
 tags: []
 keywords:
