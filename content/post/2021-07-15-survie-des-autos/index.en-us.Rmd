@@ -1,0 +1,217 @@
+---
+title: "survie des autos"
+author: "simon"
+date: '2021-07-15'
+slug: index.en-us
+categories:
+- R
+- opendata
+tags: []
+keywords: tech
+---
+
+```{r setup, include =F, echo =F}
+knitr::opts_chunk$set(echo = FALSE, 
+                      include = TRUE,
+                      collapse = FALSE,
+                      warning = FALSE,
+                      error = FALSE,
+                      message = FALSE,
+                      fig.align= "center",
+                      highlight = TRUE,
+                      cache = FALSE,
+                      cache.lazy = FALSE) # fixes long vecto rnot supported quand on cache des gros éléments https://stackoverflow.com/questions/39417003/long-vectors-not-supported-yet-error-in-rmd-but-not-in-r-script
+```
+
+```{r, include = FALSE}
+suppressMessages(
+  suppressWarnings({
+    library(tidyverse)
+    library(showtext)
+    library(fst)
+    
+    font_add_google("Montserrat", "Montserrat")
+    showtext_auto()
+    ggplot2::theme_set(theme_bw())
+    
+    if(FALSE){
+
+    saaq2013 <- read_csv("/home/simon/git/adhoc_prive/data/downloads/vehicules-circulation-2013.csv")
+    saaq2014 <- read_csv("/home/simon/git/adhoc_prive/data/downloads/vehicules-circulation-2014.csv")
+    saaq2015 <- read_csv("/home/simon/git/adhoc_prive/data/downloads/vehicules-circulation-2015.csv")
+    saaq2016 <- read_csv("/home/simon/git/adhoc_prive/data/downloads/vehicules-circulation-2016.csv")
+    saaq2017 <- read_csv("/home/simon/git/adhoc_prive/data/downloads/Vehicule-en-circulation-2017.csv")
+    saaq2018 <- read_csv("/home/simon/git/adhoc_prive/data/downloads/Vehicule-en-circulation-2018.csv")
+    saaq2019 <- read_csv("/home/simon/git/adhoc_prive/data/downloads/Vehicule-en-circulation-2019.csv")
+    
+    saaq2013 <- saaq2013 %>% mutate(year=2013)
+    saaq2014 <- saaq2014 %>% mutate(year=2014)
+    saaq2015 <- saaq2015 %>% mutate(year=2015)
+    saaq2016 <- saaq2016 %>% mutate(year=2016)
+    saaq2017 <- saaq2017 %>% mutate(year=2017)
+    saaq2018 <- saaq2018 %>% mutate(year=2018)
+    saaq2019 <- saaq2019 %>% mutate(year=2019)
+    
+    saaq <- bind_rows(saaq2013, saaq2014, saaq2015, saaq2016, saaq2017, saaq2018, saaq2019)%>% filter(CLAS == "PAU") %>% janitor::clean_names()
+    rm(saaq2013, saaq2014, saaq2015, saaq2016, saaq2017, saaq2018, saaq2019)
+    write_fst(saaq, "saaq.fst")
+    } else {saaq <- read_fst("saaq.fst")}
+  })
+)
+```
+
+Quick blog post basé sur les données des véhicules en circulation de la SAAQ 2013-2019 (https://www.donneesquebec.ca/recherche/dataset/vehicules-en-circulation).
+
+Le but c'est de voir quelle marque a le plus de véhicules sur la route après quelques années.
+Sans surprise les toyota et honda de ce monde dominent largement.
+Deux curiosités: les F150 disparaissent (exportés?) ainsi que les volkswagen (dieselgate?)
+
+
+Reasons I'll come back to this post:  {showtext} and font_add_google.  Mise en page du dernier graphique  (palette, polices) inspirée de https://github.com/sianbladon/Data-Viz/blob/master/30%20Day%20Chart%20Challenge%202021/Day%205%20-%20slope/day_5.R
+
+```{r}
+counts <- saaq %>%  count(an, clas,marq_veh, model_veh, annee_mod)   %>%
+  group_by(clas, marq_veh, model_veh, annee_mod) %>%
+  arrange(an) %>%
+  mutate(survie = n / lag(n),
+         survie_cumul = n / max(n))
+top10 <- counts %>% filter(an==2013, annee_mod == 2012) %>% arrange(desc(n)) %>% head(13) %>% select( marq_veh, model_veh, annee_mod)
+
+
+data_ends <- counts %>% inner_join(top10) %>%
+  filter(an ==2019)
+
+counts %>% inner_join(top10) %>%
+  ggplot(aes(x = an, y = n, color = model_veh)) +
+  ggrepel::geom_text_repel(
+    aes(label = model_veh ), data = data_ends,
+    fontface ="plain", color = "black", size = 3
+  ) + 
+  geom_line() + 
+  labs(
+    title = "Nombre de véhicules (année-modèle 2012) immatriculés au Quéec selon l'année."
+  ) +
+  theme_bw()+ 
+  theme_minimal()
+
+
+```
+
+
+
+
+```{r}
+counts %>% inner_join(top10) %>%
+  filter(an >= 2013) %>% 
+  ggplot(aes(x = an, y = survie_cumul, color = model_veh)) +
+  ggrepel::geom_text_repel(
+    aes(label = model_veh ), data = data_ends,
+    fontface ="plain", color = "black", size = 3
+  ) + 
+  geom_line() + 
+  labs(title = "Survie: nombre de véhicules 2012 restants en pourcentage du nombre maximal",
+       subtitle = "Le F150 s'est fait exporter aux USA en masse (https://www.trucks.com/2017/02/24/canadian-pickup-trucks-currency-arbitrage/) , mais qu'arrive-t-il à la Jetta?"
+  ) +
+  theme_bw()+ 
+  theme_minimal() 
+```
+oooh! le diesel gate des volkswagen peut-être?
+
+
+```{r}
+top10bazou <- counts %>% filter(an==2013, annee_mod == 1999) %>% arrange(desc(n)) %>% head(10) %>% select( marq_veh, model_veh, annee_mod)
+
+data_ends_bazou <- counts %>% inner_join(top10bazou) %>%
+  filter(an ==2019)
+
+counts %>% inner_join(top10bazou) %>%
+  ggplot(aes(x = an, y = n, color = model_veh)) +
+  ggrepel::geom_text_repel(
+    aes(label = model_veh ), data = data_ends_bazou,
+    fontface ="plain", color = "black", size = 3
+  ) + 
+  geom_line() + 
+  labs(
+    title = "Nombre de véhicules (année-modèle 1999) immatriculés au Quéec selon l'année.",
+    subtitle = "Let's go la Tercel!!") +
+  theme_bw()+ 
+  theme_minimal()
+
+```
+
+
+
+```{r}
+counts %>% inner_join(top10bazou) %>%
+  ggplot(aes(x = an, y = survie_cumul, color = model_veh)) +
+  ggrepel::geom_text_repel(
+    aes(label = model_veh ), data = data_ends_bazou,
+    fontface ="plain", color = "black", size = 3
+  ) + 
+  geom_line() + 
+  labs(title = "Survie: nombre de véhicules 1999 restants\nen pourcentage du nombre observé en 2013") +
+  theme_bw()+ 
+  theme_minimal() 
+```
+
+```{r}
+## count chaque modele -- année et pct de survie 
+counts <- saaq %>% count(an, clas,marq_veh, model_veh, annee_mod)   %>%
+  group_by(clas, marq_veh, model_veh, annee_mod) %>%
+  arrange(an) %>%
+  mutate(
+    lag_n = lag(n),
+    survie_pct = n / lag(n),
+    survie_pct_cumul = n / max(n)) %>%
+  ungroup()
+
+
+zz <- counts %>%
+  filter(!is.na(lag_n)) %>% 
+  mutate(age = an - annee_mod) %>%
+  filter(age >= 2) %>% 
+  group_by(marq_veh, age) %>%
+  summarise(lag_n = sum(lag_n),
+            n = sum(n)
+  ) %>% 
+  mutate(survie = n / lag_n,
+         cum_survie = cumprod(survie)) %>% 
+  filter(age <=20) 
+
+top12 <- zz %>% group_by(marq_veh) %>% summarise(max_n = max(n)) %>% arrange(desc(max_n)) %>% head(13) %>% select(marq_veh) %>%
+  filter(marq_veh != "PONTI")
+
+data_ends <- zz %>% inner_join(top12) %>%
+  filter(age == 20)
+
+data_10 <- zz %>% inner_join(top12) %>%
+  filter(age == 10)
+
+zz %>% inner_join(top10) %>%
+  ggplot(aes(x = age, y = cum_survie, color = marq_veh))+
+  geom_line(size =1, alpha = 0.8)+
+  theme_bw()+ 
+  theme_minimal() + 
+  scale_colour_manual(values = c("#83B692", "#F9ADA0", "#F9627D", "#C65B7C", "#5B3758", "#8332AC", "#462749", "#153243", "#284B63", "#645DD7", "#FFB100", "#F2542D"))+
+  scale_x_continuous(expand = expansion(mult = c(0,0.1) ), breaks = seq(2,20), minor_breaks = NULL) +
+  ggrepel::geom_text_repel(
+    aes(label = marq_veh, ), data = data_ends,
+    size = 5, fontface = "bold", force = 5,  nudge_x = 2
+  )  + 
+  theme(legend.position = "none")+ 
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1) , breaks = seq(0,1, by = 0.1)) +
+labs(title = "Taux de survie cumulatif\n des voitures selon la marque ",
+     caption = "données d'immatriculation saaq 2013-2019.  gossé par coulsim\ncode https://gist.github.com/SimonCoulombe/2864d985c83c2a98ad6adccb4abf4392")+
+  theme(text = element_text(family = "Montserrat"),
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor.y = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(hjust = 2.5, size = 14, face = "bold", colour = "#2F4858"),
+        plot.subtitle = element_text(size = 16, colour = "#2F4858"),
+        plot.caption = element_text(size = 10, colour = "#2F4858"),
+        plot.title = element_text(size = 26,face = "bold", colour = "#2F4858"),
+        axis.text.x = element_text(size = 14, face = "bold", colour = "#2F4858"),
+        legend.position = "none")
+```
+

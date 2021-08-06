@@ -1,0 +1,41 @@
+---
+title: De la préservation du jambon (postcast CHOI)
+author: 'Simon'
+date: '2021-04-05'
+slug: jambon
+categories: []
+tags: []
+keywords:
+  - tech
+---
+
+Edit Août 2021:   l'accès vers certain MP3 a été retiré rétroactivement, mais si vous avez besoin de quelque chose je l'ai.  
+
+
+Je ne sais pas ce qui arrive au site de CHOI, mais les liens vers les podcast disparaissent parfois, même si les mp3 demeurent disponibles. Pour sauver du feu cette bibliothèque du savoir, je maintiens une liste des liens vers les mp3 pour écouter les entrevues.
+
+C'est là : https://docs.google.com/spreadsheets/d/1ZyKtcac0ILOw_TTazrKSAABT8iXi9Bi2sKoQA5EVRyI/edit?usp=drive_web&ouid=115157477294619672439  
+
+Le code R absolument dégueux est là : https://github.com/SimonCoulombe/jambon/
+
+Vous y trouverez par exemple des liens vers ces 10 entrevues avec Dan Marino et 2 avec Alexis Cossette-Trudel.
+
+Dan Marino
+- 16 juin https://lnkd.in/dzJe3j5  
+- 17 juin https://lnkd.in/d5UwD-y  
+- 5 octobre https://lnkd.in/dzzt6SM  
+- 8 octobre https://lnkd.in/dgV2dgE  
+- 28 septembre https://lnkd.in/dxYY5yt  
+- 26 octobre https://lnkd.in/dKrg2_u  
+- 26 octobre (bis) https://lnkd.in/dVDqDfu  
+-27 octobre https://lnkd.in/daBi2PZ  
+-28 octobre https://lnkd.in/dj9mnVY  
+-4 mars 2021 https://lnkd.in/dnXbvJn  
+
+Cossette-Trudel
+17 juin 2020 https://lnkd.in/dWw7Wsv  
+16 septembre 2020 (à 1h14m30s) https://lnkd.in/d_m6uGu
+
+
+
+

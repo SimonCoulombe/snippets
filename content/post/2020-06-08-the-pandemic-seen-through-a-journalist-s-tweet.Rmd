@@ -20,8 +20,6 @@ knitr::opts_chunk$set(echo = FALSE,
                       fig.align= "center",
                       fig.width = 12,
                       fig.height = 10,
-                      out.width = 12,
-                      out.height = 10,
                       highlight = TRUE,
                       cache = FALSE,
                       cache.lazy = FALSE) # fixes long vecto rnot supported quand on cache des gros éléments https://stackoverflow.com/questions/39417003/long-vectors-not-supported-yet-error-in-rmd-but-not-in-r-script
@@ -40,11 +38,11 @@ blogdown::shortcode('tweet', '1269321756289925122')
 
 @Paul_Laurier a eu la superbe idée de regarder les données pour voir de quoi il en était.  
 
-```{r}
-blogdown::shortcode('tweet', '1269726307342000139')
+```{r, eval = FALSE}
+#blogdown::shortcode('tweet', '1269726307342000139')
 ```
 
-
+***EDIT:2021 Most of the text in this  blog post is broken because Aaron is very prolific tweeter, meaning that I can no longer get tweets from before December 2020 ***
 
 Dans ce post, je m'intéresse aussi au nombre de mentions avant de faire un petit peu de "sentiment analysis" pour s'amuser un peu.
 
@@ -215,13 +213,13 @@ Quel est le tweet le plus négatif ?
 
 
 # most negative tweets
-
-tweet_sentiments %>% filter(sentiment_tweet == min(sentiment_tweet)) %>%
-  inner_join(twit)%>% 
-  select(date, status_id, sentiment_tweet, negative, positive, text) %>%
-  head(1) %>%
-  pull(status_id) %>%
-  blogdown::shortcode('tweet', .)
+# 
+# tweet_sentiments %>% filter(sentiment_tweet == min(sentiment_tweet)) %>%
+#   inner_join(twit)%>% 
+#   select(date, status_id, sentiment_tweet, negative, positive, text) %>%
+#   head(1) %>%
+#   pull(status_id) %>%
+#   blogdown::shortcode('tweet', .)
 ```
 
 

@@ -1,0 +1,129 @@
+---
+title: Labour force participation rates recovery
+author: Simon
+date: '2021-07-02'
+slug: labour-force-participation-rate-recovery
+categories:
+  - R
+tags: []
+keywords:
+  - tech
+thumbnailImage: "/post/2021-07-02-labour-force-participation-rate-recovery/index.en-us_files/graph_age-1.png" 
+thumbnailImagePosition: left      
+---
+
+
+Petit post rapide qui utilise les données de Statistique Canada pour regarder l'évolution du taux de participation pendant et après la pandémie.  
+
+
+
+```{r setup, include =F, echo =F}
+knitr::opts_chunk$set(echo = FALSE, 
+                      collapse = FALSE,
+                      warning = FALSE,
+                      error = FALSE,
+                      message = FALSE,
+                      fig.align= "center",
+                      fig.width = 10,
+                      highlight = TRUE,
+                      cache = FALSE,
+                      cache.lazy = FALSE
+) # fixes long vecto rnot supported quand on cache des gros éléments https://stackoverflow.com/questions/39417003/long-vectors-not-supported-yet-error-in-rmd-but-not-in-r-script
+```
+
+```{r}
+suppressMessages(
+  suppressWarnings({
+    library(cansim)
+    library(tidyverse)
+    library(janitor)
+    library(lubridate)
+    library(wesanderson)
+    library(fst)
+  })
+)
+```
+
+
+```{r}
+
+if(FALSE){
+data <- get_cansim("14-10-0287-01")
+data2 <- data %>% clean_names()
+write_fst(data2, "labourforce.fst")
+} else { data2 <- read_fst("labourforce.fst")}
+```
+
+```{r graph_age}
+## graph par age
+z <- data2 %>%
+  filter(
+    data_type == "Seasonally adjusted",
+    age_group %in% c("15 to 24 years", "25 to 54 years", "55 years and over"),
+    geo == "Canada",
+    sex == "Both sexes",
+    labour_force_characteristics == "Participation rate",
+    statistics == "Estimate"
+  )  %>%
+  mutate(date = ymd(paste0(ref_date,"-01")) )
+
+z %>% 
+  filter(date >= ymd("2020-01-01")) %>%
+  group_by(age_group) %>%
+  mutate(fraction_of_jan2020 = value / max(value * (date ==  ymd("2020-01-01")))) %>% 
+  ggplot(aes(x = date, y = fraction_of_jan2020, color = age_group)) +
+  geom_line(size = 1.3) +
+  geom_point(size = 2)  +
+  theme_minimal()+ 
+  scale_color_manual(values = wes_palette("BottleRocket2")) + 
+  scale_y_continuous(breaks = scales::pretty_breaks(), labels = scales::label_percent() ) +
+  labs(
+    title = "Canadian labour force participation rate",
+    subtitle = "indexed to January 2020",
+    x = "Month",
+    y = "Index",
+    color = "Age group",
+    caption = "gossé par @coulsim, from Cansim table 14-10-0287-01 using {cansim} R package"
+  ) + 
+  theme(legend.position = c(0.7,0.3)) +
+  #expand_limits(y=0) +
+  geom_hline( yintercept = 1, color = "grey") 
+```
+
+```{r graph_sex}
+
+## graph par sex
+z <- data2 %>%
+  filter(
+    data_type == "Seasonally adjusted",
+    age_group %in% c("25 to 54 years"),
+    geo == "Canada",
+    sex %in% c("Males", "Females"),
+    labour_force_characteristics == "Participation rate",
+    statistics == "Estimate"
+  )  %>%
+  mutate(date = ymd(paste0(ref_date,"-01")) )
+
+z %>% 
+  filter(date >= ymd("2020-01-01")) %>%
+  group_by(sex) %>%
+  mutate(fraction_of_jan2020 = value / max(value * (date ==  ymd("2020-01-01")))) %>% 
+  ggplot(aes(x = date, y = fraction_of_jan2020, color = sex)) +
+  geom_line(size = 1.3) +
+  geom_point(size = 2)  +
+  theme_minimal()+ 
+  scale_color_manual(values = wes_palette("BottleRocket2")) + 
+  scale_y_continuous(breaks = scales::pretty_breaks()) +
+  labs(
+    title = "Canadian labour force participation rate for persons aged 25-54",
+    subtitle = "indexed to January 2020",
+    x = "Month",
+    y = "Index",
+    color = "Sex",
+    caption = "gossé par @coulsim, from Cansim table 14-10-0287-01 using {cansim} R package"
+  ) + 
+  theme(legend.position = c(0.7,0.3)) +
+  #expand_limits(y=0) +
+  geom_hline( yintercept = 1, color = "grey")
+```
+

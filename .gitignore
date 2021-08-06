@@ -12,3 +12,4 @@ content/post/data/*
 !content/post/data/interim/accidents.rdata
 /blogdown
 .httr-oauth
+*.fst

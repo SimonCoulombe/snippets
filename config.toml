@@ -217,3 +217,8 @@ enableEmoji = "true"
   #   copyright = "<a href=\"https://github.com/kakawait\">kakawait</a>"
 
 ignoreFiles = ["\\.Rmd$", "\\.Rmarkdown$", "_files$", "_cache$"]
+
+[markup]
+  [markup.goldmark]
+    [markup.goldmark.renderer]
+      unsafe = true
