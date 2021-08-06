@@ -1,0 +1,809 @@
+---
+title: Où sont les maisons abordables?
+author: Simon
+date: '2021-06-26'
+slug: prix_maison
+categories: []
+tags: []
+keywords:
+  - tech
+thumbnailImage: "/post/2021-06-26-prix-maison/index.en-us_files/1624883913993.jpeg" 
+thumbnailImagePosition: left    
+---
+Here I combine two data sources to find the cities with the most affordable houses.  
+We use the median house price fro m2018 as provided by "JLR solutions immobilières" and the median total household income for families with 2 adults for 2018 provided by Statistics Canada.
+
+
+```{r setup, include =F, echo =F}
+#
+# TODO : valider ceci : Chunk options must be written in one line; no line breaks are allowed inside chunk options;
+# https://yihui.name/knitr/options/
+knitr::opts_chunk$set(echo = FALSE, 
+                      collapse = FALSE,
+                      warning = FALSE,
+                      error = FALSE,
+                      message = FALSE,
+                      fig.align= "center",
+                      fig.width = 10,
+                      highlight = TRUE,
+                      cache = FALSE,
+                      cache.lazy = FALSE
+) # fixes long vecto rnot supported quand on cache des gros éléments https://stackoverflow.com/questions/39417003/long-vectors-not-supported-yet-error-in-rmd-but-not-in-r-script
+```
+
+```{r}
+suppressMessages(
+  suppressWarnings({
+    
+    library(mapview)
+    library(sf)
+    library(tidyverse)
+    library(pdftools)
+    library(tabulizer)
+    library(tesseract)
+    library(janitor)
+    library(stringr)
+    library(cancensus)
+    library(sf)
+    library(gganimate)
+    library(FinancialMath)
+    library(forcats)
+    library(cansim)
+    library(wesanderson)
+    library(ggbump)
+    library(snapbox) # pour fond de carte mapox
+    Sys.setenv(MAPBOX_ACCESS_TOKEN = Sys.getenv("mapbox"))
+  })
+)
+```
+
+```{r}
+# 
+# 
+# pdf_file <- "data/downloads/jlr/2019-04_JLR-PalmaresVille.pdf"
+# ## ah les tabarnak le  tableau est une image, pas du texte..
+# 
+# # Render pdf to png image
+# img_file <- pdftools::pdf_convert(pdf_file, format = "png", pages = 5, dpi = 400)
+# 
+# png::writePNG(img_file, "test.png")
+# # Extract text from png image
+# text <- ocr(img_file, engine = tesseract("fra"))
+# 
+# 
+# 
+# ### lire le csv de revenu
+# statcan <- read_delim("data/downloads/jlr/11100072.csv" , delim = ";") %>%
+#   janitor::clean_names()
+# 
+# 
+# 
+# 
+# 
+# # https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=4610004701  
+# #Total income and characteristics of owners and tax filers who do not own residential property1, 2, 3
+# # Canadian Housing Statistics Program
+# ## ONLY NOVA SCOTIA, ONTARIO AND BC .. comeon
+# #data2 <- get_cansim("46-10-0047-01")
+# 
+# 
+# 
+# # Wages, salaries and commissions of tax filers aged 15 years and over by sex and age group1, 2, 3, 4, 5
+# # Geography: Canada, Province or territory, Census metropolitan area, Census agglomeration, Census metropolitan area part, Census agglomeration part
+# #     Revenu et données financières des particuliers, fichier préliminaire T1 sur les familles
+# 
+# # https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1110007201
+# data3 <- get_cansim("11-10-0072-01") %>% janitor::clean_names()
+# 
+# mydata <- data3 %>%
+#   filter(
+#     age_group == "Ages 15 years and over",
+#     sex == "Both sexes",
+#     statistics == "Median total income",
+#     date == "2019-07-01"
+#   ) # pas pire!! 
+# 
+# 
+# 
+# # Distribution of total income by census family type and age of older partner, parent or individual
+# #Frequency: Annual
+# #Table: 11-10-0012-01 (formerly CANSIM 111-0012)
+# # Release date: 2020-09-02
+# #Geography: Province or territory, Census metropolitan area, Census agglomeration, Census metropolitan area part, Census agglomeration part
+# #     Annual Income Estimates for Census Families and Individuals (T1 Family File)
+# 
+# 
+# data4 <-  get_cansim("11-10-0012-01")
+
+
+# get statcan income data ----------
+
+
+# https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1110000901&pickMembers%5B0%5D=1.70&cubeTimeFrame.startYear=2014&cubeTimeFrame.endYear=2018&referencePeriods=20140101%2C20180101
+# Selected income characteristics of census families by family type1, 2, 3, 4, 5
+# 
+# Frequency: Annual
+# Table: 11-10-0009-01 (formerly CANSIM 111-0009)
+# Release date: 2020-09-02
+# Geography: Province or territory, Census metropolitan area, Census agglomeration, Census metropolitan area part, Census agglomeration part
+# # Annual Income Estimates for Census Families and Individuals (T1 Family File)
+
+data5 <- get_cansim("11-10-0009-01") %>% janitor::clean_names()
+
+
+mydata <- data5 %>% filter( date == "2018-07-01", family_characteristics == "Median total income, couple families")
+
+race_data <-   data5 %>%
+  filter(family_characteristics == "Median total income, couple families")  %>%
+  mutate(year =as.integer(ref_date)) %>%
+  mutate(pouet = str_count(hierarchy_for_geo, "\\.")) %>%
+  filter(pouet == 2)
+
+geo_uids <- race_data %>% distinct(geo, geo_uid)
+
+
+# load shapefiles ----
+
+#census_data <- get_census(dataset='CA16', level='CMA',geo_format = "sf" , regions = list("C" = "01")) # 49 lignes
+shp_sdr <- read_sf("/home/simon/git/adhoc_prive/data/downloads/jlr/lsdr000b16a_f.shp") %>%
+  filter( PRIDU == 24) %>% 
+  select(SDRIDU, SDRNOM, PRIDU, RMRNOM, RMRIDU, RMRPIDU, RMRNOM, RÉIDU, RÉNOM) 
+
+#shp_sdr %>% mapview::mapview(zcol ="RMRNOM")
+
+shp <- read_sf("/home/simon/git/adhoc_prive/data/downloads/jlr/lrmr000b16a_f.shp")
+shp_table <- shp %>% st_drop_geometry()
+
+
+geo_uids2 <- bind_rows(
+  geo_uids %>% filter(str_length(geo_uid) == 3) %>% 
+    left_join(shp_table %>%
+                select(geo_uid = RMRIDU, RMRNOM,RMRPIDU,  PRIDU, PRNOM)),
+  geo_uids %>% filter(str_length(geo_uid) == 5) %>%
+    left_join(shp_table %>%
+                mutate(geo_uid = RMRPIDU) %>% 
+                select(geo_uid, RMRPIDU, RMRNOM, RMRPIDU, PRIDU, PRNOM))
+)
+
+
+# prep JLR data ----
+
+get_ca <- function(ville){
+  shp_sdr %>%  st_drop_geometry() %>% filter(str_detect(toupper(SDRNOM), toupper(ville)))
+}
+
+prix2021 <- tribble(
+  ~ville, ~prixmedian2021,# ~sdridu
+  "QUÉBEC",  287000,
+  "MONTRÉAL", 545000,
+  "GATINEAU", 323500,
+  "LAVAL", 425218,
+  "SHERBROOKE", 240000,
+  "LONGUEUIL", 400000,
+  "LÉVIS", 265000,
+  "SAGUENAY", 206740,
+  "TERREBONNE", 350500,
+  "TROIS-RIVIÈRES", 200000,
+  "SAINT-JEAN-SUR-RICHELIEU", 360000,
+  "REPENTIGNY", 370000,
+  "SAINT-JÉRÔME", 310000,
+  "DRUMMONDVILLE", 233000,
+  "BLAINVILLE", 496750,
+  "GRANBY", 265000,
+  "MIRABEL", 390915,
+  "BROSSARD", 535000,
+  "MASCOUCHE", 355109,
+  "SHAWINIGAN", 150000,
+  "CHÂTEAUGUAY", 332250,
+  "VICTORIAVILLE", 198700,
+  "RIMOUSKI", 215000,
+  "SAINT-HYACINTHE", 295000,
+  "DOLLARD-DES ORMEAUX", 605000
+  
+)
+
+
+prix2018 <- tribble(
+  ~ville, ~prixmedian2018,# ~sdridu
+  "ALMA", 165000, #"2493042",
+  "BAIE-COMEAU", 153000, #"2496020" ,
+  "BEACONSFIELD", 645000, #"2466107",
+  "BEAUHARNOIS", 237500, #"2470022",
+  "BÉCANCOUR", 152000, #"2438010",
+  "BELOEIL", 310000, #"2457040",
+  "BLAINVILLE", 369900, #"2473015",
+  "BOISBRIAND", 310000,
+  "BOUCHERVILLE", 385000,
+  "BROMONT", 361000,
+  "BROSSARD", 400000,
+  "CANDIAC", 439000,
+  "CANTLEY", 332000,
+  "CARIGNAN", 343318,
+  "CHAMBLY", 310000,
+  "CHÂTEAUGUAY", 238750,
+  "CHERTSEY", 134500,
+  "CONTRECOEUR", 232500,
+  "COWANSVILLE", 199500,
+  "DEUX-MONTAGNES", 243000,
+  "DOLLARD-DES ORMEAUX", 444250,
+  "DORVAL", 424000,
+  "DRUMMONDVILLE", 187000,
+  "GATINEAU", 258000,
+  "GRANBY", 223900,
+  "KIRKLAND",  580000,
+  "LA PRAIRIE", 378000,
+  "LACHUTE", 192000,
+  "L'ASSOMPTION", 245075,
+  "LAVAL", 334000,
+  "LAVALTRIE", 215000,
+  "LÉVIS", 252750,
+  "LONGUEUIL", 305000,
+  "LORRAINE", 362500,
+  "MAGOG", 245000,
+  "MARIEVILLE", 245000,
+  "MASCOUCHE", 285000,
+  "MERCIER", 289998,
+  "MIRABEL", 297500,
+  "MONT-LAURIER", 173000,
+  "MONTRÉAL", 435000,
+  "MONT-ROYAL", 1300000,
+  "MONT-SAINT-HILAIRE", 385000,
+  "MONT-TREMBLANT", 267000,
+  "NOTRE-DAME-DE-L'ÎLE-PERROT", 357500,
+  "PINCOURT", 288200,
+  "POINTE-CLAIRE", 447500,
+  "PRÉVOST", 278250,
+  "QUÉBEC", 262500,
+  "RAWDON", 169000,
+  "REPENTIGNY", 284000,
+  "RIMOUSKI", 192450,
+  "RIVIÈRE-DU-LOUP", 184000,
+  "ROUYN-NORANDA", 230000,
+  "SAGUENAY", 186552,
+  "SAINT-ADOLPHE-D'HOWARD", 165000,
+  "SAINT-AMABLE", 270000,
+  "SAINT-AUGUSTIN-DE-DESMAURES", 312000,
+  "SAINT-BASILE-LE-GRAND", 310000,
+  "SAINT-BRUNO-DE-MONTARVILLE", 397250,
+  "SAINT-CALIXTE", 140000,
+  "SAINT-COLOMBAN", 261250,
+  "SAINT-CONSTANT", 314020,
+  "SAINT-DONAT", 269500,
+  "SAINTE-ADÈLE", 230000,
+  "SAINTE-ANNE-DES-PLAINES",  220000,
+  "SAINTE-BRIGITTE-DE-LAVAL", 228000,
+  "SAINTE-CATHERINE", 275000,
+  "SAINTE-JULIE", 325000,
+  "SAINTE-JULIENNE", 179500,
+  "SAINTE-MARIE", 188000,
+  "SAINTE-MARTHE-SUR-LE-LAC", 290015,
+  "SAINTE-SOPHIE", 230000,
+  "SAINTE-THÉRÈSE", 298000,
+  "SAINT-EUSTACHE", 270000,
+  "SAINT-GEORGES", 161618,
+  "SAINT-HIPPOLYTE", 238750,
+  "SAINT-HYACINTHE", 236000,
+  "SAINT-JEAN-SUR-RICHELIEU", 268300,
+  "SAINT-JÉRÔME", 233500,
+  "SAINT-LAMBERT", 612500,
+  "SAINT-LAZARE", 374265,
+  "SAINT-LIN" , 208327,
+  "SAINT-RAYMOND", 178509,
+  "SAINT-SAUVEUR", 309500,
+  "SAINT-ZOTIQUE", 247000,
+  "SALABERRY-DE-VALLEYFIELD", 191000,
+  "SEPT-ÎLES", 206750,
+  "SHAWINIGAN", 129000,
+  "SHERBROOKE", 206800,
+  "SOREL-TRACY", 168250,
+  "TERREBONNE", 285000,
+  "THETFORD MINES", 103500,
+  "TROIS-RIVIÈRES", 170000,
+  "VAL-DES-MONTS", 265000,
+  "VAL-D'OR", 237187,
+  "VARENNES", 315000,
+  "VAUDREUIL-DORION", 329000,
+  "VICTORIAVILLE", 166000,
+  "WESTMOUNT", 1660000
+  
+  
+  
+  
+  
+)
+
+pouet <- prix2018 %>% 
+  full_join(prix2021) %>% 
+  mutate(
+    test = map(ville, ~get_ca(.x)),
+    rangees = map_int(test, ~nrow(.x))
+  )
+
+
+kaltor <- pouet %>% 
+  filter(rangees>1 ) %>% 
+  unnest(test) %>%
+  filter(
+    SDRIDU %in% 
+      c(2493042,
+        2470022,
+        2457040,
+        2466087,
+        2481017,
+        2447017,
+        2465005,
+        2466023,
+        2423027,
+        2410043,
+        2412072,
+        2494068,
+        2467030,
+        2459010,
+        2426030,
+        2475028,
+        2473010,
+        2429073,
+        2458012,
+        2471105,
+        2462060))
+
+facile <- pouet %>% filter(rangees==1 ) %>% unnest(test)
+
+uhoh <- pouet %>% filter(!rangees>= 1)
+
+donnees_jlr_avec_rmr <- bind_rows(kaltor, facile)
+
+
+
+# shp_sdr %>% 
+#   select(SDRIDU) %>%  
+#   inner_join(donnees_jlr_avec_rmr) %>%
+#   mapview::mapview()
+
+z <- shp_sdr %>% 
+  select(SDRIDU) %>%  
+  inner_join(donnees_jlr_avec_rmr) %>% 
+  left_join(
+    race_data  %>% 
+      filter(year == 2018) %>%
+      select(geo, geo_uid, value) %>% 
+      left_join(geo_uids2)
+  ) %>%
+  mutate(Ratio = prixmedian2018 / value
+  ) 
+
+
+
+## https://www.ratehub.ca/5-year-fixed-mortgage-rate-history # 3.04
+
+
+zz <- z %>% 
+  select(ville,prix_median_ville_2021 = prixmedian2021 ,  prix_median_ville_2018 = prixmedian2018, agglo = RMRNOM, RÉNOM, RÉIDU, revenu_median_famille_couple_2018 = value, Ratio) %>%
+  mutate(
+    somme_paiements_annuels= map_dbl(
+      prix_median_ville_2018, 
+      ~amort.table(
+        Loan = 0.8 * .x,
+        n = 26*25,
+        pmt = NA,
+        i = .0304 / 26,
+        ic = 1,
+        pf = 1
+      )$Schedule  %>% .[1,1] *26
+    ),
+    somme_paiements_annuels2021= map_dbl(
+      prix_median_ville_2021, 
+      function(x){
+        if(!is.na(x)){
+          amort.table(
+            Loan = 0.8 * x,
+            n = 26*25,
+            pmt = NA,
+            i = .0304 / 26,
+            ic = 1,
+            pf = 1
+          )$Schedule  %>% .[1,1] *26
+        } else 0 
+      }
+    ),    
+    pourcentage_du_revenu = round(100* somme_paiements_annuels / revenu_median_famille_couple_2018, 1),
+    pourcentage_du_revenu2021 = round(100* somme_paiements_annuels2021 / revenu_median_famille_couple_2018, 1)
+  )
+
+
+
+
+
+```
+
+
+```{r, fig.width=14, fig.height=16}
+
+# tableau récap 2018 ----
+
+table_data <- zz %>% 
+  filter(!is.na(Ratio))  %>%
+  st_drop_geometry()  %>% 
+  mutate(ville = factor(ville))%>%
+  mutate(ville = fct_reorder(ville, pourcentage_du_revenu))  %>%
+  mutate(region = case_when(
+    RÉNOM == "Montérégie"~ "Montérégie",
+    RÉNOM == "Laurentides" ~ "Laurentides",
+    RÉNOM == "Montréal" ~ "Montréal",
+    RÉNOM == "Lanaudière" ~ "Lanaudière",
+    RÉNOM == "Chaudière-Appalaches" ~ "Chaudière-Appalaches",
+    RÉNOM == "Capitale-Nationale" ~ "Capitale-Nationale",
+    RÉNOM == "Outaouais" ~ "Outaouais",
+    TRUE ~ "Autre"
+    
+    
+  )
+  )
+
+labels <- table_data %>% 
+  mutate(label1 = scales::label_dollar(big.mark = " ", prefix = "", suffix = "",)(prix_median_ville_2018),
+         label2 = scales::label_dollar(big.mark = " ", prefix = "", suffix = "",)(revenu_median_famille_couple_2018),
+         y1 = 0.8 * max(pourcentage_du_revenu),
+         y2 = 0.9 * max(pourcentage_du_revenu),
+  )
+
+
+titres_labels <- 
+  labels  %>%  select(y1, y2) %>% head(1) %>% 
+  mutate(label1 = "Prix médian ville\n\n",
+         label2 = "Revenu total médian agglo\n\n",
+         ville = "WESTMOUNT")
+
+
+p1 <- table_data %>% 
+  ggplot(
+    aes(x = ville, y = pourcentage_du_revenu)
+  ) + 
+  geom_col(aes(fill =  region)) +
+  coord_flip( clip = 'off') +
+  labs(
+    x = "Ville",
+    y = "Pourcentage du revenu annuel utilisé pour payer une hypothèque",
+    fill = "Région",
+    title = "Pourcentage du revenu annuel total médian\nd'une famille de recensement comptant un couple\nnécessaire pour payer l'hypothèque de la maison médiane en 2018",
+    subtitle = "Hypothèque: 80% du prix médian, 3.04% par année sur 25 ans, 26 paiements par année",
+    caption = "gossé par @coulsim, inspiré de @EmmaVitz.  Source: revenu par agglomération de recensement Statcan T1FF, source prix maison par ville JLR Immo"
+  ) +
+  scale_fill_manual(values = wes_palette(8, name = "Darjeeling1", type = "continuous")) + 
+  scale_y_continuous(breaks = seq(0,85, by = 5), expand = c(0, 0))+
+  hrbrthemes::theme_ipsum_rc() + 
+  theme(
+    axis.line.y = element_blank(), # enelever ligne axes y
+    axis.line.x = element_blank(), # enelever ligne axes y
+    axis.ticks.y = element_blank(), # enlever ticks axes y
+    axis.title.y = element_text(angle = 0, vjust = 1),
+    axis.text.x = element_text(size = 7),
+    legend.key.height = unit(1, "line"), # legende toute la hauteur
+    legend.key.width = unit(1, "line")
+  ) + 
+  geom_text(data = labels, aes(label = label1, y= y1 ), hjust = 1)  +
+  geom_text(data = labels, aes(label = label2, y= y2 ), hjust = 1)  +
+  geom_text(data = titres_labels, aes(label = label1, y= y1 ), hjust = 1, yjust = 2)  +
+  geom_text(data = titres_labels, aes(label = label2, y= y2 ), hjust = 0.5, yjust = 2)  + 
+  theme(legend.position = "bottom")
+
+p1 
+```
+
+
+```{r, fig.width=14, fig.height=16}
+
+
+# tableau récap 2021 ----
+
+table_data <- zz %>% 
+  filter(!is.na(prix_median_ville_2021))  %>%
+  st_drop_geometry()  %>% 
+  mutate(ville = factor(ville))%>%
+  mutate(ville = fct_reorder(ville, pourcentage_du_revenu2021))  %>%
+  mutate(region = case_when(
+    RÉNOM == "Montérégie"~ "Montérégie",
+    RÉNOM == "Laurentides" ~ "Laurentides",
+    RÉNOM == "Montréal" ~ "Montréal",
+    RÉNOM == "Lanaudière" ~ "Lanaudière",
+    RÉNOM == "Chaudière-Appalaches" ~ "Chaudière-Appalaches",
+    RÉNOM == "Capitale-Nationale" ~ "Capitale-Nationale",
+    RÉNOM == "Outaouais" ~ "Outaouais",
+    TRUE ~ "Autre"
+  )
+  )
+
+labels <- table_data %>% 
+  mutate(label1 = scales::label_dollar(big.mark = " ", prefix = "", suffix = "",)(prix_median_ville_2021),
+         label2 = scales::label_dollar(big.mark = " ", prefix = "", suffix = "",)(revenu_median_famille_couple_2018),
+         y1 = 0.8 * max(pourcentage_du_revenu2021),
+         y2 = 0.9 * max(pourcentage_du_revenu2021),
+  )
+
+titres_labels <- 
+  labels  %>%  select(y1, y2) %>% head(1) %>% 
+  mutate(label1 = "Prix médian ville 2021\n\n\n",
+         label2 = "Revenu total médian agglo 2018\n\n\n",
+         ville = tail(levels(table_data$ville),1))
+
+
+p2 <- table_data %>% 
+  ggplot(
+    aes(x = ville, y = pourcentage_du_revenu2021)
+  ) + 
+  geom_col(aes(fill =  agglo)) +
+  coord_flip( clip = 'off') +
+  labs(
+    x = "Ville",
+    y = "Pourcentage du revenu annuel utilisé pour payer une hypothèque",
+    fill = "Région",
+    title = "Pourcentage du revenu annuel total 2018 médian\nd'une famille de recensement comptant un couple\nnécessaire pour payer l'hypothèque de la maison médiane en 2021",
+    subtitle = "Hypothèque: 80% du prix médian, 3.04% par année sur 25 ans, 26 paiements par année",
+    caption = "gossé par @coulsim, inspiré de @EmmaVitz.  Source: revenu par agglomération de recensement Statcan T1FF, source prix maison par ville JLR Immo"
+  ) +
+  scale_fill_manual(values = wes_palette(length(unique(table_data$agglo )), name = "Darjeeling1", type = "continuous")) +
+  scale_y_continuous(breaks = seq(0,85, by = 5), expand = c(0, 0))+
+  hrbrthemes::theme_ipsum_rc() +
+  theme(
+    axis.line.y = element_blank(), # enelever ligne axes y
+    axis.line.x = element_blank(), # enelever ligne axes y
+    axis.ticks.y = element_blank(), # enlever ticks axes y
+    axis.title.y = element_text(angle = 0, vjust = 1),
+    axis.text.x = element_text(size = 7),
+    legend.key.height = unit(1, "line"), # legende toute la hauteur
+    legend.key.width = unit(1, "line")
+  ) +
+  geom_text(data = labels, aes(label = label1, y= y1 ), hjust = 1)  +
+  geom_text(data = labels, aes(label = label2, y= y2 ), hjust = 1)  +
+  geom_text(data = titres_labels, aes(label = label1, y= y1 ), hjust = 1, yjust = 2)  +
+  geom_text(data = titres_labels, aes(label = label2, y= y2 ), hjust = 0.4, yjust = 2)  +
+  theme(legend.position = "bottom")
+
+p2 
+
+
+```
+
+
+
+```{r, fig.width=14, fig.height=16}
+
+
+## carte ggplot 
+
+
+
+
+# 
+# area <- st_bbox(
+#   c(xmin = 147, ymin = -43, xmax = 147.7, ymax = -42.65),
+#   crs = 4326
+# )
+# 
+# ggplot() +
+#   layer_mapbox(area, scale_ratio = 0.5)
+# 
+# 
+
+zzz <- zz %>% st_transform(crs = 4326)
+area <- st_bbox(zzz)
+
+
+my_breaks = c(0,5, 10, 20, 30, 50, 100)
+
+
+zzz  %>% 
+  filter(!is.na(Ratio))  %>%
+  ggplot() +
+  layer_mapbox(st_bbox(zzz), scale_ratio = 0.5) + 
+  geom_sf(aes(fill = pourcentage_du_revenu)) + 
+  scale_fill_gradient(name = "count", trans = "log",
+                      breaks = my_breaks, labels = my_breaks
+  )
+
+```
+
+
+
+```{r, fig.width=14, fig.height=16}
+### calcul ratio prix maison 
+
+
+race_data  %>% 
+  filter(year == 2018) %>%
+  select(geo, geo_uid, value) %>% 
+  left_join(geo_uids2)
+
+
+
+# graph 2008  2013 2018
+
+race_data  %>% 
+  left_join(geo_uids2) %>%
+  filter(year %in% c(2008, 2013, 2018 )) %>%
+  group_by(year) %>%
+  arrange(desc(value)) %>%
+  mutate(rank = row_number()) %>%
+  ungroup() %>%
+  arrange(year, rank)  %>%
+  filter(rank <= 25) %>%
+  ggplot()+
+  geom_col(aes(x=rank, y = value, fill = PRNOM)) +
+  coord_flip() + 
+  facet_wrap(~ year) + 
+  scale_x_reverse(breaks = seq(1:25)) +
+  geom_text(aes(x = rank, y = 10000, label = geo), hjust = 0) + 
+  hrbrthemes::theme_ipsum_rc()  +
+  labs(
+    title = "Census agglomerations with the highest total median income for **couple families**",
+    caption = "gossé par @coulsim, source: statcan T1FF"
+  )
+
+
+
+```
+```{r, fig.width=14, fig.height=16}
+
+
+# graph 2008  2013 2018 pour le quebec
+
+race_data  %>% 
+  left_join(geo_uids2) %>%
+  filter(year %in% c(2008, 2013, 2018 )) %>% 
+  filter(str_detect(toupper(geo), "QUEBEC")) %>% 
+  group_by(year) %>%
+  arrange(desc(value)) %>%
+  mutate(rank = row_number()) %>%
+  ungroup() %>%
+  arrange(year, rank)  %>%
+  #filter(rank <= 25) %>%
+  ggplot()+
+  geom_col(aes(x=rank, y = value)) +
+  coord_flip() + 
+  facet_wrap(~ year) + 
+  scale_x_reverse(breaks = seq(1:33)) +
+  geom_text(aes(x = rank, y = 10000, label = geo), hjust = 0) + 
+  hrbrthemes::theme_ipsum_rc()  +
+  labs(
+    title = "Census agglomerations with the highest total median income for **couple families** in Quebec",
+    caption = "gossé par @coulsim, source: statcan T1FF"
+  )
+
+```
+
+
+```{r, fig.width=14, fig.height=16}
+
+## ggbump?
+
+
+
+graphdata <- race_data  %>% 
+  left_join(geo_uids2) %>%
+  filter(year >= 2008) %>% 
+  filter(str_detect(toupper(geo), "QUEBEC")) %>% 
+  group_by(year) %>%
+  arrange(desc(value)) %>%
+  mutate(rank = row_number()) %>%
+  ungroup() %>%
+  arrange(year, rank)    %>% 
+  mutate(nom= str_replace(geo, ",[^,]+", "")) 
+
+graphdata %>%
+  ggplot(aes(year, rank, color = nom))+
+  
+  geom_bump(size =2 , smooth = 8)+
+  geom_point(size=5) +
+  
+  #facet_wrap(~ year) +
+  scale_x_continuous(breaks = seq(2008,2018))+
+  scale_y_reverse(breaks = seq(1,33)) +
+  #scale_color_manual(values = wes_palette(n = 33, name = "GrandBudapest1")) +
+  #geom_text(aes(x = rank, y = 10000, label = geo), hjust = 0) +
+  cowplot::theme_minimal_grid(font_size = 14, line_size = 0) +
+  theme(legend.position = "none",
+        panel.grid.major = element_blank()) +
+  labs(
+    title = "Census agglomerations with the highest total median income for **couple families** in Quebec",
+    caption = "gossé par @coulsim, source: statcan T1FF",
+    y = "Rang",
+    x = NULL
+  ) +
+  geom_text(data = graphdata %>% filter(year == min(year)),
+            aes(x = year - .2,y = rank, label = nom ), size = 5, hjust = 1) +
+  geom_text(data =graphdata%>% filter(year == max(year)),
+            aes(x = year + .2, y = rank, label = nom ), size = 5, hjust = 0) + 
+  expand_limits(x = c(2005, 2021))
+
+
+
+
+```
+
+
+
+```{r, eval = FALSE}
+
+## graph animé ?
+
+
+cum_data <-race_data  %>% 
+  left_join(geo_uids2) %>%
+  filter(year >= 2008 ) %>% 
+  group_by(year) %>%
+  arrange(desc(value)) %>%
+  mutate(rank = row_number()) %>%
+  ungroup() %>%
+  arrange(year, rank) 
+
+geo_dans_top10 <- cum_data %>% 
+  filter(rank <= 20) %>%
+  select(geo) %>%
+  distinct()
+
+#all_ages = data.frame(age = seq(16, 50, 0.2))
+# all_years = data.frame(year = seq(2000, 2018, 0.25))
+# 
+# all_combos = crossing(all_years, geo_dans_top10)
+# 
+# all_data <- all_combos %>%
+#   left_join(cum_data)
+# 
+# interpolate <- all_data %>% 
+#   select(geo, year, value, rank) %>% 
+#   group_by(geo) %>%
+#   mutate(value = approx(year, value,year)$y) %>%
+#   ungroup()
+# 
+# graph_data <- interpolate %>%
+#   group_by(geo) %>%
+#   arrange(-value) %>%
+#   mutate(rank = row_number() )  %>%
+#   ungroup() %>%
+#   filter(rank<= 20)
+
+graph_data <- cum_data %>% 
+  filter(rank <= 20)
+
+plot2 <- graph_data %>% 
+  ggplot(aes(x= -rank, y= value ))+
+  geom_tile(aes(y = value / 2, 
+                height = value,
+                fill = PRNOM),
+            width = 0.9)+
+  geom_text(aes(label = geo), 
+            hjust = "right", 
+            colour = "black", 
+            fontface = "bold", 
+            nudge_y = -0.1,
+            size = 8) +
+  geom_text(aes(label = scales::comma(value/1000, accuracy = 1)), 
+            hjust = "left", 
+            nudge_y = 0.1, 
+            colour = "grey30",
+            size = 8) +
+  coord_flip(clip="off") +
+  scale_x_discrete("") +
+  scale_y_continuous("",labels=scales::comma, breaks = scales::pretty_breaks() )+
+  #hrbrthemes::theme_ipsum(plot_title_size = 32, subtitle_size = 24, caption_size = 24, base_size = 24) +
+  ggthemes::scale_color_colorblind() +
+  theme(panel.grid.major.y=element_blank(),
+        panel.grid.minor.x=element_blank(),
+        plot.margin = margin(1, 2,1 ,2,"cm"),
+        axis.text.y=element_blank()) +
+  transition_time(year) +
+  ease_aes('cubic-in-out')+
+  labs(title="Median income for couple families",
+       subtitle="Year {round(frame_time,2)}",
+       caption="Source: Statistics Canada, T1FF") + 
+  theme(legend.position="bottom") 
+
+animated_gif2 <- animate(plot2, nframes = 400, fps = 10, end_pause = 5, width = 1200, height = 900,  renderer = gifski_renderer() )
+
+#animated_gif2
+anim_save(filename = "animated_gif2.gif", animation = animated_gif2)
+
+
+
+```
+![](animated_gif2.gif)

@@ -280,6 +280,6 @@ ggplot() +
 
 
 
-```{r echo=FALSE}
+```{r echo=FALSE, eval  = FALSE}
 blogdown::shortcode('tweet', '1121110189590110212')
 ```
