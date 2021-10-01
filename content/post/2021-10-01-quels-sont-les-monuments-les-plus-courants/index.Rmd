@@ -7,9 +7,15 @@ categories: []
 tags: []
 keywords:
   - tech
+thumbnailImage: "/post/2021-10-01-quels-sont-les-monuments-les-plus-courants/images/00000f.png" 
+thumbnailImagePosition: left    
 ---
 
-<!--more-->
+
+<!-- ![](images/00000f.png) -->
+
+
+Petit projet  vite-fait bien-fait qui utilise les données de openstreetmaps pour cartographier les monuments, mémoriaux et autres "artwork" de la province de Québec.  Ensuite, je regarde quels sont les top 10 mots les plus courants parce que c'est possible.
 ```{r setup, include =F, echo =F}
 #
 # TODO : valider ceci : Chunk options must be written in one line; no line breaks are allowed inside chunk options;
@@ -172,7 +178,7 @@ all_three %>% select(name, type,  artwork_type) %>%# filter(str_detect(toupper(n
 
 
 
-quels sont les mots les plus utilisés?
+quels sont les mots les plus utilisés dans les titres?  
 ```{r}
 mots <- all_three %>% st_drop_geometry() %>% select(name) %>%  unnest_tokens(., word, name) 
 
@@ -189,6 +195,6 @@ all_drop <- tibble(word = c("monument", "murale", "statue", "the", "historique",
 
 test2 <- test %>% anti_join(all_drop)
 top10 <- test2 %>% count(word) %>% arrange(desc(n))  %>% head(10) 
-top10
+test2$word %>% wordcloud::wordcloud()
 
 ```
