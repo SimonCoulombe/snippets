@@ -1,0 +1,66 @@
+---
+title: Carte des résultats des élections municipales de Montréal 2021
+author: Simon
+date: '2021-11-26'
+slug: mtl2021
+categories: []
+tags: []
+keywords:
+  - tech
+---
+
+<script src="/rmarkdown-libs/header-attrs/header-attrs.js"></script>
+<script src="/rmarkdown-libs/htmlwidgets/htmlwidgets.js"></script>
+<script src="/rmarkdown-libs/pymjs/pym.v1.js"></script>
+<script src="/rmarkdown-libs/widgetframe-binding/widgetframe.js"></script>
+
+
+<p>Merci de ne pas critiquer mon choix éditorial de couleurs.</p>
+<pre><code>## ── Attaching packages ─────────────────────────────────────── tidyverse 1.3.1 ──</code></pre>
+<pre><code>## ✓ ggplot2 3.3.5     ✓ purrr   0.3.4
+## ✓ tibble  3.1.6     ✓ dplyr   1.0.7
+## ✓ tidyr   1.1.4     ✓ forcats 0.5.1
+## ✓ readr   1.4.0</code></pre>
+<pre><code>## ── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
+## x dplyr::filter() masks stats::filter()
+## x dplyr::lag()    masks stats::lag()</code></pre>
+<pre><code>## Linking to GEOS 3.8.0, GDAL 3.0.4, PROJ 6.3.1</code></pre>
+<pre><code>## 
+## ── Column specification ────────────────────────────────────────────────────────
+## cols(
+##   DistrictID = col_double(),
+##   District = col_character(),
+##   Bureau = col_double(),
+##   Poste = col_double(),
+##   Candidat = col_character(),
+##   Parti = col_character(),
+##   Votes = col_double(),
+##   TotalValidVotes = col_double(),
+##   TotalRejectedVotes = col_double(),
+##   TotalVotes = col_double(),
+##   DerniereModification = col_datetime(format = &quot;&quot;)
+## )</code></pre>
+<pre><code>## Warning: 234 parsing failures.
+##   row    col               expected actual                                                                       file
+## 12847 Bureau no trailing characters    62b &#39;~/git/30DaysMapChallenge/2021_26_choropleth/resultats-detailles-2021.csv&#39;
+## 12848 Bureau no trailing characters    62b &#39;~/git/30DaysMapChallenge/2021_26_choropleth/resultats-detailles-2021.csv&#39;
+## 12849 Bureau no trailing characters    62b &#39;~/git/30DaysMapChallenge/2021_26_choropleth/resultats-detailles-2021.csv&#39;
+## 12850 Bureau no trailing characters    62b &#39;~/git/30DaysMapChallenge/2021_26_choropleth/resultats-detailles-2021.csv&#39;
+## 12851 Bureau no trailing characters    62b &#39;~/git/30DaysMapChallenge/2021_26_choropleth/resultats-detailles-2021.csv&#39;
+## ..... ...... ...................... ...... ..........................................................................
+## See problems(...) for more details.</code></pre>
+<pre><code>## Joining, by = &quot;NOM_SECTIO&quot;</code></pre>
+<pre><code>## Joining, by = &quot;nom_sectio&quot;</code></pre>
+<pre><code>## Warning in st_cast.sf(., &quot;POLYGON&quot;): repeating attributes for all sub-geometries
+## for which they may not be constant</code></pre>
+<pre><code>## 
+## Attaching package: &#39;mapdeck&#39;</code></pre>
+<pre><code>## The following object is masked from &#39;package:tibble&#39;:
+## 
+##     add_column</code></pre>
+<pre><code>## Registered S3 method overwritten by &#39;jsonify&#39;:
+##   method     from    
+##   print.json jsonlite</code></pre>
+<pre><code>## Joining, by = &quot;winner2&quot;</code></pre>
+<div id="htmlwidget-1" style="width:100%;height:1000px;" class="widgetframe html-widget"></div>
+<script type="application/json" data-for="htmlwidget-1">{"x":{"url":"/post/2021-11-26-mtl2021/index.en-us_files/figure-html//widgets/widget_unnamed-chunk-1.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script>

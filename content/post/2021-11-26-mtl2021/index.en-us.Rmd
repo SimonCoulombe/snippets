@@ -8,7 +8,11 @@ tags: []
 keywords:
   - tech
 ---
-```{r}
+
+Merci de ne pas critiquer mon choix éditorial de couleurs.  
+
+
+```{r, out.width = "100%", echo = FALSE}
 library(stringr)
 library(tidyverse)
 library(sf)
@@ -58,7 +62,7 @@ map_data <- sections %>%
   
   st_cast( "MULTIPOLYGON") %>%
   st_cast("POLYGON") %>%
-  mutate(my_opacity = floor(pmin(pct_winner *3, 200))) %>%
+  mutate(my_opacity = floor(pmin(pct_winner *2, 200))) %>%
   mutate(my_opacity = if_else(total_valid_votes ==0, 200, my_opacity))
 
 
