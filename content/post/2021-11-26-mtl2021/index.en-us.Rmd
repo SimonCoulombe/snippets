@@ -9,10 +9,10 @@ keywords:
   - tech
 ---
 
-Merci de ne pas critiquer mon choix éditorial de couleurs.  
+Merci d'accepter mon choix éditorial de couleurs.  
 
 
-```{r, out.width = "100%", echo = FALSE}
+```{r, echo = FALSE, out.width = "100%"}
 library(stringr)
 library(tidyverse)
 library(sf)
@@ -62,7 +62,7 @@ map_data <- sections %>%
   
   st_cast( "MULTIPOLYGON") %>%
   st_cast("POLYGON") %>%
-  mutate(my_opacity = floor(pmin(pct_winner *2, 200))) %>%
+  mutate(my_opacity = floor(pmin(30+ pct_winner *2, 200))) %>%
   mutate(my_opacity = if_else(total_valid_votes ==0, 200, my_opacity))
 
 
@@ -93,7 +93,7 @@ map_data_plus <- map_data %>%
   st_transform(4326)
 
 mymap <- mapdeck(token = MAPBOX, 
-                 style = mapdeck_style('dark'))  %>% #  # 
+                 style = mapdeck_style('light'))  %>% #  # 
   add_polygon(data = map_data_plus   ,
               fill_colour = "colour",
               legend = js,
