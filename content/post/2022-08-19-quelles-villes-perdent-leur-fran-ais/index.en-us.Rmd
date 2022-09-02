@@ -1,0 +1,198 @@
+---
+title: Quelles villes perdent leur français?
+author: Simon
+date: '2022-08-19'
+slug: []
+categories:
+  - Rstats
+tags:
+  - cancensus
+  - francais
+keywords:
+  - tech
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE,
+  #dpi = 150,
+  fig.width = 10,
+  fig.height = 10,
+  cache = FALSE # cache= TRUE leads to Error: path for html_dependency not found: error
+)
+library(cancensus)
+library(dplyr)
+library(sf)
+library(mapview)
+library(DT)
+library(widgetframe)
+
+# functions from https://github.com/mountainMath/doodles/blob/master/content/posts/2021-07-25-lots-of-opportunity-estimating-the-zoning-tax-in-vancouver/index.Rmarkdown
+format_bn <- function(d,...)scales::dollar(d,scale = 10^-9,suffix="bn",largest_with_cents=10)
+format_M <- function(d)scales::dollar(as.numeric(d),scale=10^-6,suffix="M",largest_with_cents=10)
+format_flex <- function(d){
+  if (d>10^9)
+    scales::dollar(as.numeric(d),scale=10^-9,suffix="bn",largest_with_cents=10)
+  else if  (d>10^6) 
+    scales::dollar(as.numeric(d),scale=10^-6,suffix="M",largest_with_cents=10)
+  else if  (d>10^3) 
+    scales::dollar(as.numeric(d),scale=10^-3,suffix="k",largest_with_cents=10)
+  else 
+    scales::dollar(d,largest_with_cents=10)
+}
+
+# save_And_use_widget function from Steph Locke learn package
+save_and_use_widget <- function(x, filename) {
+  root     <- rprojroot::has_file("DESCRIPTION")
+  the_dir  <- root$find_file("static", "post", "widgets")
+  the_file <- root$find_file("static", "post", "widgets", filename)
+  dir.create(the_dir, showWarnings = FALSE)
+  htmlwidgets::saveWidget(x, the_file, selfcontained = TRUE)
+  htmltools::tags$iframe(src = file.path("widgets", filename),
+                         width = "100%",
+                         height = "500px")
+}
+```
+
+Les données de langue du Recensement de 2021 sont sorties cette semaine et elles ont déjà été ajoutées à l'excellent package {cancensus} de Jens von Bergmann.  (merci!)
+
+Je me demandais quelles villes du Québec perdent le plus leur français.  Ma définition (c'est mon blog, c'est moi qui décide) de perdre le français, c'est que le pourcentage de gens dont la première langue officielle parlée est le français diminue entre 2016 et 2021.
+
+On va utiliser les packages {cancensus} pour le data du recensement, {dplyr} pour le data wrangling, {sf} pour le spatial data wrangling et {mapview} pour créer une carte leaflet sans trop se casser le bécyke.
+
+
+Faut commencer par trouver les variables de langue..
+
+
+On utilise la fonction list_census_vectors() pour trouver toutes les variables  variables du recensement de 2021 contenant le mot "language".  Il y en a plus de 1000.  On est chanceux, le vecteur qu'on veut (personnes dont la première langue officieille parlée est le français ) est  la 8e dans la liste : "Language; First official language spoken for the total population excluding institutional residents; French".  Il s'agit du vecteur "v_CA21_1165".
+
+
+
+```{r, out.width = "100%"}
+z21 <- find_census_vectors('language', dataset = 'CA21', type = "Total")
+
+temp <- DT::datatable(z21, 
+                      options = list(pageLength = 5,
+                                     scrollX = TRUE),
+                      height = 1000)
+widgetframe::frameWidget(temp)
+```
+
+
+On va devoir trouver le "parent" du vecteur pour avoir la population totale qui a répondu à la question.  C'est la fonction parent_census_vector(), et elle va nous dire qu'il s'agit du vecteur  "v_CA21_1159"
+```{r}
+list_census_vectors("CA21") %>% 
+  filter(vector == "v_CA21_1165") %>% 
+  parent_census_vectors()  # v_CA21_1159 Total
+```
+
+On fait la même chose pour 2016, on va trouver les vecteurs  v_CA16_533(français) et  v_CA16_527 (total)
+
+```{r, out.width = "100%"}
+z16 <- find_census_vectors('language', dataset = 'CA16', type = "Total") # v_CA16_533
+temp <- DT::datatable(z16,  
+                      options = list(pageLength = 5,
+                                     scrollX = TRUE),
+                      height = 1000)
+widgetframe::frameWidget(temp)
+```
+
+```{r}
+
+list_census_vectors("CA16") %>% 
+  filter(vector == "v_CA16_533") %>% 
+  parent_census_vectors() # v_CA16_527 Total
+
+```
+
+
+On va télécharger les données de langue au niveau de la ville (CSD) pour les deux recensements avec la fonction get_census().  On crée ensuite les variable pct_not_french2016 et pct_not_french2021 qui représente le pourcentage de personnes qui n'ont pas le français comme première langue officielle dans la ville.
+
+Ensuite, on join les 2 bases de données selon la geo_uid (le numéro de ville) et on calcule "diff", soit pct_not_french2021 moins  pct_not_french2016.  En dessous on va montrer un beau graphique et une carte de diff_max10, soit la différence cappée à 10% pour faire une belle carte.
+
+```{r}
+census_data_2021 <- get_census(
+  dataset='CA21', 
+  regions=list(PR="24"),
+  level = "CSD",
+  vectors=c(
+    "v_CA21_1165",
+    "v_CA21_1159"
+  ),
+  geo_format="sf")  %>%
+  janitor::clean_names()
+
+
+census_data_2016 <- get_census(
+  dataset='CA16', 
+  regions=list(PR="24"),
+  level = "CSD",
+  vectors=c(
+    "v_CA16_533",
+    "v_CA16_527"
+  ),
+  geo_format="sf")  %>%
+  janitor::clean_names()
+
+
+
+census_data_2016 <- census_data_2016 %>% 
+  mutate(pct_not_french2016 = 100  * (v_ca16_527_total_first_official_language_spoken_for_the_total_population_excluding_institutional_residents_100_percent_data- v_ca16_533_french) / v_ca16_527_total_first_official_language_spoken_for_the_total_population_excluding_institutional_residents_100_percent_data ) 
+
+
+
+census_data_2021 <- census_data_2021 %>% 
+  mutate(pct_not_french2021 = 100 * (v_ca21_1159_first_official_language_spoken_for_the_total_population_excluding_institutional_residents- v_ca21_1165_french) / v_ca21_1159_first_official_language_spoken_for_the_total_population_excluding_institutional_residents ) 
+
+both <- census_data_2021 %>% 
+  left_join(census_data_2016 %>% select(geo_uid, pct_not_french2016, v_ca16_533_french, v_ca16_527_total_first_official_language_spoken_for_the_total_population_excluding_institutional_residents_100_percent_data) %>% st_drop_geometry()) %>%
+  mutate(diff = round(pct_not_french2021 - pct_not_french2016,2))
+
+
+```
+
+Les pires municipalités..
+(bon y'a un -10% qu'il faudrait investiguer à Saint-Guy)
+
+```{r out.width = 1000}
+temp <- both %>% 
+  filter(population > 5000) %>% 
+  st_drop_geometry() %>%
+  select(geo_uid, name, diff,pct_not_french2021, pct_not_french2016 ,  v_ca21_1165_french, v_ca21_1159_first_official_language_spoken_for_the_total_population_excluding_institutional_residents , v_ca16_533_french, v_ca16_527_total_first_official_language_spoken_for_the_total_population_excluding_institutional_residents_100_percent_data) %>% 
+  arrange(desc(diff)) %>%
+  mutate(pct_not_french2021 = round(pct_not_french2021,2),
+         pct_not_french2016 = round(pct_not_french2016,2)
+  ) %>%
+  DT::datatable(
+    colnames = c("geo_uid", "nom", "difference 2021-2016", "pourcentage non-français 2021", "pourcentage non-français 2016", "population francais 2021",  "population totale 2021"
+                 , "population francais 2016",  "population totale 2016"),
+    options = 
+      list(
+        pageLength = 10,
+        scrollX = TRUE
+      ),  
+    height = 1000
+  )
+widgetframe::frameWidget(temp)
+```
+
+
+
+La carte
+
+```{r out.width = "100%"}
+mymap <- both %>%
+  select(geo_uid, name, diff,pct_not_french2021, pct_not_french2016 ,  v_ca21_1165_french, v_ca21_1159_first_official_language_spoken_for_the_total_population_excluding_institutional_residents , v_ca16_533_french, v_ca16_527_total_first_official_language_spoken_for_the_total_population_excluding_institutional_residents_100_percent_data) %>%
+  rename(
+    v_ca21_1159_first_official_language_spoken_pop = v_ca21_1159_first_official_language_spoken_for_the_total_population_excluding_institutional_residents,
+    v_ca16_527_total_first_official_language_spoken_pop = 
+      v_ca16_527_total_first_official_language_spoken_for_the_total_population_excluding_institutional_residents_100_percent_data
+  ) %>% 
+  mutate(diff_max10 = pmin(10, diff)) %>% 
+  mapview(zcol = "diff_max10")
+
+widgetframe::frameWidget(mymap@map, height = 500)
+```
+
