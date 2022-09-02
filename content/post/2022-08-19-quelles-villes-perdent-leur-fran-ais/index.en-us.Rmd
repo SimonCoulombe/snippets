@@ -28,32 +28,9 @@ library(sf)
 library(mapview)
 library(DT)
 library(widgetframe)
+library(RColorBrewer)
 
-# functions from https://github.com/mountainMath/doodles/blob/master/content/posts/2021-07-25-lots-of-opportunity-estimating-the-zoning-tax-in-vancouver/index.Rmarkdown
-format_bn <- function(d,...)scales::dollar(d,scale = 10^-9,suffix="bn",largest_with_cents=10)
-format_M <- function(d)scales::dollar(as.numeric(d),scale=10^-6,suffix="M",largest_with_cents=10)
-format_flex <- function(d){
-  if (d>10^9)
-    scales::dollar(as.numeric(d),scale=10^-9,suffix="bn",largest_with_cents=10)
-  else if  (d>10^6) 
-    scales::dollar(as.numeric(d),scale=10^-6,suffix="M",largest_with_cents=10)
-  else if  (d>10^3) 
-    scales::dollar(as.numeric(d),scale=10^-3,suffix="k",largest_with_cents=10)
-  else 
-    scales::dollar(d,largest_with_cents=10)
-}
 
-# save_And_use_widget function from Steph Locke learn package
-save_and_use_widget <- function(x, filename) {
-  root     <- rprojroot::has_file("DESCRIPTION")
-  the_dir  <- root$find_file("static", "post", "widgets")
-  the_file <- root$find_file("static", "post", "widgets", filename)
-  dir.create(the_dir, showWarnings = FALSE)
-  htmlwidgets::saveWidget(x, the_file, selfcontained = TRUE)
-  htmltools::tags$iframe(src = file.path("widgets", filename),
-                         width = "100%",
-                         height = "500px")
-}
 ```
 
 Les données de langue du Recensement de 2021 sont sorties cette semaine et elles ont déjà été ajoutées à l'excellent package {cancensus} de Jens von Bergmann.  (merci!)
@@ -139,12 +116,13 @@ census_data_2016 <- get_census(
 
 
 census_data_2016 <- census_data_2016 %>% 
-  mutate(pct_not_french2016 = 100  * (v_ca16_527_total_first_official_language_spoken_for_the_total_population_excluding_institutional_residents_100_percent_data- v_ca16_533_french) / v_ca16_527_total_first_official_language_spoken_for_the_total_population_excluding_institutional_residents_100_percent_data ) 
+  mutate(pct_not_french2016 = round(100  * (v_ca16_527_total_first_official_language_spoken_for_the_total_population_excluding_institutional_residents_100_percent_data- v_ca16_533_french) / v_ca16_527_total_first_official_language_spoken_for_the_total_population_excluding_institutional_residents_100_percent_data 
+         , 2)) 
 
 
 
 census_data_2021 <- census_data_2021 %>% 
-  mutate(pct_not_french2021 = 100 * (v_ca21_1159_first_official_language_spoken_for_the_total_population_excluding_institutional_residents- v_ca21_1165_french) / v_ca21_1159_first_official_language_spoken_for_the_total_population_excluding_institutional_residents ) 
+  mutate(pct_not_french2021 = round(100 * (v_ca21_1159_first_official_language_spoken_for_the_total_population_excluding_institutional_residents- v_ca21_1165_french) / v_ca21_1159_first_official_language_spoken_for_the_total_population_excluding_institutional_residents ,2)) 
 
 both <- census_data_2021 %>% 
   left_join(census_data_2016 %>% select(geo_uid, pct_not_french2016, v_ca16_533_french, v_ca16_527_total_first_official_language_spoken_for_the_total_population_excluding_institutional_residents_100_percent_data) %>% st_drop_geometry()) %>%
@@ -191,7 +169,12 @@ mymap <- both %>%
       v_ca16_527_total_first_official_language_spoken_for_the_total_population_excluding_institutional_residents_100_percent_data
   ) %>% 
   mutate(diff_max10 = pmin(10, diff)) %>% 
-  mapview(zcol = "diff_max10")
+  mutate(prout = pmax(diff_max10, -10)) %>% 
+  mapview(zcol = "prout", 
+          col.regions= rev(brewer.pal(9, "RdBu")), 
+          map.types = "CartoDB.Positron",
+          layer.name = "Augmentation du <br>pourcentage de <br>non-francophones<br> entre 2016 et 2021"
+          )
 
 widgetframe::frameWidget(mymap@map, height = 500)
 ```
