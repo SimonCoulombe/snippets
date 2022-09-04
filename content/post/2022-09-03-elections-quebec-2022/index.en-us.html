@@ -1,0 +1,44 @@
+---
+title: elections-quebec-2022
+author: simon
+date: '2022-09-03'
+slug: index.en-us
+categories:
+  - Rstats
+  - polqc
+tags:
+  - tag1
+  - tag2
+keywords:
+  - tech
+---
+
+
+
+<div id="work-in-progress-code-dégueux-jai-même-pas-atteit-mon-objectif-encore" class="section level2">
+<h2>WORK IN PROGRESS, CODE DÉGUEUX, J’AI MÊME PAS ATTEIT MON OBJECTIF ENCORE</h2>
+<p>Ok j’ai envie de sortir les données par bureau de scrutin et regarder le lift de quelques variables sur le pourcentage de vote de chaque parti.</p>
+<p>On va vouloir
+-résultats par section de vote aux élections générales de 2018.
+(<a href="https://www.dgeq.org/archives.html" class="uri">https://www.dgeq.org/archives.html</a>)</p>
+<ul>
+<li>les package cancensus (données du recensement) et tongfen de Jens Von Bergman</li>
+</ul>
+<p><a href="https://www.dgeq.org/sections_vote_2018_shapefile.zip" class="uri">https://www.dgeq.org/sections_vote_2018_shapefile.zip</a> # supposé être ISO 8859‑1
+<a href="https://www.dgeq.org/doc/gen2018-10-01/resultats-section-vote.zip" class="uri">https://www.dgeq.org/doc/gen2018-10-01/resultats-section-vote.zip</a></p>
+<p>dictionnaire des données du shapefile
+Dictionnaire de données</p>
+<p>IND_OFF Indique si cette section de vote peut contenir des électeurs. Si ce n’est pas le cas, la valeur est ‘N’ (NON) et cette section de vote ne sera pas présente sur les cartes et sur les listes.
+CO_CEP Code de la circonscription électorale. Provient de l’Institut de la statistique du Québec. Il peut servir de clé de recherche dans la sélection d’une circonscription.
+NM_CEP Nom de la circonscription électorale, tel que spécifié dans la Gazette officielle du Québec lors de la publication de la liste des circonscriptions électorales (G.O., partie 2, no 9B, 2 mars 2017) faite par la Commission de la représentation électorale du Québec.
+NM_CEP_TRI Nom de la circonscription, Il permet un tri plus efficace.
+NO_SV Le numéro de la section de vote.
+CO_MUNCP Le code géographique est le code officiel d’identification des municipalités du Québec. (ISQ)
+NM_MUNCP Nom de la municipalité dans laquelle la section de vote se situe. Les municipalités sont celles existant le 2 juin 2018.
+CO_DESIGN Le statut est une désignation distinctive accordée à l’entité territoriale de base, la municipalité, en vertu de sa loi constitutive.
+ELEC_2018 Nombre total d’électeurs inscrits aux élections générales du 1er octobre 2018. Ce nombre inclut les électeurs inscrits pour la journée du vote ordinaire, les journées du vote par anticipation, les électeurs inscrits au vote hors Québec et les électeurs des centres de détention.
+Révision : 22 octobre 2018</p>
+<pre><code>## 8.172 sec elapsed</code></pre>
+<pre><code>## [1] &quot;/home/simon/git/snippets/content/post/2022-09-03-elections-quebec-2022/output/taschereau.png&quot;</code></pre>
+<p><img src="/post/2022-09-03-elections-quebec-2022/index.en-us_files/figure-html/unnamed-chunk-1-1.png" width="960" /></p>
+</div>
