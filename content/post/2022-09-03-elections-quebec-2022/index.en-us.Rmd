@@ -1,0 +1,266 @@
+---
+title: elections-quebec-2022
+author: simon
+date: '2022-09-03'
+slug: index.en-us
+categories:
+  - Rstats
+  - polqc
+tags:
+  - tag1
+  - tag2
+keywords:
+  - tech
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE,
+  #dpi = 150,
+  fig.width = 10,
+  fig.height = 10,
+  cache = FALSE # cache= TRUE leads to Error: path for html_dependency not found: error
+)
+library(cancensus)
+library(dplyr)
+library(sf)
+library(mapview)
+library(DT)
+library(widgetframe)
+library(RColorBrewer)
+library(tongfen)
+library(readr)
+library(tidyr)
+library(janitor)
+library(purrr)
+library(tictoc)
+library(ggplot2)
+library(ggspatial)# for annotation_map_tile
+library(ggtext) # for element markdown
+```
+
+## WORK IN PROGRESS, CODE DÉGUEUX, J'AI MÊME PAS ATTEIT MON OBJECTIF ENCORE 
+
+Ok j'ai envie de sortir les données par bureau de scrutin et regarder le lift de quelques variables sur le pourcentage de vote de chaque parti.
+
+On va vouloir
+-résultats  par section de vote aux élections générales de 2018.
+(https://www.dgeq.org/archives.html)
+
+- les package cancensus (données du recensement) et tongfen de Jens Von Bergman
+
+https://www.dgeq.org/sections_vote_2018_shapefile.zip # supposé être ISO 8859‑1
+https://www.dgeq.org/doc/gen2018-10-01/resultats-section-vote.zip
+
+dictionnaire des données du shapefile 
+Dictionnaire de données
+
+IND_OFF  Indique si cette section de vote peut contenir des électeurs. Si ce n'est pas le cas, la valeur est 'N'  (NON)  et cette section de vote ne sera pas présente sur les cartes et sur les listes.
+CO_CEP  Code de la circonscription électorale. Provient de l'Institut de la statistique du Québec. Il peut servir de clé de recherche dans la sélection d'une circonscription.
+NM_CEP Nom de la circonscription électorale, tel que spécifié dans la Gazette officielle du Québec lors de la publication de la liste des circonscriptions électorales (G.O., partie 2, no 9B, 2 mars 2017) faite par la Commission de la représentation électorale du Québec.
+NM_CEP_TRI Nom de la circonscription, Il permet un tri plus efficace.
+NO_SV  Le numéro de la section de vote.
+CO_MUNCP Le code géographique est le code officiel d’identification des municipalités du Québec. (ISQ)
+NM_MUNCP Nom de la municipalité dans laquelle la section de vote se situe. Les municipalités sont celles existant le 2 juin 2018.
+CO_DESIGN Le statut est une désignation distinctive accordée à l’entité territoriale de base, la municipalité, en vertu de sa loi constitutive.
+ELEC_2018 Nombre total d’électeurs inscrits aux élections générales du 1er octobre 2018. Ce nombre inclut les électeurs inscrits pour la journée du vote ordinaire, les journées du vote par anticipation, les électeurs inscrits au vote hors Québec et les électeurs des centres de détention.
+Révision : 22 octobre 2018
+
+```{r}
+# couleurs selon wikipedia #https://fr.wikipedia.org/wiki/Mod%C3%A8le:Code_parti_politique_qu%C3%A9b%C3%A9cois
+couleurs <- c(
+  "pq" = "#004C9D",
+  "caq"= "#1E90FF",
+  "pcq"= "#7B5804",
+  #"pcq"= "#6495ED",
+  "plq" = "#F08080",
+  "qs" = "#FF8040",
+  "autre" = "#DCDCDC"
+  
+)
+shp_circ <-  read_sf("/home/simon/git/snippets/content/post/2022-09-03-elections-quebec-2022/data/circonscriptions_electorales_2022_shapefile/Circonscription_electorale_2022_shapefile.shp")
+
+shp_sections <- read_sf("/home/simon/git/snippets/content/post/2022-09-03-elections-quebec-2022/data/sections_vote_2018_shapefile/Sections_vote_23_08_2018_shapefile/Section_de_vote.shp")
+
+csv_results_list <- list.files ("~/git/snippets/content/post/2022-09-03-elections-quebec-2022/data/resultats-section-vote" ,
+                                full.names = TRUE)
+
+
+import_section_vote_results <- function(csv_path){
+  read_delim(csv_path, 
+             locale = locale(encoding = "windows-1252"),
+             col_types = cols(.default = col_character()),
+             delim =";") %>%
+    janitor::clean_names() %>% 
+    rename(section_vote = s_v,
+           electeurs_inscrits = e_i,
+    ) %>% 
+    rename_with(.data= .  , .fn = ~"plq", .cols = ends_with("p_l_q_q_l_p") ) %>%
+    rename_with(.data= .  , .fn = ~"pcq", .cols = ends_with("p_c_q_c_p_q") ) %>%  #parti conservateur
+    rename_with(.data= .  , .fn = ~"cpq", .cols = ends_with("_c_p_q") ) %>%  # citoyenx au pouvoir
+    rename_with(.data= .  , .fn = ~"apq", .cols = ends_with("_a_p_q") ) %>%  # alliance provinciale du québec
+    rename_with(.data= .  , .fn = ~"pvq", .cols = ends_with("_p_v_q_g_p_q") ) %>%  # parti vert
+    rename_with(.data= .  , .fn = ~"qs", .cols = ends_with("q_s") ) %>% 
+    rename_with(.data= .  , .fn = ~"caq", .cols = ends_with("c_a_q_e_f_l") ) %>% 
+    rename_with(.data= .  , .fn = ~"pvq", .cols = ends_with("p_v_q_g_p_q") ) %>%
+    rename_with(.data= .  , .fn = ~"pq", .cols = ends_with("p_q") )  %>%
+    mutate(autre = select(., -any_of(c(
+      "code", "circonscription", "date_scrutin", "etendue", "nom_des_municipalites", "secteur", "regroupement", "section_vote", "electeurs_inscrits",
+      "caq","plq",  "pq", "qs", "pcq", "autre", "b_v", "b_r"
+    )  )) %>% mutate_all(., .funs = as.numeric) %>%  rowSums(na.rm= TRUE)
+    ) %>%
+    select(any_of(c("code", "circonscription", "date_scrutin", "etendue", "nom_des_municipalites", "secteur", "regroupement", "section_vote", "electeurs_inscrits",
+                    "caq","plq",  "pq", "qs", "pcq", "autre", "b_v", "b_r"))) # , everything()
+}
+
+
+z <- purrr::map(csv_results_list, import_section_vote_results)
+
+zz <- bind_rows(z) %>%  select(any_of(c("code", "circonscription", "date_scrutin", "etendue", "nom_des_municipalites", "secteur", "regroupement", "section_vote", "electeurs_inscrits",
+                                        "caq","plq",  "pq", "qs", "pcq", "autre", "b_v", "b_r"))) %>%
+  filter(!is.na(section_vote), !is.na(b_v)) %>%
+  mutate(across(all_of (c("caq","plq",  "pq", "qs", "pcq", "autre", "b_v", "b_r")), ~ if_else(is.na(as.numeric(.x)), 0, as.numeric(.x), 0  )))
+
+zzz <- zz %>% rename(CO_CEP = code, NO_SV = section_vote)
+zzzz <- shp_sections %>% filter(NM_CEP == "Taschereau") %>% inner_join(zzz)
+
+
+# https://tarakc02.github.io/dot-density/
+
+zzzzz <- sf::st_sample(zzzz, size = zzzz$autre)
+zzzzzz <-st_sf(zzzzz) %>% mutate(parti="autre")
+
+divise_puis_probabilistic_round <- function(x, division = 10){
+  xx <- x/ division
+  floored_xx <- floor(xx)
+  reste = xx - floored_xx
+  random = runif(length(reste))
+  xxx = floored_xx + as.numeric(random<reste)
+  return(xxx)
+}
+
+tic()
+
+my_division = 1
+test <- zzzz %>% 
+  #head(5) %>%
+  mutate(
+    point_pq = pmap( list(geometry, pq, CO_CEP, NO_SV), 
+                     function(geometry, pq, CO_CEP, NO_SV){
+                       geometry <-sf::st_sample(geometry, size = divise_puis_probabilistic_round(pq, division =  my_division))
+                       st_sf(geometry, crs = st_crs(zzzz)) %>% mutate(parti = "pq", CO_CEP = CO_CEP, NO_SV = NO_SV) 
+                     }
+    ) ,
+    point_qs = pmap( list(geometry, qs, CO_CEP, NO_SV), 
+                     function(geometry, qs, CO_CEP, NO_SV){
+                       geometry <-sf::st_sample(geometry, size = divise_puis_probabilistic_round(qs, division =  my_division))
+                       st_sf(geometry, crs = st_crs(zzzz)) %>% mutate(parti = "qs", CO_CEP = CO_CEP, NO_SV = NO_SV) 
+                     }
+    ),
+    point_caq = pmap( list(geometry, caq, CO_CEP, NO_SV), 
+                      function(geometry, caq, CO_CEP, NO_SV){
+                        geometry <-sf::st_sample(geometry, size = divise_puis_probabilistic_round(caq, division =  my_division))
+                        st_sf(geometry, crs = st_crs(zzzz)) %>% mutate(parti = "caq", CO_CEP = CO_CEP, NO_SV = NO_SV) 
+                      }
+    ),
+    
+    point_plq = pmap( list(geometry, plq, CO_CEP, NO_SV), 
+                      function(geometry, plq, CO_CEP, NO_SV){
+                        geometry <-sf::st_sample(geometry, size = divise_puis_probabilistic_round(plq, division =  my_division))
+                        st_sf(geometry, crs = st_crs(zzzz)) %>% mutate(parti = "plq", CO_CEP = CO_CEP, NO_SV = NO_SV) 
+                      }
+    ),
+    
+    point_pcq = pmap( list(geometry, pcq, CO_CEP, NO_SV), 
+                      function(geometry, pcq, CO_CEP, NO_SV){
+                        geometry <-sf::st_sample(geometry, size = divise_puis_probabilistic_round(pcq, division =  my_division))
+                        st_sf(geometry, crs = st_crs(zzzz)) %>% mutate(parti = "pcq", CO_CEP = CO_CEP, NO_SV = NO_SV) 
+                      }
+    ),
+    point_autre = pmap( list(geometry, autre, CO_CEP, NO_SV), 
+                        function(geometry, autre, CO_CEP, NO_SV){
+                          geometry <-sf::st_sample(geometry, size = divise_puis_probabilistic_round(autre, division =  my_division))
+                          st_sf(geometry, crs = st_crs(zzzz)) %>% mutate(parti = "autre", CO_CEP = CO_CEP, NO_SV = NO_SV) 
+                        }
+    )
+  )
+my_points <- bind_rows(
+  bind_rows(test$point_pq) ,  
+  bind_rows(test$point_qs), 
+  bind_rows(test$point_caq), 
+  bind_rows(test$point_plq), 
+  bind_rows(test$point_pcq), 
+  bind_rows(test$point_autre)
+)
+
+toc()
+
+g1 <-  my_points %>% 
+  ggplot() +
+  annotation_map_tile(type = "cartodark",zoom = 14, cachedir = system.file("rosm.cache", package = "ggspatial"))+
+  geom_sf(data=my_points, aes(color = parti, fill = parti), alpha =0.3, size =0.2)+ 
+  geom_sf(data = shp_circ %>% filter(NM_CEP == "Taschereau"), fill = NA, size =1, color = "grey35")+ 
+  scale_colour_manual(values = couleurs)+ 
+  scale_fill_manual(values = couleurs) + 
+  theme_void(base_family = "Roboto") + # enleve tout, même les ticks 
+  theme(legend.position = "bottom") + 
+  labs(title = "Taschereau 2018",
+       subtitle = paste0("1 point = " , my_division, " votes"),
+       caption = "graph par @coulsim, données Élections Québec",
+       x = NULL, y = NULL)+ 
+  theme(plot.background = element_rect(color = NA, fill = "black"),
+        panel.background = element_rect(color = NA, fill = "black"),
+        panel.grid = element_blank(),
+        plot.margin = grid::unit(c(t = 10,r = 5, b = 3, l = 5), "mm"),
+        text = element_text(color = "orange"), # pour être sur que j'ai rien manqué
+        plot.caption = element_markdown(family = "Roboto", size = 11,
+                                        hjust = 1, color = "grey35",
+                                        margin = margin(t = 20, b = 6)),
+        
+        plot.title = element_markdown(family = "Roboto", size = 14,
+                                      hjust = 0, color = "grey35",
+                                      #margin = margin(t = 20, b = 6)
+        ),
+        plot.subtitle = element_markdown(family = "Roboto", size = 10,
+                                         color = "grey35",
+                                         #hjust = 0, 
+                                         #margin = margin(t = 20, b = 6)
+        ),
+        
+        legend.title = element_markdown(family = "Roboto", size = 10,
+                                        color = "grey35",
+                                        #hjust = 0, 
+                                        #margin = margin(t = 20, b = 6)
+        ),
+        legend.text = element_markdown(family = "Roboto", size = 10,
+                                       color = "grey35",
+                                       #hjust = 0, 
+                                       #margin = margin(t = 20, b = 6)
+        ),
+        #element_text(color= "grey35"),
+        legend.position = c("bottom"),
+        legend.background = element_rect(fill="black"),  # fond noir dans la légende
+        legend.key = element_rect(fill = "black") # remplacer  le gris autour des points de la légende par du noir
+  ) + 
+  guides(colour = guide_legend(override.aes = list(size=3)))  # plus gros points dans la legende https://stackoverflow.com/questions/20415963/how-to-increase-the-size-of-points-in-legend-of-ggplot2
+
+png_file <- here::here("content/post/2022-09-03-elections-quebec-2022/output/taschereau.png")
+
+ggsave(
+  png_file,
+  #  device = cairo_pdf,
+  width = 8,
+  height = 8
+)
+
+knitr::plot_crop(png_file)
+g1
+```
+
+```{r}
+
+```
+
