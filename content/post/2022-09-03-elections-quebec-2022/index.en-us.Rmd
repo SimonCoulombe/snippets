@@ -130,8 +130,9 @@ zzzz <- shp_sections %>% filter(NM_CEP == "Taschereau") %>% inner_join(zzz)
 
 # https://tarakc02.github.io/dot-density/
 
-#zzzzz <- sf::st_sample(zzzz, size = zzzz$autre)
-#zzzzzz <-st_sf(zzzzz) %>% mutate(parti="autre")
+zzzzz <- sf::st_sample(zzzz, size = zzzz$autre)
+zzzzzz <-st_sf(zzzzz) %>% mutate(parti="autre")
+
 
 divise_puis_probabilistic_round <- function(x, division = 10){
   xx <- x/ division
