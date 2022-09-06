@@ -1,0 +1,572 @@
+---
+title: taxer les ultras riches ou taxer les retraités
+author: simon
+date: '2022-09-06'
+slug: ultra-riches
+categories:
+  - category
+  - subcategory
+tags:
+  - tag1
+  - tag2
+keywords:
+  - tech
+---
+
+
+
+<p>Ils l’ont encore fait. Québec Solidaire a identifié le bon problème (bravo)et proposé une solution étrange.</p>
+<p>{{% tweet "1567150861448511488" %}}</p>
+<p>{{% tweet "1567150862723588097" %}}</p>
+<p>Gabriel Nadeau-Dubois dit que quelqu’un dans le top 5% est un ultra-riche. C’est drôle, avant on était “We are the 99%”, maintenant il vise “We are the 95%”.</p>
+<p>Si vous avez un million de dollar à 65 ans (et pas de maison), vous avez assez d’argent pour dépenser environ 50 000$ par année jusqu’à votre mort.
+Ce n’est certainement pas ça être un ultra-riche.</p>
+<p>Mais surtout, j’ai la facheuse impression que quelqu’un qui a 1 million à 65 ans n’est pas le top 5%, mais plutôt quel part autour du 25-30% et qu’on se retrouverait ainsi à taxer le quart des nouveaux retraités.</p>
+<p>Est-ce qu’on est rendu à dire “We are the 75%” ?</p>
+<p>C’est bien beau “eat the rich”, mais ça commence à faire beaucoup de riches à manger…</p>
+<p>On creuse!</p>
+<div id="les-données" class="section level1">
+<h1>Les données</h1>
+<p>La meilleure source de données au Canada pour la valeur nettes de gens, c’est l’enquête sur la sécurité financières des ménages de statistique canada. Déjà, le plus gros problème c’est qu’elle vise le ménage, plutôt que l’individu. L’information qu’elle va nous donner va donc être la valeur nette des ménages.</p>
+<p>Le premier tableau à voir est donc le Tableau 1 dans le Quotidien du 22 décembre 2020.</p>
+<p><a href="https://www150.statcan.gc.ca/n1/daily-quotidien/201222/dq201222b-fra.htm" class="uri">https://www150.statcan.gc.ca/n1/daily-quotidien/201222/dq201222b-fra.htm</a></p>
+<p><img src="img/tableau1.jpg" /></p>
+<p>La richesse médiane des ménages au Canada était de 329 900$ en 2019.
+Chez les Québécois , elle était de seulement 237 800$.</p>
+<p>Quand on regarde par âge, on se rend compte que plus on est vieux, plus on a accumulé d’avoirs en prévision de la retraite. Ainsi, la médiane des 55-64 ans était de 690 000$</p>
+<p><img src="/post/2022-09-06-taxer-les-ultras-riches-ou-taxer-les-retrait-s/index.en-us_files/figure-html/unnamed-chunk-4-1.png" width="672" /></p>
+<p>Le problème, c’est qu’on veut connaître le 95e percentile, chez les Québécois, pour les 55-64 ans et que le tableau ne permet de ventiler que par une variable à la fois (âge, ou province) en plus de n’avoir que la médiane.</p>
+<p>Il existe un autre tableau qui permet d’avoir plus de détails, le tableau <a href="https://www150.statcan.gc.ca/t1/tbl1/fr/tv.action?pid=1110004901&amp;pickMembers%5B0%5D=1.1&amp;pickMembers%5B1%5D=2.27&amp;pickMembers%5B2%5D=4.5&amp;cubeTimeFrame.startYear=1999&amp;cubeTimeFrame.endYear=2019&amp;referencePeriods=19990101%2C20190101">11-10-0049-01</a>.</p>
+<p><img src="img/tableau2.jpg" /></p>
+<p>On y voir encore que la richesse médiane est de 329 900$ au Canada.<br />
+Ce qui est intéressant, c’est qu’on apprend la valeur médiane dans chaque quintile d’avoir net.
+Ainsi, la médiane du quintile inférieur d’avoir net ( 3000$), correspond au percentile à mi-chemin entre 0 et 20, donc le 10e percentile.</p>
+<p>Le tableau ne permet donc de savoir que les avoirs nets des 10e 30e, 50e, 70e et 90e percentiles:</p>
+<pre><code>## # A tibble: 5 × 3
+##   percentile avoir_net class 
+##   &lt;chr&gt;          &lt;dbl&gt; &lt;chr&gt; 
+## 1 10              3000 canada
+## 2 30             88000 canada
+## 3 50            329900 canada
+## 4 70            762000 canada
+## 5 90           1814900 canada</code></pre>
+<p>très cool, on avance!</p>
+<p>En plus, on peut choisir la géographie de notre choix, soit le Québec.
+<img src="img/tableau3.jpg" /></p>
+<p>Ça concorde, la médiane du Québecv est de 237 800, soit ce qu’on avait déjà vu dans le quotidien. Voici les autres chiffres qu’on apprend pour le Québec:</p>
+<pre><code>## # A tibble: 5 × 3
+##   percentile avoir_net class 
+##   &lt;chr&gt;          &lt;dbl&gt; &lt;chr&gt; 
+## 1 10              2600 quebec
+## 2 30             62000 quebec
+## 3 50            237800 quebec
+## 4 70            545000 quebec
+## 5 90           1312000 quebec</code></pre>
+<p><img src="/post/2022-09-06-taxer-les-ultras-riches-ou-taxer-les-retrait-s/index.en-us_files/figure-html/unnamed-chunk-7-1.png" width="672" /></p>
+<p>On a progressé pas mal! On a la richesse du ménage au 90e percentile au Québec.<br />
+C’est pas encore ça qu’on veut!<br />
+On veut la richesse de l’individu au 95e percentile des 55-64 ans au Québec.
+On va devoir continuer à travailler.</p>
+<p>Pour ce faire, on va télécharger les <a href="https://www150.statcan.gc.ca/n1/pub/13m0006x/13m0006x2021001-fra.htm">donnes du PUMF de l’Enquête sur la Sécurité Financière</a> (prononcé poumf, pour public use microdata file) et on va faire notre tableau nous même!</p>
+<p>J’ai donc suivi le lien et cliqué “Télécharger période de référence 2019” pour avoir un fichier zip</p>
+<p>Le fichier zip contient les fichiers suivants qui sont intéressants:
+<code>SFS2019_EFAM_PUMF.txt</code> est un fichier texte de type “fixed width”. Ça va être chiant à importer
+<code>SAS/SFS2019_EFAM_PUMF_i.SAS</code> explique les caractéristique du fichier à importer (largeur et type des colonnes dans le fichier texte)
+<code>SFS2019_PUMF_F.pdf</code> contient le dictionnaire des données (c’est quoi la colonne province? c’est PPVRES. C’est quoi le code de la province de Québec? c’est 24.)</p>
+<p>Ok, let’s go, j’importe ça dans R.</p>
+<p>Ça ressemble à ça une fois importé. On a 10 442 lignes et une centaine de colonnes.
+Les variables d’intérêt sont:
+PWEIGHT , le poids de l’observation.
+PWNETWPG, la valeur nette de l’unité familiale selon la base de long terme.<br />
+PWNETWPT, la valeur nette de l’unité familiale selon la base de la terminaison (je ne sais pas quelle est la bonne base à utiliser, mais les chiffres se ressemblent)
+PAGEMIEG, la catégorie d’âge
+PPVRES, la province de résidence</p>
+<pre><code>## # A tibble: 10,422 × 100
+##    PEFAMID PWEIGHT PAGEMIEG PAS1MRAG PAS1MRG1 PAS1MRG2 PASR1MFA PASR1MR PASRBUYG
+##    &lt;chr&gt;     &lt;dbl&gt; &lt;chr&gt;       &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;   &lt;dbl&gt;    &lt;dbl&gt;
+##  1 00001     4415. 06              6        6        6 99999996       2        7
+##  2 00002      805. 14              6        6        6 99999996       6       96
+##  3 00003     1393. 12              6        6        6 99999996       6        4
+##  4 00004      217. 11              6        6        6 99999996       6        5
+##  5 00005      455. 11              6        6        6 99999996       6        5
+##  6 00006     2936. 04              6        6        6 99999996       2        9
+##  7 00007      920. 13              6        6        6 99999996       6        6
+##  8 00008     1057. 14              6        6        6 99999996       6        5
+##  9 00009      940. 07              6        6        6 99999996       6        7
+## 10 00010      214. 11              6        6        6 99999996       6        4
+## # … with 10,412 more rows, and 91 more variables: PASRCNMG &lt;dbl&gt;,
+## #   PASRCON &lt;dbl&gt;, PASRCST &lt;dbl&gt;, PASRCURG &lt;dbl&gt;, PASRDPO1 &lt;dbl&gt;,
+## #   PASRDPO2 &lt;dbl&gt;, PASRDPO3 &lt;dbl&gt;, PASRDPO4 &lt;dbl&gt;, PASRDPO5 &lt;dbl&gt;,
+## #   PASRDWNG &lt;dbl&gt;, PASRFNMG &lt;dbl&gt;, PASRINT &lt;dbl&gt;, PASRINTG &lt;chr&gt;,
+## #   PASRMOAG &lt;dbl&gt;, PASRMPFG &lt;dbl&gt;, PASRMRYG &lt;dbl&gt;, PASRRNTG &lt;dbl&gt;,
+## #   PASRSKP &lt;dbl&gt;, PATTCRC &lt;dbl&gt;, PATTCRLM &lt;dbl&gt;, PATTCRR &lt;dbl&gt;, PATTCRU &lt;dbl&gt;,
+## #   PATTDIF &lt;dbl&gt;, PATTLCP &lt;dbl&gt;, PATTLCR &lt;dbl&gt;, PATTPAYD &lt;dbl&gt;, …</code></pre>
+<p>C’est quoi la valeur médiane de la valeur nette au Canada.
+On va utiliser la fonctioin Hmisc::wtd.quantile(), car on doit utiliser les poids d’échantillonnage.</p>
+<pre><code>##    50% 
+## 338450</code></pre>
+<p>338 450!! C’est proche du chiffre officiel de 329 900$ qu’on avait dans les tableaux. Ça ne semble pas trop brisé. Qu’en est-il des autres percentiles qu’on connait (10, 30, 50, 70, 90) ?</p>
+<p><img src="/post/2022-09-06-taxer-les-ultras-riches-ou-taxer-les-retrait-s/index.en-us_files/figure-html/unnamed-chunk-11-1.png" width="672" />
+ok , on est vraiment proches!!</p>
+<p>Juste pour être sûrs, est-ce qu’on est capable de reproduire les chiffres par groupe d’âge aussi?</p>
+<p><img src="/post/2022-09-06-taxer-les-ultras-riches-ou-taxer-les-retrait-s/index.en-us_files/figure-html/unnamed-chunk-12-1.png" width="672" /></p>
+<p>What about les percentiles du Québec?</p>
+<p><img src="/post/2022-09-06-taxer-les-ultras-riches-ou-taxer-les-retrait-s/index.en-us_files/figure-html/unnamed-chunk-13-1.png" width="672" /></p>
+<p>Ok, ça veut dire qu’on est vraiment capables de reproduire les chiffres officiels à peu de chose près. On n’aurait pas pu espérer mieux sachant qu’on travaille avec un échantillon de ce qui est utilisé pour les chiffres officiels.</p>
+<p>Maintenant qu’on a confirmé que l’on sait comment travailler avec le PUMF, nous allons enfin pouvoir créer des données “originales”</p>
+<p>here we gooooooooooooo
+commençons par calculer plus de percntiles au Québec.</p>
+<p><img src="/post/2022-09-06-taxer-les-ultras-riches-ou-taxer-les-retrait-s/index.en-us_files/figure-html/unnamed-chunk-14-1.png" width="672" />
+Le 95e percentile de Québécois avait un avoir net de 1 941 500$.
+Est-ce que QS a juste pris le chiffre de 2 millions puis l’a divisé par 2 pour avoir un montant par individu en supposant que tous les ménages étaient composés d’un couple?<br />
+Je ne serais pas surpris.</p>
+<p>Supposons qu’ils ont fait ça et que la cible du 95% est de 2 millions de dollar d’avoir net par ménage.
+La question qui demeure est “à quel percentile correspond le nombre de 2 millions de dollar dans chaque groupe d’âge?</p>
+<div id="dgezpcicfk" style="overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>html {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', 'Fira Sans', 'Droid Sans', Arial, sans-serif;
+}
+
+#dgezpcicfk .gt_table {
+  display: table;
+  border-collapse: collapse;
+  margin-left: auto;
+  margin-right: auto;
+  color: #333333;
+  font-size: 16px;
+  font-weight: normal;
+  font-style: normal;
+  background-color: #FFFFFF;
+  width: auto;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #A8A8A8;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #A8A8A8;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+}
+
+#dgezpcicfk .gt_heading {
+  background-color: #FFFFFF;
+  text-align: center;
+  border-bottom-color: #FFFFFF;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#dgezpcicfk .gt_title {
+  color: #333333;
+  font-size: 125%;
+  font-weight: initial;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-color: #FFFFFF;
+  border-bottom-width: 0;
+}
+
+#dgezpcicfk .gt_subtitle {
+  color: #333333;
+  font-size: 85%;
+  font-weight: initial;
+  padding-top: 0;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-color: #FFFFFF;
+  border-top-width: 0;
+}
+
+#dgezpcicfk .gt_bottom_border {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#dgezpcicfk .gt_col_headings {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#dgezpcicfk .gt_col_heading {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+  overflow-x: hidden;
+}
+
+#dgezpcicfk .gt_column_spanner_outer {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#dgezpcicfk .gt_column_spanner_outer:first-child {
+  padding-left: 0;
+}
+
+#dgezpcicfk .gt_column_spanner_outer:last-child {
+  padding-right: 0;
+}
+
+#dgezpcicfk .gt_column_spanner {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  overflow-x: hidden;
+  display: inline-block;
+  width: 100%;
+}
+
+#dgezpcicfk .gt_group_heading {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#dgezpcicfk .gt_empty_group_heading {
+  padding: 0.5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#dgezpcicfk .gt_from_md > :first-child {
+  margin-top: 0;
+}
+
+#dgezpcicfk .gt_from_md > :last-child {
+  margin-bottom: 0;
+}
+
+#dgezpcicfk .gt_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  margin: 10px;
+  border-top-style: solid;
+  border-top-width: 1px;
+  border-top-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  overflow-x: hidden;
+}
+
+#dgezpcicfk .gt_stub {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#dgezpcicfk .gt_stub_row_group {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 5px;
+  padding-right: 5px;
+  vertical-align: top;
+}
+
+#dgezpcicfk .gt_row_group_first td {
+  border-top-width: 2px;
+}
+
+#dgezpcicfk .gt_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#dgezpcicfk .gt_first_summary_row {
+  border-top-style: solid;
+  border-top-color: #D3D3D3;
+}
+
+#dgezpcicfk .gt_first_summary_row.thick {
+  border-top-width: 2px;
+}
+
+#dgezpcicfk .gt_last_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#dgezpcicfk .gt_grand_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#dgezpcicfk .gt_first_grand_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: double;
+  border-top-width: 6px;
+  border-top-color: #D3D3D3;
+}
+
+#dgezpcicfk .gt_striped {
+  background-color: rgba(128, 128, 128, 0.05);
+}
+
+#dgezpcicfk .gt_table_body {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#dgezpcicfk .gt_footnotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#dgezpcicfk .gt_footnote {
+  margin: 0px;
+  font-size: 90%;
+  padding-left: 4px;
+  padding-right: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#dgezpcicfk .gt_sourcenotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#dgezpcicfk .gt_sourcenote {
+  font-size: 90%;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#dgezpcicfk .gt_left {
+  text-align: left;
+}
+
+#dgezpcicfk .gt_center {
+  text-align: center;
+}
+
+#dgezpcicfk .gt_right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+#dgezpcicfk .gt_font_normal {
+  font-weight: normal;
+}
+
+#dgezpcicfk .gt_font_bold {
+  font-weight: bold;
+}
+
+#dgezpcicfk .gt_font_italic {
+  font-style: italic;
+}
+
+#dgezpcicfk .gt_super {
+  font-size: 65%;
+}
+
+#dgezpcicfk .gt_footnote_marks {
+  font-style: italic;
+  font-weight: normal;
+  font-size: 75%;
+  vertical-align: 0.4em;
+}
+
+#dgezpcicfk .gt_asterisk {
+  font-size: 100%;
+  vertical-align: 0;
+}
+
+#dgezpcicfk .gt_indent_1 {
+  text-indent: 5px;
+}
+
+#dgezpcicfk .gt_indent_2 {
+  text-indent: 10px;
+}
+
+#dgezpcicfk .gt_indent_3 {
+  text-indent: 15px;
+}
+
+#dgezpcicfk .gt_indent_4 {
+  text-indent: 20px;
+}
+
+#dgezpcicfk .gt_indent_5 {
+  text-indent: 25px;
+}
+</style>
+<table class="gt_table">
+  <thead class="gt_header">
+    <tr>
+      <td colspan="2" class="gt_heading gt_title gt_font_normal" style>Pourcentage des ménages québécois avec un avoir net de plus de 2 millions</td>
+    </tr>
+    <tr>
+      <td colspan="2" class="gt_heading gt_subtitle gt_font_normal gt_bottom_border" style>data: PUMF ESF 2019, calculs @coulsim</td>
+    </tr>
+  </thead>
+  <thead class="gt_col_headings">
+    <tr>
+      <th class="gt_col_heading gt_columns_bottom_border gt_left" rowspan="1" colspan="1" scope="col"></th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col">Pourcentage</th>
+    </tr>
+  </thead>
+  <tbody class="gt_table_body">
+    <tr><th scope="row" class="gt_row gt_left gt_stub">34-moins</th>
+<td class="gt_row gt_right">0.0%</td></tr>
+    <tr><th scope="row" class="gt_row gt_left gt_stub">35-44</th>
+<td class="gt_row gt_right">2.2%</td></tr>
+    <tr><th scope="row" class="gt_row gt_left gt_stub">45-54</th>
+<td class="gt_row gt_right">5.6%</td></tr>
+    <tr><th scope="row" class="gt_row gt_left gt_stub">55-64</th>
+<td class="gt_row gt_right">10.2%</td></tr>
+    <tr><th scope="row" class="gt_row gt_left gt_stub">65-plus</th>
+<td class="gt_row gt_right">4.9%</td></tr>
+  </tbody>
+  
+  
+</table>
+</div>
+<p><img src="/post/2022-09-06-taxer-les-ultras-riches-ou-taxer-les-retrait-s/index.en-us_files/figure-html/unnamed-chunk-17-1.png" width="672" /></p>
+</div>
+<div id="conclusion" class="section level1">
+<h1>Conclusion</h1>
+<ul>
+<li>On n’a pas réussi à trouver la source de données utilisée par Québec Solidaire. En effet, l’Enquête sur la sécurité des ménages a comme unité de sondage le ménage plutôt que l’individu.<br />
+</li>
+<li>On a remarqué à l’aide du PUMF qu’environ 5% des ménages québécois ont un avoir net supérieur à 1 941 500$.</li>
+<li>Comment est-ce que QS a fait pour obtenir le chiffre de 5% des individus ont un avoir net supérieur à 1 000 000$ ? usqu’à ce que QS confirme leur source de données, je vais devoir faire supposer qu’ils ont fait l’hypothèse qu’un ménage comporte toujours 2 personnes (c’est faux) et qu’ils ont divisé ce nombre par deux pour arriver approximativement au 1 million par personne annoncé dans leur annonce.</li>
+<li>Le pourcentage de ménages ayant un avoir net supérieur à 2 millions varie évidemment avec l’âge. Ainsi, ce sont 10% des personnes qui atteignent l’âge de la retraite qui seraient considérées comme ultra-riches par QS.</li>
+</ul>
+</div>

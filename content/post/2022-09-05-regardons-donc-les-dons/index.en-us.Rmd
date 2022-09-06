@@ -1,0 +1,332 @@
+---
+title: Regardons donc les dons
+author: ''
+date: '2022-09-05'
+slug: les-dons
+categories:
+  - category
+  - subcategory
+tags:
+  - tag1
+  - tag2
+keywords:
+  - tech
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE,
+  #dpi = 150,
+  #fig.width = 5,
+  #fig.height = 5,
+  cache = FALSE # cache= TRUE leads to Error: path for html_dependency not found: error
+)
+library(cancensus)
+library(dplyr)
+library(sf)
+library(mapview)
+library(DT)
+library(widgetframe)
+library(RColorBrewer)
+library(tongfen)
+library(readr)
+library(tidyr)
+library(janitor)
+library(purrr)
+library(tictoc)
+library(ggplot2)
+library(ggspatial)# for annotation_map_tile
+library(ggtext) # for element markdown
+library(readr)
+library(stringr)
+options(scipen = 9999)
+library(hrbrthemes)
+library(tidygeocoder)
+library(patchwork)
+library(gt)
+ggplot2::theme_set(theme_minimal()) # this ggplot2 theme uses roboto condensed font, which works well with the font used for the whole document.
+options(ggplot2.discrete.fill  = function() scale_fill_viridis_d() )
+options(ggplot2.continuous.fill  = function() scale_fill_viridis_c())
+options(ggplot2.discrete.colour = function() scale_color_viridis_d())
+options(ggplot2.continuous.colour = function() scale_color_viridis_c())
+options(scipen=999)
+couleurs_parti_prov <- c(
+  "Québec solidaire"= "#FF8040",
+  "Parti québécois" = "#004C9D",
+  "Coalition avenir Québec" = "#1E90FF",
+  "Parti conservateur du Québec"=   "#7B5804" , # "#6495ED",
+  "Parti libéral du Québec" = "red", # "#F08080",
+  "Québec solidaire" = "#FF8040"#,
+  #"autre" = "#DCDCDC"
+  
+)
+
+```
+
+```{r}
+
+#https://www.electionsquebec.qc.ca/cartes-electorales/entites-administratives-liees-aux-circonscriptions/#anchor4
+# https://docs.electionsquebec.qc.ca/ORG/6109a4fc846d2/CP_CIRC_MUN_MRC_RA_BRUT.zip
+code_postal_to_circ <-  readr::read_delim(here::here("content/post/2022-09-05-regardons-donc-les-dons/data/CP_CIRC_MUN_MRC_RA_BRUT.txt"), 
+                       locale = locale(encoding = "windows-1252"), 
+                       col_types = cols(.default = col_character()),
+                       delim =";") %>%
+  janitor::clean_names()
+# https://www.dgeq.org/provincial/financement/contribution/contributions-prov-fr.csv
+
+contributions_raw <- readr::read_delim(here::here("content/post/2022-09-05-regardons-donc-les-dons/data/contributions-prov-fr.csv"), 
+                       locale = locale(encoding = "windows-1252"), 
+                       col_types = cols(.default = col_character()),
+                       delim =";") %>%
+  janitor::clean_names()
+  
+```
+
+```{r}
+
+contributions <- contributions_raw %>% 
+  mutate(
+    annee_financiere = as.numeric(annee_financiere),
+    montant_total = as.numeric(str_replace(montant_total, ",", ".")),
+    entite_politique = case_when(
+      entite_politique == "Québec solidaire  (avant fusion)"~ "Québec solidaire", 
+      entite_politique == "Coalition avenir Québec - L'équipe François Legault" ~ "Coalition avenir Québec",
+      entite_politique == "Parti conservateur du Québec - Équipe Éric Duhaime" ~ "Parti conservateur du Québec",
+      entite_politique == "Parti libéral du Québec/Quebec Liberal Party" ~ "Parti libéral du Québec",
+      TRUE ~ entite_politique)
+    )  %>% 
+    filter(entite_politique %in% c(
+    "Québec solidaire", 
+    "Parti québécois", 
+    "Parti libéral du Québec", 
+    "Parti conservateur du Québec",  
+    "Coalition avenir Québec" ) 
+  )  %>%
+  filter(type_dentite_politique == "Parti") %>%
+  left_join(code_postal_to_circ %>% rename(code_postal = co_postl))
+
+
+
+```
+
+# Données annuelles aggrégées   
+
+```{r}
+donnees_annuelles <- contributions %>% 
+  group_by(entite_politique, annee_financiere) %>% 
+  summarise(montant_total= sum(montant_total), n = n())
+```
+
+
+```{r}
+g1 <- donnees_annuelles %>% 
+  ggplot(aes(x= annee_financiere, y = montant_total, color = entite_politique)) + 
+  geom_line() +
+  geom_point( )+
+  scale_colour_manual(values = couleurs_parti_prov) +
+  labs(title = "Évolution du montant total des dons amassés",
+       y = "montant total amassé($)",
+       x = "année financière") + 
+  guides(colour = "none")  # pas de légende pour "color"  parce que dans patchwork je vais avoir une légende pour "fill"
+
+g1
+```
+```{r}
+g2 <- donnees_annuelles %>% 
+  ggplot(aes(x= annee_financiere, y = n, color = entite_politique)) + 
+  geom_line() +
+  geom_point( )+
+  scale_colour_manual(values = couleurs_parti_prov) +
+  labs(title = "Évolution du nombre de dons",
+       y = "nombre de dons",
+       x = "année financière") + 
+  guides(colour = "none") # pas de légende pour "color"  parce que dans patchwork je vais avoir une légende pour "fill"
+
+
+g2
+```
+Évolution du don moyen
+```{r}
+g3 <- donnees_annuelles %>% 
+  ggplot(aes(x= annee_financiere, y = montant_total / n, color = entite_politique)) + 
+  geom_line() +
+  geom_point( )+
+  scale_colour_manual(values = couleurs_parti_prov) +
+  labs(title = "Évolution du don moyen",
+       y = "don moyen ($)",
+       x = "année financière") + 
+  guides(colour = "none") # pas de légende pour "color"  parce que dans patchwork je vais avoir une légende pour "fill"
+
+g3
+```
+
+
+```{r}
+g4 <- contributions %>% 
+  filter(annee_financiere== 2022) %>% 
+  ggplot(aes(x= montant_total, fill = entite_politique)) +
+  geom_histogram( bins = 30) +
+  scale_fill_manual(values = couleurs_parti_prov) +
+  facet_wrap(~ entite_politique)+
+  labs(title = "Distribution des montants des dons en 2022",
+       y = "Nombre de dons",
+       x = "Montant du don",
+       fill = "Parti")
+g4
+```
+
+```{r}
+
+my_patch <- (g1 + g2) / (g3 + g4) + 
+  plot_layout(guides = "collect")  + # ramasser les légendes des graphiques individuelles et  on va les mettre qqpart sur la patchwork
+  plot_annotation(
+  title = 'Regardons donc les dons',
+#  subtitle = 'These 3 plots will reveal yet-untold secrets about our beloved data-set',
+  caption = 'graph: @coulsim, données: Élections Québec'
+) & theme(legend.position = "bottom") #  on va mettre les légendes individuelles du  patchwork en bas on met "& theme" au lieu de "+ theme"
+
+
+png_file <- here::here("content/post/2022-09-05-regardons-donc-les-dons/output/evolution_des_dons.png")
+
+ggsave(
+  png_file,
+  #  device = cairo_pdf,
+  width = 10,
+  height = 8,
+  bg= "white"
+)
+
+#knitr::plot_crop(png_file) # remove whitespace around map
+```
+
+
+# Données annuelles par circonscriptions
+
+
+```{r}
+#ok on geocode (pas )tout le monde
+# postal_codes2021plus <- z %>% filter(annee_financiere>= 2021) %>%  count(code_postal)
+# 
+# 
+# geocoded <- geocode(postal_codes2021plus, address = code_postal) # ok on en a pour 8h
+# geocoded_nominatim_2021_2022 <- geocoded
+# write_csv(geocoded_nominatim_2021_2022, "geocoded_nominatim_2021_2022.csv")
+#geocoded2 <- geocode(head(postal_codes,60), address = code_postal, method = "geocodio")    98% missing
+```
+
+```{r}
+# c'est quoi le total par année?
+donnees_annuelles_circ <- contributions %>% 
+  group_by(entite_politique, annee_financiere, nm_circ) %>% 
+  summarise(montant_total= sum(montant_total), n = n(), .groups = "drop")
+
+
+# battle ground 2021-2022
+# c'est quoi le total des deux années ensemble?
+donnees_annuelles_circ_2021_2022 <- contributions %>% 
+  filter(annee_financiere %in% c(2021,2022)) %>% 
+  group_by(entite_politique, nm_circ) %>% 
+  summarise(montant_total= sum(montant_total), n = n(), .groups = "drop") 
+
+# c'est quoi le total des circonscriptions?  
+totaux_circ <- donnees_annuelles_circ_2021_2022 %>%
+  group_by(nm_circ) %>%
+  summarise(montant_total_circ = sum(montant_total), .groups = "drop") %>%
+  mutate( rang_circ = rank(-1 * montant_total_circ)) %>%
+  arrange(rang_circ) 
+
+
+```
+
+
+# Battleground 2021-2022 
+
+
+Ici, on va regarder les sommes 2021-2022
+Les machines de guerre en 2021-2022:
+
+```{r}
+donnees_annuelles_circ_2021_2022 %>% 
+  arrange(desc(montant_total)) %>%
+  head(10)
+```
+
+
+
+Les dépenses dans les circonscriptions  avec le plus de $ en jeu
+```{r}
+
+  
+
+```
+
+
+
+# Rétention et attraction
+
+Rétention: Quel est le pourcentage de donateurs qui de 2021 qui ont aussi donné en 2022 ? 
+Attraction: Quel est le pourcentage des donateurs de 2022 qui n'avaient pas donné en  2021 ?
+
+
+```{r}
+donateurs2021 <- contributions %>% 
+  filter(annee_financiere == 2021) %>%
+  select(nom_prenom, code_postal, entite_politique) %>%
+  mutate(in2021 = 1)
+
+donateurs2022 <- contributions %>% 
+  filter(annee_financiere == 2022) %>%
+  select(nom_prenom, code_postal, entite_politique) %>%
+  mutate(in2022 = 1)
+
+
+table_retention_data <- donateurs2021 %>% 
+  full_join(donateurs2022) %>%
+  replace_na( list(in2021 = 0, in2022 = 0)) %>%
+  count(entite_politique, in2021, in2022) %>% 
+  mutate(type_donateur = 
+           case_when(
+             in2021 ==1 & in2022 == 0 ~ "don_2021_seul",
+             in2021 ==1 & in2022 == 1 ~ "don_2021_et_2022",
+             in2021 ==0 & in2022 == 1 ~ "don_2022_seul",
+             )
+         ) %>%
+  select(entite_politique, type_donateur, n) %>%
+  pivot_wider( values_from = n, names_from = type_donateur)  %>%
+  mutate(
+    total_donneurs_2021_2022 = don_2021_seul + don_2021_et_2022 + don_2022_seul, 
+    pct_retention = don_2021_et_2022  / (don_2021_et_2022 +don_2021_seul ),
+    pct_nouveau =  don_2022_seul / (don_2022_seul + don_2021_et_2022)
+    ) %>%
+  arrange(desc(pct_retention))  %>%
+  select(entite_politique, pct_retention, pct_nouveau, total_donneurs_2021_2022, don_2021_seul, don_2021_et_2022, don_2022_seul) 
+
+table_retention <- table_retention_data %>% 
+   gt(rowname_col = "entite_politique")  %>%
+  tab_header(
+    title = "Rétention et attraction des partis politiques 2021-2022",
+    #subtitle = ""
+  ) %>% 
+  fmt_percent(columns = starts_with("pct"), decimals = 1, sep_mark = " ") %>% 
+   fmt_number(columns = everything(), decimals = 0, sep_mark = " ")  %>% # everything else has 0 decimal
+  summary_rows(
+          # columns = is.numeric(),
+    columns = c(total_donneurs_2021_2022,  don_2021_seul, don_2021_et_2022, don_2022_seul),
+          fns = list(Total = "sum"),
+          decimals = 0
+        )  %>%
+    cols_label(
+    pct_retention = "Rétention 2021",
+    pct_nouveau = "Nouveaux donneurs 2022",
+    total_donneurs_2021_2022 = "Total des donneurs 2021-2022",
+    don_2021_seul = "2021 seulement",
+    don_2022_seul = "2022 seulement",
+    don_2021_et_2022 = "2021 et 2022",
+  )
+
+gtsave(table_retention,
+       here::here("content/post/2022-09-05-regardons-donc-les-dons/output/table_retention.png"))
+```
+
