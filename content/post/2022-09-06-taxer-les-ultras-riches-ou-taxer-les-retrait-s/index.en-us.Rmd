@@ -631,14 +631,20 @@ Maintenant qu'on a confirmé que l'on sait comment travailler avec le PUMF, nous
 
 
 here we gooooooooooooo
-commençons par calculer plus de percntiles au Québec.
 
+quel est le pourcentage de ménages québécois dont l'avoir net est supérieur à 1M (tout type de ménage confondu)
+```{r}
+pumf_qc <- pumf %>% filter(PPVRES == "24")
+pumf_qc %>%   summarise(pct_over_1_million = sum((PWNETWPT > 1e6) * PWEIGHT) / sum(PWEIGHT)) 
 
+```
+15.57% des ménages québécois ont un avoir net supérieur à 1 million.  
+C'est vastement supérieur au 5% annoncé par QS, mais plusieurs de ces ménages sont composés de 2 adultes.
 
-
+Tant qu'à être ici, quel est l'avoir net du top 5%  des ménags? 
 ```{r}
 my_many_percentiles <- c(0.01, 0.05, 0.10, 0.30, 0.5, 0.7, 0.8, 0.9, 0.95, 0.99)
-pumf_qc <- pumf %>% filter(PPVRES == "24")
+
 
 percentiles_quebec_pumf <- tibble(percentile  = stringr::str_pad(as.character(100 * my_many_percentiles), side = "left", width = 2, pad ="0" ),
       avoir_net =  Hmisc::wtd.quantile(pumf_qc$PWNETWPT, pumf_qc$PWEIGHT, probs = my_many_percentiles),
@@ -649,14 +655,76 @@ percentiles_quebec_pumf %>%
   geom_col(position = "dodge")+ 
   labs(
     title = "Le 95e percentile de Québécois avait un avoir net de 1 941 500$.",
-    subtitle = "Est-ce que QS a juste pris le chiffre de 2 millions par ménage puis l'a divisé par 2 pour avoir un montant par individu ?",
+    subtitle = "Est-ce que QS a juste pris le chiffre de 2 millions par ménage puis l'a divisé par 2 pour avoir un montant par individu? Peut-être.",
     caption = "PUMF et calculs de @coulsim"
     )
   
 ```
 Le 95e percentile de Québécois avait un avoir net de 1 941 500$.
 Est-ce que QS a juste pris le chiffre de 2 millions puis l'a divisé par 2 pour avoir un montant par individu en supposant que tous les ménages étaient composés d'un couple?  
-Je ne serais pas surpris.
+
+
+Je ne serais pas surpris. Mais il y a une autre option.  Il existe  a une variable dans l'enquête: le type de ménage (PFMTYPG). 
+
+Les options sont:
+-personne seule
+-couple sans enfant
+-couple avec enfant ou famille monoparentale
+-autre famille 
+- non déclaré
+
+C'est weird, j'aurais aimé ça pouvoir connaître le nombre d'adultes, mais je ne peux pas à cause de la catégorie #3 qui peut compter 1 ou 2 adultes.
+
+On va commencer par regarder le pourcentage de chaque type de ménage qui a plus d'1 million en avoir net.
+
+```{r}
+
+
+PFMTYPG_codes <-
+  tribble(
+    ~PFMTYPG, ~type_menage ,
+    "1", "Personne seule",
+    "2", "Couple, sans enfant",
+    "3", "Couple, avec des enfants et famille monoparentale",
+    "4", "Autres types de famille",
+    "9", "Non déclaré"
+  )
+
+pumf_qc %>%  left_join(PFMTYPG_codes)  %>% group_by( type_menage) %>% summarise(pct_over_1_million = sum((PWNETWPT > 1e6) * PWEIGHT) / sum(PWEIGHT)) 
+
+```
+Ce sont 5.2% des personnes seules et 25% des couples sans enfants qui ont un actif net de plus d'un million.  Ce sont 12%  des couples avec enfants et des familles monoparentales  qui sont millionnaires.
+
+On va regarder le pourcentage des familles qui ont plus de 2 millions de dollars d'actifs car les couples doivent partager l'actif entre 2 adultes.  
+
+```{r}
+pumf_qc %>%  left_join(PFMTYPG_codes)  %>% group_by( type_menage) %>% summarise(pct_over_2_million = sum((PWNETWPT > 2e6) * PWEIGHT) / sum(PWEIGHT)) 
+
+```
+Seulement 1.3% des personnes seules sont doublement millionnaires.  C'est cependant le cas de 6.8% des couples sans enfants et de 2.8% des couples avec enfants et des familles monoparentales.  
+
+
+Tant qu'à être là, on va regarder le 95e percentile de revenu dans chacun des types de ménages.
+```{r}
+
+
+PFMTYPG_quebec_pumf <- my_pumf %>% 
+  filter(PPVRES == "24") %>%
+  group_by(PFMTYPG) %>%
+  summarise(avoir_net = Hmisc::wtd.quantile(PWNETWPT, PWEIGHT, probs = 0.95), .groups = "drop") %>%
+  mutate(percentile = "95", class = "quebec_pumf") %>%
+  left_join(PFMTYPG_codes)
+
+PFMTYPG_quebec_pumf
+```
+
+Le 95e percentile des personnes seules au Québec est de 1044800$, tout âge confondu.
+C'est peut-être juste ça.  un peu plus de 5% des personnes seules valent plus d'un million.
+Pour les couples sans enfants, le top 5% vaut 2.3 million.  Donc si on divise par 2 adultes, c'est aussi un peu plus de 5% des personnes qui valent plus d'un million.  
+
+Pour les familles (1 ou 2 parents), le top 5% vaut 1.5 million
+
+Il existe une autre variable intéressante : PFSZ, soit le nombre de personnes dans l'unité familialeé  
 
 Supposons qu'ils ont fait ça et que la cible du 95% est de 2 millions de dollar d'avoir net par ménage.
 La question qui demeure est "à quel percentile correspond le nombre de 2 millions de dollar dans chaque groupe d'âge?
@@ -669,7 +737,7 @@ my_pumf %>%
   summarise(pct_over_2_million = sum((PWNETWPT > 2e6) * PWEIGHT) / sum(PWEIGHT)) %>%
   gt(rowname_col = "gr_age")  %>%
   tab_header(
-    title = "Pourcentage des ménages québécois avec un avoir net de plus de 2 millions",
+    title = "Pourcentage des ménages québécois avec un avoir net de plus de 2 millions (tout type de ménage confondus)",
     subtitle = "data: PUMF ESF 2019, calculs @coulsim"
   ) %>% 
   fmt_percent(columns = starts_with("pct"), decimals = 1, sep_mark = " ")  %>%
@@ -679,6 +747,62 @@ my_pumf %>%
   
 ```
 
+
+
+```{r}
+my_pumf %>%
+  filter(PPVRES == "24", PFMTYPG== "1") %>%
+  group_by(gr_age) %>%
+  summarise(pct_over_1_million = sum((PWNETWPT > 1e6) * PWEIGHT) / sum(PWEIGHT)) %>%
+  gt(rowname_col = "gr_age")  %>%
+  tab_header(
+    title = "Pourcentage des ménages québécois composés d'une personne seule avec un avoir net de plus de *1* millions",
+    subtitle = "data: PUMF ESF 2019, calculs @coulsim"
+  ) %>% 
+  fmt_percent(columns = starts_with("pct"), decimals = 1, sep_mark = " ")  %>%
+   cols_label(
+    pct_over_1_million = "Pourcentage"
+  )
+  
+```
+
+
+
+```{r}
+my_pumf %>%
+  filter(PPVRES == "24", PFMTYPG== "2") %>%
+  group_by(gr_age) %>%
+  summarise(pct_over_2_million = sum((PWNETWPT > 2e6) * PWEIGHT) / sum(PWEIGHT)) %>%
+  gt(rowname_col = "gr_age")  %>%
+  tab_header(
+    title = "Pourcentage des ménages québécois composés d'un couple sans enfant avec un avoir net de plus de *2* millions",
+    subtitle = "data: PUMF ESF 2019, calculs @coulsim"
+  ) %>% 
+  fmt_percent(columns = starts_with("pct"), decimals = 1, sep_mark = " ")  %>%
+   cols_label(
+    pct_over_2_million = "Pourcentage"
+  )
+  
+```
+
+```{r}
+my_pumf %>%
+  filter(PPVRES == "24", PFMTYPG== "3") %>%
+  group_by(gr_age) %>%
+  summarise(pct_over_2_million = sum((PWNETWPT > 2e6) * PWEIGHT) / sum(PWEIGHT)) %>%
+  gt(rowname_col = "gr_age")  %>%
+  tab_header(
+    title = "Pourcentage des ménages québécois composés d'un couple avec  enfant ou d'une famille monoparentale avec un avoir net de plus de *2* millions",
+    subtitle = "data: PUMF ESF 2019, calculs @coulsim"
+  ) %>% 
+  fmt_percent(columns = starts_with("pct"), decimals = 1, sep_mark = " ")  %>%
+   cols_label(
+    pct_over_2_million = "Pourcentage"
+  )
+  
+```
+
+Tiens, tant qu'à faire, voici plusieurs percentiles par groupe d'âge, tout type de ménages confondus.
 
 
 ```{r}
@@ -699,9 +823,7 @@ avoirs_nets_quebec_par_age_pumf <- my_pumf %>%
   pull(avoir_nets) %>% 
   bind_rows(.)
 
-```
 
-```{r}
 avoirs_nets_quebec_par_age_pumf %>% 
   ggplot(aes(x=percentile, y = avoir_net ))+
   geom_col(position = "dodge")+ 
@@ -716,8 +838,18 @@ avoirs_nets_quebec_par_age_pumf %>%
 # Conclusion
 
 * On n'a pas réussi à trouver la source de données utilisée par Québec Solidaire.  En effet, l'Enquête sur la sécurité des ménages a comme unité de sondage le ménage plutôt que l'individu.  
-* On a remarqué à l'aide du PUMF qu'environ 5% des ménages québécois ont un avoir net supérieur à 1 941 500$. 
-* Comment est-ce que QS a fait pour obtenir le chiffre de 5% des individus ont un avoir net supérieur à 1 000 000$ ? usqu'à ce que QS confirme leur source de données, je vais devoir faire supposer qu'ils ont fait l'hypothèse qu'un ménage comporte toujours 2 personnes (c'est faux) et qu'ils ont divisé ce nombre par deux pour arriver approximativement au 1 million par personne annoncé dans leur annonce.
-* Le pourcentage de ménages ayant un avoir net supérieur à 2 millions varie évidemment avec l'âge. Ainsi, ce sont 10% des personnes qui atteignent l'âge de la retraite qui seraient considérées comme ultra-riches par QS.   
+* On a trouvé des chiffres qui pourraient expliquer leur barême:   
+     * 5.2% des personnes seules ont plus de 1 million.
+     * 6.8% des couples sans enfants ont plus de *2* millions.
+     * Pour les couples avec enfants et les familles monoparentales, c'est 12.8% au dessus de 1 million et 2.8% au dessus de 2 millions.  
+     * Sans égard à la taille, ce sont 15.5% des ménages québécois ont un avoir net supérieur à 1 million de dollars. Évidemment, certains de ces ménages ont 2 adultes.
+* Le top 5% des ménages québécois ont un avoir net supérieur à 1 941 500$ , sans égard à la taille.
+* Chez les 55-64 à l'aube de la retraite ce sont:   
+      * 9.6% des personnes seules qui ont plus de 1 million, 
+      * 13.3% des couples sans enfants qui ont 2 millions, 
+      * 12.9% des couples avec enfants ou des familles monoparentales ont plus de 2 millions.
+      * Chez les 55-64, on ne parle donc plus de "We are de 99%" mais plutôt de "We are the 89%-ish".
+      
+
 
 

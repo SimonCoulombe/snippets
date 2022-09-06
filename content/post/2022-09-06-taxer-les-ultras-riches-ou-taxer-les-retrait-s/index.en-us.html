@@ -114,20 +114,68 @@ ok , on est vraiment proches!!</p>
 <p><img src="/post/2022-09-06-taxer-les-ultras-riches-ou-taxer-les-retrait-s/index.en-us_files/figure-html/unnamed-chunk-13-1.png" width="672" /></p>
 <p>Ok, ça veut dire qu’on est vraiment capables de reproduire les chiffres officiels à peu de chose près. On n’aurait pas pu espérer mieux sachant qu’on travaille avec un échantillon de ce qui est utilisé pour les chiffres officiels.</p>
 <p>Maintenant qu’on a confirmé que l’on sait comment travailler avec le PUMF, nous allons enfin pouvoir créer des données “originales”</p>
-<p>here we gooooooooooooo
-commençons par calculer plus de percntiles au Québec.</p>
-<p><img src="/post/2022-09-06-taxer-les-ultras-riches-ou-taxer-les-retrait-s/index.en-us_files/figure-html/unnamed-chunk-14-1.png" width="672" />
+<p>here we gooooooooooooo</p>
+<p>quel est le pourcentage de ménages québécois dont l’avoir net est supérieur à 1M (tout type de ménage confondu)</p>
+<pre><code>## # A tibble: 1 × 1
+##   pct_over_1_million
+##                &lt;dbl&gt;
+## 1              0.156</code></pre>
+<p>15.57% des ménages québécois ont un avoir net supérieur à 1 million.<br />
+C’est vastement supérieur au 5% annoncé par QS, mais plusieurs de ces ménages sont composés de 2 adultes.</p>
+<p>Tant qu’à être ici, quel est l’avoir net du top 5% des ménags?
+<img src="/post/2022-09-06-taxer-les-ultras-riches-ou-taxer-les-retrait-s/index.en-us_files/figure-html/unnamed-chunk-15-1.png" width="672" />
 Le 95e percentile de Québécois avait un avoir net de 1 941 500$.
-Est-ce que QS a juste pris le chiffre de 2 millions puis l’a divisé par 2 pour avoir un montant par individu en supposant que tous les ménages étaient composés d’un couple?<br />
-Je ne serais pas surpris.</p>
+Est-ce que QS a juste pris le chiffre de 2 millions puis l’a divisé par 2 pour avoir un montant par individu en supposant que tous les ménages étaient composés d’un couple?</p>
+<p>Je ne serais pas surpris. Mais il y a une autre option. Il existe a une variable dans l’enquête: le type de ménage (PFMTYPG).</p>
+<p>Les options sont:
+-personne seule
+-couple sans enfant
+-couple avec enfant ou famille monoparentale
+-autre famille
+- non déclaré</p>
+<p>C’est weird, j’aurais aimé ça pouvoir connaître le nombre d’adultes, mais je ne peux pas à cause de la catégorie #3 qui peut compter 1 ou 2 adultes.</p>
+<p>On va commencer par regarder le pourcentage de chaque type de ménage qui a plus d’1 million en avoir net.</p>
+<pre><code>## # A tibble: 5 × 2
+##   type_menage                                       pct_over_1_million
+##   &lt;chr&gt;                                                          &lt;dbl&gt;
+## 1 Autres types de famille                                       0.269 
+## 2 Couple, avec des enfants et famille monoparentale             0.122 
+## 3 Couple, sans enfant                                           0.251 
+## 4 Non déclaré                                                   0.762 
+## 5 Personne seule                                                0.0524</code></pre>
+<p>Ce sont 5.2% des personnes seules et 25% des couples sans enfants qui ont un actif net de plus d’un million. Ce sont 12% des couples avec enfants et des familles monoparentales qui sont millionnaires.</p>
+<p>On va regarder le pourcentage des familles qui ont plus de 2 millions de dollars d’actifs car les couples doivent partager l’actif entre 2 adultes.</p>
+<pre><code>## # A tibble: 5 × 2
+##   type_menage                                       pct_over_2_million
+##   &lt;chr&gt;                                                          &lt;dbl&gt;
+## 1 Autres types de famille                                       0.0697
+## 2 Couple, avec des enfants et famille monoparentale             0.0286
+## 3 Couple, sans enfant                                           0.0685
+## 4 Non déclaré                                                   0.523 
+## 5 Personne seule                                                0.0138</code></pre>
+<p>Seulement 1.3% des personnes seules sont doublement millionnaires. C’est cependant le cas de 6.8% des couples sans enfants et de 2.8% des couples avec enfants et des familles monoparentales.</p>
+<p>Tant qu’à être là, on va regarder le 95e percentile de revenu dans chacun des types de ménages.</p>
+<pre><code>## # A tibble: 5 × 5
+##   PFMTYPG avoir_net percentile class       type_menage                          
+##   &lt;chr&gt;       &lt;dbl&gt; &lt;chr&gt;      &lt;chr&gt;       &lt;chr&gt;                                
+## 1 1         1044800 95         quebec_pumf Personne seule                       
+## 2 2         2297500 95         quebec_pumf Couple, sans enfant                  
+## 3 3         1516000 95         quebec_pumf Couple, avec des enfants et famille …
+## 4 4         2326500 95         quebec_pumf Autres types de famille              
+## 5 9        14336450 95         quebec_pumf Non déclaré</code></pre>
+<p>Le 95e percentile des personnes seules au Québec est de 1044800$, tout âge confondu.
+C’est peut-être juste ça. un peu plus de 5% des personnes seules valent plus d’un million.
+Pour les couples sans enfants, le top 5% vaut 2.3 million. Donc si on divise par 2 adultes, c’est aussi un peu plus de 5% des personnes qui valent plus d’un million.</p>
+<p>Pour les familles (1 ou 2 parents), le top 5% vaut 1.5 million</p>
+<p>Il existe une autre variable intéressante : PFSZ, soit le nombre de personnes dans l’unité familialeé</p>
 <p>Supposons qu’ils ont fait ça et que la cible du 95% est de 2 millions de dollar d’avoir net par ménage.
 La question qui demeure est “à quel percentile correspond le nombre de 2 millions de dollar dans chaque groupe d’âge?</p>
-<div id="dgezpcicfk" style="overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<div id="dvkpiitbok" style="overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
 <style>html {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', 'Fira Sans', 'Droid Sans', Arial, sans-serif;
 }
 
-#dgezpcicfk .gt_table {
+#dvkpiitbok .gt_table {
   display: table;
   border-collapse: collapse;
   margin-left: auto;
@@ -152,7 +200,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-left-color: #D3D3D3;
 }
 
-#dgezpcicfk .gt_heading {
+#dvkpiitbok .gt_heading {
   background-color: #FFFFFF;
   text-align: center;
   border-bottom-color: #FFFFFF;
@@ -164,7 +212,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-right-color: #D3D3D3;
 }
 
-#dgezpcicfk .gt_title {
+#dvkpiitbok .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -176,7 +224,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-bottom-width: 0;
 }
 
-#dgezpcicfk .gt_subtitle {
+#dvkpiitbok .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -188,13 +236,13 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-top-width: 0;
 }
 
-#dgezpcicfk .gt_bottom_border {
+#dvkpiitbok .gt_bottom_border {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#dgezpcicfk .gt_col_headings {
+#dvkpiitbok .gt_col_headings {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -209,7 +257,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-right-color: #D3D3D3;
 }
 
-#dgezpcicfk .gt_col_heading {
+#dvkpiitbok .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -229,7 +277,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   overflow-x: hidden;
 }
 
-#dgezpcicfk .gt_column_spanner_outer {
+#dvkpiitbok .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -241,15 +289,15 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   padding-right: 4px;
 }
 
-#dgezpcicfk .gt_column_spanner_outer:first-child {
+#dvkpiitbok .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#dgezpcicfk .gt_column_spanner_outer:last-child {
+#dvkpiitbok .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#dgezpcicfk .gt_column_spanner {
+#dvkpiitbok .gt_column_spanner {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
@@ -261,7 +309,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   width: 100%;
 }
 
-#dgezpcicfk .gt_group_heading {
+#dvkpiitbok .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -286,7 +334,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   vertical-align: middle;
 }
 
-#dgezpcicfk .gt_empty_group_heading {
+#dvkpiitbok .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -301,15 +349,15 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   vertical-align: middle;
 }
 
-#dgezpcicfk .gt_from_md > :first-child {
+#dvkpiitbok .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#dgezpcicfk .gt_from_md > :last-child {
+#dvkpiitbok .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#dgezpcicfk .gt_row {
+#dvkpiitbok .gt_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -328,7 +376,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   overflow-x: hidden;
 }
 
-#dgezpcicfk .gt_stub {
+#dvkpiitbok .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -341,7 +389,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   padding-right: 5px;
 }
 
-#dgezpcicfk .gt_stub_row_group {
+#dvkpiitbok .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -355,11 +403,11 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   vertical-align: top;
 }
 
-#dgezpcicfk .gt_row_group_first td {
+#dvkpiitbok .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#dgezpcicfk .gt_summary_row {
+#dvkpiitbok .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -369,16 +417,16 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   padding-right: 5px;
 }
 
-#dgezpcicfk .gt_first_summary_row {
+#dvkpiitbok .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#dgezpcicfk .gt_first_summary_row.thick {
+#dvkpiitbok .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#dgezpcicfk .gt_last_summary_row {
+#dvkpiitbok .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -388,7 +436,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-bottom-color: #D3D3D3;
 }
 
-#dgezpcicfk .gt_grand_summary_row {
+#dvkpiitbok .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -398,7 +446,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   padding-right: 5px;
 }
 
-#dgezpcicfk .gt_first_grand_summary_row {
+#dvkpiitbok .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -408,11 +456,11 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-top-color: #D3D3D3;
 }
 
-#dgezpcicfk .gt_striped {
+#dvkpiitbok .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#dgezpcicfk .gt_table_body {
+#dvkpiitbok .gt_table_body {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -421,7 +469,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-bottom-color: #D3D3D3;
 }
 
-#dgezpcicfk .gt_footnotes {
+#dvkpiitbok .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -435,7 +483,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-right-color: #D3D3D3;
 }
 
-#dgezpcicfk .gt_footnote {
+#dvkpiitbok .gt_footnote {
   margin: 0px;
   font-size: 90%;
   padding-left: 4px;
@@ -444,7 +492,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   padding-right: 5px;
 }
 
-#dgezpcicfk .gt_sourcenotes {
+#dvkpiitbok .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -458,7 +506,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-right-color: #D3D3D3;
 }
 
-#dgezpcicfk .gt_sourcenote {
+#dvkpiitbok .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -466,71 +514,71 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   padding-right: 5px;
 }
 
-#dgezpcicfk .gt_left {
+#dvkpiitbok .gt_left {
   text-align: left;
 }
 
-#dgezpcicfk .gt_center {
+#dvkpiitbok .gt_center {
   text-align: center;
 }
 
-#dgezpcicfk .gt_right {
+#dvkpiitbok .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#dgezpcicfk .gt_font_normal {
+#dvkpiitbok .gt_font_normal {
   font-weight: normal;
 }
 
-#dgezpcicfk .gt_font_bold {
+#dvkpiitbok .gt_font_bold {
   font-weight: bold;
 }
 
-#dgezpcicfk .gt_font_italic {
+#dvkpiitbok .gt_font_italic {
   font-style: italic;
 }
 
-#dgezpcicfk .gt_super {
+#dvkpiitbok .gt_super {
   font-size: 65%;
 }
 
-#dgezpcicfk .gt_footnote_marks {
+#dvkpiitbok .gt_footnote_marks {
   font-style: italic;
   font-weight: normal;
   font-size: 75%;
   vertical-align: 0.4em;
 }
 
-#dgezpcicfk .gt_asterisk {
+#dvkpiitbok .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#dgezpcicfk .gt_indent_1 {
+#dvkpiitbok .gt_indent_1 {
   text-indent: 5px;
 }
 
-#dgezpcicfk .gt_indent_2 {
+#dvkpiitbok .gt_indent_2 {
   text-indent: 10px;
 }
 
-#dgezpcicfk .gt_indent_3 {
+#dvkpiitbok .gt_indent_3 {
   text-indent: 15px;
 }
 
-#dgezpcicfk .gt_indent_4 {
+#dvkpiitbok .gt_indent_4 {
   text-indent: 20px;
 }
 
-#dgezpcicfk .gt_indent_5 {
+#dvkpiitbok .gt_indent_5 {
   text-indent: 25px;
 }
 </style>
 <table class="gt_table">
   <thead class="gt_header">
     <tr>
-      <td colspan="2" class="gt_heading gt_title gt_font_normal" style>Pourcentage des ménages québécois avec un avoir net de plus de 2 millions</td>
+      <td colspan="2" class="gt_heading gt_title gt_font_normal" style>Pourcentage des ménages québécois avec un avoir net de plus de 2 millions (tout type de ménage confondus)</td>
     </tr>
     <tr>
       <td colspan="2" class="gt_heading gt_subtitle gt_font_normal gt_bottom_border" style>data: PUMF ESF 2019, calculs @coulsim</td>
@@ -558,15 +606,1333 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   
 </table>
 </div>
-<p><img src="/post/2022-09-06-taxer-les-ultras-riches-ou-taxer-les-retrait-s/index.en-us_files/figure-html/unnamed-chunk-17-1.png" width="672" /></p>
+<div id="iihtktnkuf" style="overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>html {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', 'Fira Sans', 'Droid Sans', Arial, sans-serif;
+}
+
+#iihtktnkuf .gt_table {
+  display: table;
+  border-collapse: collapse;
+  margin-left: auto;
+  margin-right: auto;
+  color: #333333;
+  font-size: 16px;
+  font-weight: normal;
+  font-style: normal;
+  background-color: #FFFFFF;
+  width: auto;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #A8A8A8;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #A8A8A8;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+}
+
+#iihtktnkuf .gt_heading {
+  background-color: #FFFFFF;
+  text-align: center;
+  border-bottom-color: #FFFFFF;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#iihtktnkuf .gt_title {
+  color: #333333;
+  font-size: 125%;
+  font-weight: initial;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-color: #FFFFFF;
+  border-bottom-width: 0;
+}
+
+#iihtktnkuf .gt_subtitle {
+  color: #333333;
+  font-size: 85%;
+  font-weight: initial;
+  padding-top: 0;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-color: #FFFFFF;
+  border-top-width: 0;
+}
+
+#iihtktnkuf .gt_bottom_border {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#iihtktnkuf .gt_col_headings {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#iihtktnkuf .gt_col_heading {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+  overflow-x: hidden;
+}
+
+#iihtktnkuf .gt_column_spanner_outer {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#iihtktnkuf .gt_column_spanner_outer:first-child {
+  padding-left: 0;
+}
+
+#iihtktnkuf .gt_column_spanner_outer:last-child {
+  padding-right: 0;
+}
+
+#iihtktnkuf .gt_column_spanner {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  overflow-x: hidden;
+  display: inline-block;
+  width: 100%;
+}
+
+#iihtktnkuf .gt_group_heading {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#iihtktnkuf .gt_empty_group_heading {
+  padding: 0.5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#iihtktnkuf .gt_from_md > :first-child {
+  margin-top: 0;
+}
+
+#iihtktnkuf .gt_from_md > :last-child {
+  margin-bottom: 0;
+}
+
+#iihtktnkuf .gt_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  margin: 10px;
+  border-top-style: solid;
+  border-top-width: 1px;
+  border-top-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  overflow-x: hidden;
+}
+
+#iihtktnkuf .gt_stub {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#iihtktnkuf .gt_stub_row_group {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 5px;
+  padding-right: 5px;
+  vertical-align: top;
+}
+
+#iihtktnkuf .gt_row_group_first td {
+  border-top-width: 2px;
+}
+
+#iihtktnkuf .gt_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#iihtktnkuf .gt_first_summary_row {
+  border-top-style: solid;
+  border-top-color: #D3D3D3;
+}
+
+#iihtktnkuf .gt_first_summary_row.thick {
+  border-top-width: 2px;
+}
+
+#iihtktnkuf .gt_last_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#iihtktnkuf .gt_grand_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#iihtktnkuf .gt_first_grand_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: double;
+  border-top-width: 6px;
+  border-top-color: #D3D3D3;
+}
+
+#iihtktnkuf .gt_striped {
+  background-color: rgba(128, 128, 128, 0.05);
+}
+
+#iihtktnkuf .gt_table_body {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#iihtktnkuf .gt_footnotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#iihtktnkuf .gt_footnote {
+  margin: 0px;
+  font-size: 90%;
+  padding-left: 4px;
+  padding-right: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#iihtktnkuf .gt_sourcenotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#iihtktnkuf .gt_sourcenote {
+  font-size: 90%;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#iihtktnkuf .gt_left {
+  text-align: left;
+}
+
+#iihtktnkuf .gt_center {
+  text-align: center;
+}
+
+#iihtktnkuf .gt_right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+#iihtktnkuf .gt_font_normal {
+  font-weight: normal;
+}
+
+#iihtktnkuf .gt_font_bold {
+  font-weight: bold;
+}
+
+#iihtktnkuf .gt_font_italic {
+  font-style: italic;
+}
+
+#iihtktnkuf .gt_super {
+  font-size: 65%;
+}
+
+#iihtktnkuf .gt_footnote_marks {
+  font-style: italic;
+  font-weight: normal;
+  font-size: 75%;
+  vertical-align: 0.4em;
+}
+
+#iihtktnkuf .gt_asterisk {
+  font-size: 100%;
+  vertical-align: 0;
+}
+
+#iihtktnkuf .gt_indent_1 {
+  text-indent: 5px;
+}
+
+#iihtktnkuf .gt_indent_2 {
+  text-indent: 10px;
+}
+
+#iihtktnkuf .gt_indent_3 {
+  text-indent: 15px;
+}
+
+#iihtktnkuf .gt_indent_4 {
+  text-indent: 20px;
+}
+
+#iihtktnkuf .gt_indent_5 {
+  text-indent: 25px;
+}
+</style>
+<table class="gt_table">
+  <thead class="gt_header">
+    <tr>
+      <td colspan="2" class="gt_heading gt_title gt_font_normal" style>Pourcentage des ménages québécois composés d'une personne seule avec un avoir net de plus de *1* millions</td>
+    </tr>
+    <tr>
+      <td colspan="2" class="gt_heading gt_subtitle gt_font_normal gt_bottom_border" style>data: PUMF ESF 2019, calculs @coulsim</td>
+    </tr>
+  </thead>
+  <thead class="gt_col_headings">
+    <tr>
+      <th class="gt_col_heading gt_columns_bottom_border gt_left" rowspan="1" colspan="1" scope="col"></th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col">Pourcentage</th>
+    </tr>
+  </thead>
+  <tbody class="gt_table_body">
+    <tr><th scope="row" class="gt_row gt_left gt_stub">34-moins</th>
+<td class="gt_row gt_right">0.0%</td></tr>
+    <tr><th scope="row" class="gt_row gt_left gt_stub">35-44</th>
+<td class="gt_row gt_right">2.4%</td></tr>
+    <tr><th scope="row" class="gt_row gt_left gt_stub">45-54</th>
+<td class="gt_row gt_right">7.5%</td></tr>
+    <tr><th scope="row" class="gt_row gt_left gt_stub">55-64</th>
+<td class="gt_row gt_right">9.6%</td></tr>
+    <tr><th scope="row" class="gt_row gt_left gt_stub">65-plus</th>
+<td class="gt_row gt_right">6.0%</td></tr>
+  </tbody>
+  
+  
+</table>
+</div>
+<div id="koguiklfnp" style="overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>html {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', 'Fira Sans', 'Droid Sans', Arial, sans-serif;
+}
+
+#koguiklfnp .gt_table {
+  display: table;
+  border-collapse: collapse;
+  margin-left: auto;
+  margin-right: auto;
+  color: #333333;
+  font-size: 16px;
+  font-weight: normal;
+  font-style: normal;
+  background-color: #FFFFFF;
+  width: auto;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #A8A8A8;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #A8A8A8;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+}
+
+#koguiklfnp .gt_heading {
+  background-color: #FFFFFF;
+  text-align: center;
+  border-bottom-color: #FFFFFF;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#koguiklfnp .gt_title {
+  color: #333333;
+  font-size: 125%;
+  font-weight: initial;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-color: #FFFFFF;
+  border-bottom-width: 0;
+}
+
+#koguiklfnp .gt_subtitle {
+  color: #333333;
+  font-size: 85%;
+  font-weight: initial;
+  padding-top: 0;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-color: #FFFFFF;
+  border-top-width: 0;
+}
+
+#koguiklfnp .gt_bottom_border {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#koguiklfnp .gt_col_headings {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#koguiklfnp .gt_col_heading {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+  overflow-x: hidden;
+}
+
+#koguiklfnp .gt_column_spanner_outer {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#koguiklfnp .gt_column_spanner_outer:first-child {
+  padding-left: 0;
+}
+
+#koguiklfnp .gt_column_spanner_outer:last-child {
+  padding-right: 0;
+}
+
+#koguiklfnp .gt_column_spanner {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  overflow-x: hidden;
+  display: inline-block;
+  width: 100%;
+}
+
+#koguiklfnp .gt_group_heading {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#koguiklfnp .gt_empty_group_heading {
+  padding: 0.5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#koguiklfnp .gt_from_md > :first-child {
+  margin-top: 0;
+}
+
+#koguiklfnp .gt_from_md > :last-child {
+  margin-bottom: 0;
+}
+
+#koguiklfnp .gt_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  margin: 10px;
+  border-top-style: solid;
+  border-top-width: 1px;
+  border-top-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  overflow-x: hidden;
+}
+
+#koguiklfnp .gt_stub {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#koguiklfnp .gt_stub_row_group {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 5px;
+  padding-right: 5px;
+  vertical-align: top;
+}
+
+#koguiklfnp .gt_row_group_first td {
+  border-top-width: 2px;
+}
+
+#koguiklfnp .gt_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#koguiklfnp .gt_first_summary_row {
+  border-top-style: solid;
+  border-top-color: #D3D3D3;
+}
+
+#koguiklfnp .gt_first_summary_row.thick {
+  border-top-width: 2px;
+}
+
+#koguiklfnp .gt_last_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#koguiklfnp .gt_grand_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#koguiklfnp .gt_first_grand_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: double;
+  border-top-width: 6px;
+  border-top-color: #D3D3D3;
+}
+
+#koguiklfnp .gt_striped {
+  background-color: rgba(128, 128, 128, 0.05);
+}
+
+#koguiklfnp .gt_table_body {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#koguiklfnp .gt_footnotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#koguiklfnp .gt_footnote {
+  margin: 0px;
+  font-size: 90%;
+  padding-left: 4px;
+  padding-right: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#koguiklfnp .gt_sourcenotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#koguiklfnp .gt_sourcenote {
+  font-size: 90%;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#koguiklfnp .gt_left {
+  text-align: left;
+}
+
+#koguiklfnp .gt_center {
+  text-align: center;
+}
+
+#koguiklfnp .gt_right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+#koguiklfnp .gt_font_normal {
+  font-weight: normal;
+}
+
+#koguiklfnp .gt_font_bold {
+  font-weight: bold;
+}
+
+#koguiklfnp .gt_font_italic {
+  font-style: italic;
+}
+
+#koguiklfnp .gt_super {
+  font-size: 65%;
+}
+
+#koguiklfnp .gt_footnote_marks {
+  font-style: italic;
+  font-weight: normal;
+  font-size: 75%;
+  vertical-align: 0.4em;
+}
+
+#koguiklfnp .gt_asterisk {
+  font-size: 100%;
+  vertical-align: 0;
+}
+
+#koguiklfnp .gt_indent_1 {
+  text-indent: 5px;
+}
+
+#koguiklfnp .gt_indent_2 {
+  text-indent: 10px;
+}
+
+#koguiklfnp .gt_indent_3 {
+  text-indent: 15px;
+}
+
+#koguiklfnp .gt_indent_4 {
+  text-indent: 20px;
+}
+
+#koguiklfnp .gt_indent_5 {
+  text-indent: 25px;
+}
+</style>
+<table class="gt_table">
+  <thead class="gt_header">
+    <tr>
+      <td colspan="2" class="gt_heading gt_title gt_font_normal" style>Pourcentage des ménages québécois composés d'un couple sans enfant avec un avoir net de plus de *2* millions</td>
+    </tr>
+    <tr>
+      <td colspan="2" class="gt_heading gt_subtitle gt_font_normal gt_bottom_border" style>data: PUMF ESF 2019, calculs @coulsim</td>
+    </tr>
+  </thead>
+  <thead class="gt_col_headings">
+    <tr>
+      <th class="gt_col_heading gt_columns_bottom_border gt_left" rowspan="1" colspan="1" scope="col"></th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col">Pourcentage</th>
+    </tr>
+  </thead>
+  <tbody class="gt_table_body">
+    <tr><th scope="row" class="gt_row gt_left gt_stub">34-moins</th>
+<td class="gt_row gt_right">0.0%</td></tr>
+    <tr><th scope="row" class="gt_row gt_left gt_stub">35-44</th>
+<td class="gt_row gt_right">3.4%</td></tr>
+    <tr><th scope="row" class="gt_row gt_left gt_stub">45-54</th>
+<td class="gt_row gt_right">2.4%</td></tr>
+    <tr><th scope="row" class="gt_row gt_left gt_stub">55-64</th>
+<td class="gt_row gt_right">13.3%</td></tr>
+    <tr><th scope="row" class="gt_row gt_left gt_stub">65-plus</th>
+<td class="gt_row gt_right">7.3%</td></tr>
+  </tbody>
+  
+  
+</table>
+</div>
+<div id="vaiphjsscn" style="overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>html {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', 'Fira Sans', 'Droid Sans', Arial, sans-serif;
+}
+
+#vaiphjsscn .gt_table {
+  display: table;
+  border-collapse: collapse;
+  margin-left: auto;
+  margin-right: auto;
+  color: #333333;
+  font-size: 16px;
+  font-weight: normal;
+  font-style: normal;
+  background-color: #FFFFFF;
+  width: auto;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #A8A8A8;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #A8A8A8;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+}
+
+#vaiphjsscn .gt_heading {
+  background-color: #FFFFFF;
+  text-align: center;
+  border-bottom-color: #FFFFFF;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#vaiphjsscn .gt_title {
+  color: #333333;
+  font-size: 125%;
+  font-weight: initial;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-color: #FFFFFF;
+  border-bottom-width: 0;
+}
+
+#vaiphjsscn .gt_subtitle {
+  color: #333333;
+  font-size: 85%;
+  font-weight: initial;
+  padding-top: 0;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-color: #FFFFFF;
+  border-top-width: 0;
+}
+
+#vaiphjsscn .gt_bottom_border {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#vaiphjsscn .gt_col_headings {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#vaiphjsscn .gt_col_heading {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+  overflow-x: hidden;
+}
+
+#vaiphjsscn .gt_column_spanner_outer {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#vaiphjsscn .gt_column_spanner_outer:first-child {
+  padding-left: 0;
+}
+
+#vaiphjsscn .gt_column_spanner_outer:last-child {
+  padding-right: 0;
+}
+
+#vaiphjsscn .gt_column_spanner {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  overflow-x: hidden;
+  display: inline-block;
+  width: 100%;
+}
+
+#vaiphjsscn .gt_group_heading {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#vaiphjsscn .gt_empty_group_heading {
+  padding: 0.5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#vaiphjsscn .gt_from_md > :first-child {
+  margin-top: 0;
+}
+
+#vaiphjsscn .gt_from_md > :last-child {
+  margin-bottom: 0;
+}
+
+#vaiphjsscn .gt_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  margin: 10px;
+  border-top-style: solid;
+  border-top-width: 1px;
+  border-top-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  overflow-x: hidden;
+}
+
+#vaiphjsscn .gt_stub {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#vaiphjsscn .gt_stub_row_group {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 5px;
+  padding-right: 5px;
+  vertical-align: top;
+}
+
+#vaiphjsscn .gt_row_group_first td {
+  border-top-width: 2px;
+}
+
+#vaiphjsscn .gt_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#vaiphjsscn .gt_first_summary_row {
+  border-top-style: solid;
+  border-top-color: #D3D3D3;
+}
+
+#vaiphjsscn .gt_first_summary_row.thick {
+  border-top-width: 2px;
+}
+
+#vaiphjsscn .gt_last_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#vaiphjsscn .gt_grand_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#vaiphjsscn .gt_first_grand_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: double;
+  border-top-width: 6px;
+  border-top-color: #D3D3D3;
+}
+
+#vaiphjsscn .gt_striped {
+  background-color: rgba(128, 128, 128, 0.05);
+}
+
+#vaiphjsscn .gt_table_body {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#vaiphjsscn .gt_footnotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#vaiphjsscn .gt_footnote {
+  margin: 0px;
+  font-size: 90%;
+  padding-left: 4px;
+  padding-right: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#vaiphjsscn .gt_sourcenotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#vaiphjsscn .gt_sourcenote {
+  font-size: 90%;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#vaiphjsscn .gt_left {
+  text-align: left;
+}
+
+#vaiphjsscn .gt_center {
+  text-align: center;
+}
+
+#vaiphjsscn .gt_right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+#vaiphjsscn .gt_font_normal {
+  font-weight: normal;
+}
+
+#vaiphjsscn .gt_font_bold {
+  font-weight: bold;
+}
+
+#vaiphjsscn .gt_font_italic {
+  font-style: italic;
+}
+
+#vaiphjsscn .gt_super {
+  font-size: 65%;
+}
+
+#vaiphjsscn .gt_footnote_marks {
+  font-style: italic;
+  font-weight: normal;
+  font-size: 75%;
+  vertical-align: 0.4em;
+}
+
+#vaiphjsscn .gt_asterisk {
+  font-size: 100%;
+  vertical-align: 0;
+}
+
+#vaiphjsscn .gt_indent_1 {
+  text-indent: 5px;
+}
+
+#vaiphjsscn .gt_indent_2 {
+  text-indent: 10px;
+}
+
+#vaiphjsscn .gt_indent_3 {
+  text-indent: 15px;
+}
+
+#vaiphjsscn .gt_indent_4 {
+  text-indent: 20px;
+}
+
+#vaiphjsscn .gt_indent_5 {
+  text-indent: 25px;
+}
+</style>
+<table class="gt_table">
+  <thead class="gt_header">
+    <tr>
+      <td colspan="2" class="gt_heading gt_title gt_font_normal" style>Pourcentage des ménages québécois composés d'un couple avec  enfant ou d'une famille monoparentale avec un avoir net de plus de *2* millions</td>
+    </tr>
+    <tr>
+      <td colspan="2" class="gt_heading gt_subtitle gt_font_normal gt_bottom_border" style>data: PUMF ESF 2019, calculs @coulsim</td>
+    </tr>
+  </thead>
+  <thead class="gt_col_headings">
+    <tr>
+      <th class="gt_col_heading gt_columns_bottom_border gt_left" rowspan="1" colspan="1" scope="col"></th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col">Pourcentage</th>
+    </tr>
+  </thead>
+  <tbody class="gt_table_body">
+    <tr><th scope="row" class="gt_row gt_left gt_stub">34-moins</th>
+<td class="gt_row gt_right">0.0%</td></tr>
+    <tr><th scope="row" class="gt_row gt_left gt_stub">35-44</th>
+<td class="gt_row gt_right">2.1%</td></tr>
+    <tr><th scope="row" class="gt_row gt_left gt_stub">45-54</th>
+<td class="gt_row gt_right">4.8%</td></tr>
+    <tr><th scope="row" class="gt_row gt_left gt_stub">55-64</th>
+<td class="gt_row gt_right">12.9%</td></tr>
+  </tbody>
+  
+  
+</table>
+</div>
+<p>Tiens, tant qu’à faire, voici plusieurs percentiles par groupe d’âge, tout type de ménages confondus.</p>
+<p><img src="/post/2022-09-06-taxer-les-ultras-riches-ou-taxer-les-retrait-s/index.en-us_files/figure-html/unnamed-chunk-23-1.png" width="672" /></p>
 </div>
 <div id="conclusion" class="section level1">
 <h1>Conclusion</h1>
 <ul>
 <li>On n’a pas réussi à trouver la source de données utilisée par Québec Solidaire. En effet, l’Enquête sur la sécurité des ménages a comme unité de sondage le ménage plutôt que l’individu.<br />
 </li>
-<li>On a remarqué à l’aide du PUMF qu’environ 5% des ménages québécois ont un avoir net supérieur à 1 941 500$.</li>
-<li>Comment est-ce que QS a fait pour obtenir le chiffre de 5% des individus ont un avoir net supérieur à 1 000 000$ ? usqu’à ce que QS confirme leur source de données, je vais devoir faire supposer qu’ils ont fait l’hypothèse qu’un ménage comporte toujours 2 personnes (c’est faux) et qu’ils ont divisé ce nombre par deux pour arriver approximativement au 1 million par personne annoncé dans leur annonce.</li>
-<li>Le pourcentage de ménages ayant un avoir net supérieur à 2 millions varie évidemment avec l’âge. Ainsi, ce sont 10% des personnes qui atteignent l’âge de la retraite qui seraient considérées comme ultra-riches par QS.</li>
+<li>On a trouvé des chiffres qui pourraient expliquer leur barême:
+<ul>
+<li>5.2% des personnes seules ont plus de 1 million.</li>
+<li>6.8% des couples sans enfants ont plus de <em>2</em> millions.</li>
+<li>Pour les couples avec enfants et les familles monoparentales, c’est 12.8% au dessus de 1 million et 2.8% au dessus de 2 millions.<br />
+</li>
+<li>Sans égard à la taille, ce sont 15.5% des ménages québécois ont un avoir net supérieur à 1 million de dollars. Évidemment, certains de ces ménages ont 2 adultes.</li>
+</ul></li>
+<li>Le top 5% des ménages québécois ont un avoir net supérieur à 1 941 500$ , sans égard à la taille.</li>
+<li>Chez les 55-64 à l’aube de la retraite ce sont:<br />
+* 9.6% des personnes seules qui ont plus de 1 million,
+* 13.3% des couples sans enfants qui ont 2 millions,
+* 12.9% des couples avec enfants ou des familles monoparentales ont plus de 2 millions.
+* Chez les 55-64, on ne parle donc plus de “We are de 99%” mais plutôt de “We are the 89%-ish”.</li>
 </ul>
 </div>
