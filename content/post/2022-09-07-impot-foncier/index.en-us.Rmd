@@ -1,0 +1,759 @@
+---
+title: L'impôt foncier comme alternative à l'impôt sur l'avoir net
+author: simon
+date: '2022-09-07'
+slug: impot-foncier
+categories:
+  - rstats
+  - impot
+  - est
+tags:
+  - tag1
+  - tag2
+keywords:
+  - tech
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE,
+  #dpi = 150,
+  #fig.width = 5,
+  #fig.height = 5,
+  cache = FALSE # cache= TRUE leads to Error: path for html_dependency not found: error
+)
+library(matrixStats) # pour weightedMedian https://stackoverflow.com/questions/2748725/is-there-a-weighted-median-function
+library(dplyr)
+library(sf)
+library(readr)
+library(tidyr)
+library(janitor)
+library(readr)
+library(stringr)
+library(ggplot2)
+library(ggspatial)# for annotation_map_tile
+library(ggtext) # for element markdown
+library(hrbrthemes)
+library(tidygeocoder)
+library(patchwork)
+library(gt)
+library(wesanderson)
+library(scales) # pour dollar
+
+ggplot2::theme_set(theme_minimal()) # this ggplot2 theme uses roboto condensed font, which works well with the font used for the whole document.
+#options(ggplot2.discrete.fill  = function() scale_fill_viridis_d() )
+#options(ggplot2.continuous.fill  = function() scale_fill_viridis_c())
+#options(ggplot2.discrete.colour = function() scale_color_viridis_d())
+#options(ggplot2.continuous.colour = function() scale_color_viridis_c())
+
+options(ggplot2.discrete.fill  = function() scale_fill_manual(values = wes_palette(4, name = "Darjeeling1", type = "discrete")))
+options(ggplot2.continuous.fill  = function() scale_fill_manual(values = wes_palette(8, name = "Darjeeling1", type = "continuous")))
+options(ggplot2.discrete.colour = function()  scale_color_manual(values = wes_palette(4, name = "Darjeeling1", type = "discrete")))
+options(ggplot2.continuous.colour = function() scale_color_manual(values = wes_palette(8, name = "Darjeeling1", type = "continuous")))
+
+
+options(scipen=999)
+
+
+```
+
+Ça parle beaucoup d'impôt sur le patimoine (ou avoir net) ces temps-ci au Québec
+
+Un échange intéressant entre Pierre-Yves McSween (@PYMcsween) et Olivier Jacques (@OliJacques89) sur twitter m'a fait réaliser que l'impôt foncier ressemble vaguement à un impôt sur le patrimoine.  Quand je dis que je suis un économiste non pratiquant, c'est un bon exemple de mon manque de culture. :)
+
+```{r}
+blogdown::shortcode('tweet',  user = "PYMcsween", id = '1567588625507880964')
+```
+En fait, ce n'est pas un impôt sur l'avoir net, mais un impôt sur l'avoir.  
+
+Si on fait simple et qu'on suppose un taux de taxation foncière  de 1%.
+
+- Le jeune qui vient de mettre tout son argent (60 000$) en mise fond sur une maison de 300 000$ va payer  3 000$ de taxes foncières. Son taux de taxation "sur le patrimoine" sera de 3 000 / 60 000 = 5%.   
+
+-Son vieux voisin a aussi une maison de 300 000$.  Il vient de terminer de la payer.  Il n'a aucune autre économie lui non plus.  Son taux de taxation "sur le patrimoine" sera donc de 3 000 / 300 000$ = 1%.
+
+Le voisin a un avoir net 5x plus élevé, mais il a payé la même taxe en absolu, si bien que son taux de taxation est 5x moins élevé.
+
+Dans mon exemple, on observe qu'il y a un taux de taxation régressif en fonction de l'avoir net.  C'est pas si cool.
+
+La question que je me pose aujourd'hui:
+- Est-ce que dans la vraie vie le taux est progressif, uniforme ou régressif?  
+
+On a découvert hier une super source de données:  le PUMF de l'Enquête sur la Sécurité Financière du Statistiques Canada.  
+
+Il comporte les variables suivantes
+PWAPRVAL : valeur du domicile principal
+PWASTRST : bien immobiliers autres que la reésidence principale 
+PWNETWT : valeur nette de l'unité familliale (base de terminaison).  
+
+C'est tout ce que ça nous prend si on fait l'hypothèse d'un taux de taxation uniforme sur les bien immobiliers: 
+
+* On va conserver que les observations pour le Québec.  
+
+* On va calculer `valeur_fonciere` , soit la somme de la valeur du domicile principale et de la valeur des biens immobiliers autre que la résidence principale.  
+
+* On va supposer un taux de taxation sur l'immobilier de 1% pour calculer un "montant de taxes foncières payées".  
+
+* On va calculer le taux de taxe sur la patrimoine en divisant "montant de taxes foncières payées" par la valeur nette de l'unité familiale.  
+
+* Ensuite, on va regarder si le taux de taxation est régressif ou progressif en fonction de la valeur nette de l'unité familiale.  
+
+Pour les gens qui ont un avoir  net négatif mais qui paient quand même des taxes foncières, on va... shit.. trouver ça chien  et faire semblant qu'ils ont rien payé..
+
+Lets' goooo!
+
+# Les données   
+
+[On en a parlé hier](https://www.simoncoulombe.com/2022/09/ultra-riches/), c'était super intéressant, allez voir 
+
+
+# Les manips   
+```{r}
+pumf <- read_fwf(here::here("content/post/2022-09-06-taxer-les-ultras-riches-ou-taxer-les-retrait-s/data/SFS2019_PUMF_F/SFS2019_EFAM_PUMF.txt"),
+                 col_types = list(
+                   PEFAMID  = col_character(),
+                   PAGEMIEG   = col_character(),
+                   PASRINTG   = col_character(),
+                   PDWTYP     = col_character(),
+                   PEDUCMIE   = col_character(),
+                   PEFMJSIF   = col_character(),
+                   PFCRN      = col_character(),
+                   PFMTYPG    = col_character(),
+                   PFRSPST    = col_character(),
+                   PFSZ0017   = col_character(),
+                   PFSZ1824   = col_character(),
+                   PFSZ2544   = col_character(),
+                   PFSZ4564   = col_character(),
+                   PFSZ65UP   = col_character(),
+                   PLFCHRME   = col_character(),
+                   PLFFPTME   = col_character(),
+                   PLFPDMEG   = col_character(),
+                   PPVRES     = col_character(),
+                   PREGION    = col_character(),
+                   PRETIRME   = col_character(),
+                   VERDATE    = col_character(),
+                   .default = col_double()
+                 ),
+                 fwf_positions(
+                   c(
+                     1,
+                     6,
+                     18,
+                     20,
+                     21,
+                     22,
+                     23,
+                     31,
+                     32,
+                     34,
+                     35,
+                     36,
+                     44,
+                     46,
+                     47,
+                     48,
+                     49,
+                     50,
+                     51,
+                     53,
+                     54,
+                     55,
+                     57,
+                     58,
+                     60,
+                     64,
+                     65,
+                     66,
+                     67,
+                     73,
+                     74,
+                     75,
+                     76,
+                     77,
+                     78,
+                     79,
+                     80,
+                     81,
+                     82,
+                     83,
+                     84,
+                     85,
+                     86,
+                     94,
+                     95,
+                     96,
+                     97,
+                     105,
+                     113,
+                     115,
+                     123,
+                     128,
+                     129,
+                     130,
+                     131,
+                     132,
+                     133,
+                     134,
+                     135,
+                     136,
+                     137,
+                     138,
+                     139,
+                     148,
+                     149,
+                     150,
+                     151,
+                     152,
+                     154,
+                     155,
+                     156,
+                     157,
+                     169,
+                     181,
+                     193,
+                     205,
+                     217,
+                     229,
+                     241,
+                     253,
+                     265,
+                     277,
+                     289,
+                     301,
+                     313,
+                     325,
+                     337,
+                     349,
+                     361,
+                     373,
+                     385,
+                     397,
+                     409,
+                     421,
+                     433,
+                     445,
+                     457,
+                     469,
+                     481,
+                     493
+                   ),
+                   c(
+                     5,
+                     17,
+                     19,
+                     20,
+                     21,
+                     22,
+                     30,
+                     31,
+                     33,
+                     34,
+                     35,
+                     43,
+                     45,
+                     46,
+                     47,
+                     48,
+                     49,
+                     50,
+                     52,
+                     53,
+                     54,
+                     56,
+                     57,
+                     59,
+                     63,
+                     64,
+                     65,
+                     66,
+                     72,
+                     73,
+                     74,
+                     75,
+                     76,
+                     77,
+                     78,
+                     79,
+                     80,
+                     81,
+                     82,
+                     83,
+                     84,
+                     85,
+                     93,
+                     94,
+                     95,
+                     96,
+                     104,
+                     112,
+                     114,
+                     122,
+                     127,
+                     128,
+                     129,
+                     130,
+                     131,
+                     132,
+                     133,
+                     134,
+                     135,
+                     136,
+                     137,
+                     138,
+                     147,
+                     148,
+                     149,
+                     150,
+                     151,
+                     153,
+                     154,
+                     155,
+                     156,
+                     168,
+                     180,
+                     192,
+                     204,
+                     216,
+                     228,
+                     240,
+                     252,
+                     264,
+                     276,
+                     288,
+                     300,
+                     312,
+                     324,
+                     336,
+                     348,
+                     360,
+                     372,
+                     384,
+                     396,
+                     408,
+                     420,
+                     432,
+                     444,
+                     456,
+                     468,
+                     480,
+                     492,
+                     502
+                   ),
+                   c(
+                     "PEFAMID",
+                     "PWEIGHT",
+                     "PAGEMIEG",
+                     "PAS1MRAG",
+                     "PAS1MRG1",
+                     "PAS1MRG2",
+                     "PASR1MFA",
+                     "PASR1MR" ,
+                     "PASRBUYG",
+                     "PASRCNMG",
+                     "PASRCON" ,
+                     "PASRCST" ,
+                     "PASRCURG",
+                     "PASRDPO1",
+                     "PASRDPO2",
+                     "PASRDPO3",
+                     "PASRDPO4",
+                     "PASRDPO5",
+                     "PASRDWNG",
+                     "PASRFNMG",
+                     "PASRINT" ,
+                     "PASRINTG",
+                     "PASRMOAG",
+                     "PASRMPFG",
+                     "PASRMRYG",
+                     "PASRRNTG",
+                     "PASRSKP" ,
+                     "PATTCRC" ,
+                     "PATTCRLM",
+                     "PATTCRR" ,
+                     "PATTCRU" ,
+                     "PATTDIF" ,
+                     "PATTLCP" ,
+                     "PATTLCR" ,
+                     "PATTPAYD",
+                     "PATTRSA" ,
+                     "PATTRSH" ,
+                     "PATTRSL" ,
+                     "PATTRSP" ,
+                     "PATTRSR" ,
+                     "PATTSTIN",
+                     "PATTSKP" ,
+                     "PATTLMLC",
+                     "PBUSIND" ,
+                     "PDWTYP"  ,
+                     "PEDUCMIE",
+                     "PEFATINC",
+                     "PEFGTR"  ,
+                     "PEFMJSIF",
+                     "PEFMTINC",
+                     "PEXMG1A" ,
+                     "PEXMG1F" ,
+                     "PFCRN"   ,
+                     "PFMTYPG" ,
+                     "PFRSPST" ,
+                     "PFSZ"    ,
+                     "PFSZ0017",
+                     "PFSZ1824",
+                     "PFSZ2544",
+                     "PFSZ4564",
+                     "PFSZ65UP",
+                     "PFTENUR" ,
+                     "PINHERT" ,
+                     "PLFCHRME",
+                     "PLFFPTME",
+                     "PLFPDMEG",
+                     "PNBEARG" ,
+                     "PPVRES"  ,
+                     "PREGION" ,
+                     "PRETIRME",
+                     "PGDRMIE" ,
+                     "PWAOTPEN",
+                     "PWAPRVAL",
+                     "PWARPPG" ,
+                     "PWARPPT" ,
+                     "PWARRIF" ,
+                     "PWARRSPL",
+                     "PWASTBND",
+                     "PWASTDEP",
+                     "PWASTMUI",
+                     "PWASTOIN",
+                     "PWASTONF",
+                     "PWASTRST",
+                     "PWASTSTK",
+                     "PWASTVHE",
+                     "PWATFS"  ,
+                     "PWATOTPG",
+                     "PWATOTPT",
+                     "PWBUSEQ" ,
+                     "PWDPRMOR",
+                     "PWDSLOAN",
+                     "PWDSTCRD",
+                     "PWDSTLOC",
+                     "PWDSTODB",
+                     "PWDSTOMR",
+                     "PWDSTVHN",
+                     "PWDTOTAL",
+                     "PWNETWPG",
+                     "PWNETWPT",
+                     "VERDATE"
+                   )
+                 )
+                 
+)
+
+```
+
+
+
+```{r}
+pumf_qc <- pumf %>% 
+  filter(PPVRES =="24") %>% 
+  select( PWNETWPT, PWEIGHT, PWAPRVAL, PWASTRST, PWEIGHT, PAGEMIEG) %>% 
+  mutate(gr_age =
+           case_when
+         ( PAGEMIEG %in% c("01","02","03","04") ~ "34-moins",
+           PAGEMIEG %in% c("05","06") ~ "35-44",
+           PAGEMIEG %in% c("07","08") ~ "45-54",
+           PAGEMIEG %in% c("09","10") ~ "55-64",
+           PAGEMIEG %in% c("11","12","13","14") ~ "65-plus",
+         )
+  ) %>% 
+  mutate(
+    valeur_fonciere  =  PWAPRVAL + PWASTRST,
+    taxes_foncieres = 0.01 * valeur_fonciere,
+    taux_taxation_sur_patrimoine = if_else(PWNETWPT >0,taxes_foncieres / PWNETWPT,0)
+  )
+
+
+```
+
+
+Voici à quoi ressemblent les micro-données brutes:
+```{r}
+pumf_qc %>% head(10) %>% knitr::kable()
+```
+
+
+# Exploratory data analysis (en fait on fait juste ça aujourd'hui)   
+
+Ici on va juste regarder la distribution de la valeur foncière, de la valeur nette puis du taux de taxation effectif sur le patrimoine pour s'assurer que tout a du sens.
+
+## Valeur foncière  
+
+Valeurs foncières moyenne
+
+```{r}
+dollar(weighted.mean(pumf_qc$valeur_fonciere, pumf_qc$PWEIGHT), suffix = "$", prefix ="", big.mark = " ")
+```
+
+Quantiles de valeur foncière  (pondérée)
+
+
+```{r}
+my_percentiles <- c(0.10, 0.25, 0.4, 0.50, 0.75, 0.9, 0.95, 0.99)
+tibble(
+  percentile = my_percentiles,
+  valeur_fonciere = Hmisc::wtd.quantile(pumf_qc$valeur_fonciere, pumf_qc$PWEIGHT, probs = my_percentiles)
+  ) %>%
+  knitr::kable()
+```
+
+
+```{r}
+pumf_qc %>%
+  ggplot(aes(x= valeur_fonciere)) + 
+  geom_histogram(aes(weight = PWEIGHT),bins = 30) + 
+  scale_x_continuous(labels = scales::label_dollar(suffix = "$", prefix ="", big.mark = " ") ) + 
+     labs(
+    title = "Distribution de la valeur foncière",
+    subtitle = "",
+    caption = "Données PUMF ESF Statcan pour le Québec, calculs @coulsm",
+ x = "Valeur foncière ",
+ y = "Nombre de ménages",
+    #fill = "",
+    #size = "Poids"
+    )  
+```
+
+
+
+## Avoir nets
+
+Avoir net moyen
+
+```{r}
+dollar(weighted.mean(pumf_qc$PWNETWPT, pumf_qc$PWEIGHT), suffix = "$", prefix ="", big.mark = " ")
+```
+
+Quantiles de avoir net  (pondérée)
+
+
+```{r}
+my_percentiles <- c(0.10, 0.25, 0.4, 0.50, 0.75, 0.9, 0.95, 0.99)
+tibble(
+  percentile = my_percentiles,
+  PWNETWPT = Hmisc::wtd.quantile(pumf_qc$PWNETWPT, pumf_qc$PWEIGHT, probs = my_percentiles)
+  ) %>%
+  knitr::kable()
+```
+Histogram des avoirs nets
+
+```{r}
+pumf_qc %>%
+  ggplot(aes(x= PWNETWPT)) + 
+  geom_histogram(aes(weight = PWEIGHT),bins = 30) + 
+  scale_x_continuous(labels = scales::label_dollar(suffix = "$", prefix ="", big.mark = " ") ) + 
+     labs(
+    title = "Distribution des avoirs nets",
+    subtitle = "",
+    caption = "Données PUMF ESF Statcan pour le Québec, calculs @coulsm",
+ x = "Avoir net",
+ y = "Nombre de ménages",
+    #fill = "",
+    #size = "Poids"
+    )  
+```
+
+
+
+## Taux de taxation sur le patrimoine   
+
+
+taux de taxation effectif sur le patrimoine moyen
+
+```{r}
+percent(weighted.mean(pumf_qc$taux_taxation_sur_patrimoine, pumf_qc$PWEIGHT), , accuracy = 0.01)
+```
+
+Quantiles de taux de taxation effectif sur le patrimoine  (pondérée)
+
+
+```{r}
+my_percentiles <- c(0.10, 0.25, 0.4, 0.50, 0.75, 0.9, 0.95, 0.99)
+tibble(
+  percentile = my_percentiles,
+  taux_taxation_sur_patrimoine = Hmisc::wtd.quantile(pumf_qc$taux_taxation_sur_patrimoine, pumf_qc$PWEIGHT, probs = my_percentiles)
+  ) %>%
+  knitr::kable()
+```
+Histogram des avoirs nets
+
+```{r}
+pumf_qc %>%
+  ggplot(aes(x= taux_taxation_sur_patrimoine)) + 
+  geom_histogram(aes(weight = PWEIGHT),bins = 30) + 
+  scale_x_continuous(labels = scales::label_percent()) + 
+     labs(
+    title = "Distribution des  taux de taxation effectif sur le patrimoine",
+    subtitle = "",
+    caption = "Données PUMF ESF Statcan pour le Québec, calculs @coulsm",
+ x = " taux de taxation effectif sur le patrimoine",
+ y = "Nombre de ménages",
+    #fill = "",
+    #size = "Poids"
+    )  
+```
+
+
+
+
+# Analyse   
+
+C'est ici qu'on va enfin regarder si la taxe foncière est régressive (pourcentage décroît avec l'avoir net) ou progressive (pourcentage accroît avec l'avoir net).
+
+En fait, on pourrait simplement regarder si la part de la valeur foncière dans les avoir nets augmente avec la valeur des avoir nets, mais j'ai envie de travailler avec des dollars..
+
+
+
+
+On va commencer par regarder le montant des taxes foncières en fonction de l'avoir net.
+
+```{r}
+pumf_qc %>%
+  ggplot(aes(x=PWNETWPT, y = taxes_foncieres )) +
+  geom_point(aes( size = PWEIGHT),  alpha = 0.05) + 
+  geom_smooth(aes(weight = PWEIGHT))  + 
+  scale_y_continuous(labels = scales::label_dollar(suffix = "$", prefix ="", big.mark = " ") ) +
+  scale_x_continuous(labels = scales::label_dollar(suffix = "$", prefix ="", big.mark = " ") , 
+                     #limits = c(0, 1e6)
+                     ) +
+    labs(
+    title = "Taxes foncières en fonction de l'avoir net",
+    subtitle = "Au moins le montant absolu de la taxe foncière a tendance à augmenter avec l'avoir net",
+    caption = "Données PUMF ESF Statcan pour le Québec, calculs @coulsm",
+    x = "Avoir net",
+    y = "Taxes foncières",
+    fill = "",
+    size = "Poids"
+    )  
+  
+```
+Au moins le montant absolu de la taxe foncière a tendance à augmenter avec l'avoir net! 
+
+Voyons maintenant si le taux de taxation du patrimoine a tendance à augmenter avec l'avoir net:
+
+
+```{r}
+pumf_qc %>%
+  ggplot(aes(x=PWNETWPT, y = taux_taxation_sur_patrimoine )) +
+  geom_point(aes( size = PWEIGHT), alpha = 0.05) + 
+  geom_smooth(aes(weight = PWEIGHT))  + 
+  scale_y_continuous(labels = scales::label_percent()) +
+    labs(
+    title = "Taux de taxation sur l'avoir net (via taxes foncières) en fonction de l'avoir net",
+    subtitle = "Ici par contre c'est vraiment pas clair que le taux est progressif.",
+    caption = "Données PUMF ESF Statcan pour le Québec, calculs @coulsm",
+    x = "Avoir net",
+    y = "Taux de taxation observé sur l'avoir net",
+    fill = "",
+    size = "Poids"
+    ) + 
+  scale_x_continuous(labels = scales::label_dollar(suffix = "$", prefix ="", big.mark = " "), 
+                     #limits = c(0, 1e6)
+                     )
+```
+Ici par contre c'est vraiment pas clair comment le taux évolue.
+Peut-être en zoomant en bas à gauche?
+
+
+```{r}
+pumf_qc %>%
+  ggplot(aes(x=PWNETWPT, y = taux_taxation_sur_patrimoine )) +
+  geom_point(aes( size = PWEIGHT), alpha = 0.05) + 
+  geom_smooth(aes(weight = PWEIGHT))  + 
+  scale_y_continuous(labels = scales::label_percent(),
+                     limits = c(0, 0.01)) +
+    scale_x_continuous(labels = scales::label_dollar(suffix = "$", prefix ="", big.mark = " "), 
+                     limits = c(0, 1e6)
+                     )+ 
+    labs(
+    title = "Taux de taxation sur l'avoir net (via taxes foncières) en fonction de l'avoir net",
+    subtitle = " (zoom sur les avoirs nets de moins de 1M avec un taux de taxation effectif sur le patrimoine de moins de 1%",
+    caption = "Données PUMF ESF Statcan pour le Québec, calculs @coulsm",
+    x = "Avoir net",
+    y = "Taux de taxation observé sur l'avoir net",
+    fill = "",
+    size = "Poids"
+    )  
+
+```
+
+Oh!!  C'est intéressant ça.  Ça semble vouloir être progressif jusqu'à environ 300 000$, puis régressif.
+
+On va faire des buckets, peut-être que ce sera plus clair.
+
+```{r}
+binned_pumf_qc <- pumf_qc %>% 
+  mutate(avoir_net_bin = cut(PWNETWPT, c(-Inf,0, 50000, 100000, 200000, 300000, 500000, 1e6, 3e6,Inf), right = FALSE)) %>%
+   mutate(
+    avoir_net_bin = factor(case_when(
+      avoir_net_bin == "[-Inf,0)" ~ "0$ et moins",
+      avoir_net_bin == "[0,5e+04)" ~ "0 à 50k",
+      avoir_net_bin == "[5e+04,1e+05)" ~ "50k à 100k",
+      avoir_net_bin == "[1e+05,2e+05)" ~ "100k à 200k",
+      avoir_net_bin == "[2e+05,3e+05)" ~ "200k à 300k",
+      avoir_net_bin == "[3e+05,5e+05)" ~ "300k à 500k",
+      avoir_net_bin == "[5e+05,1e+06)" ~ "500k à 1M",
+      avoir_net_bin == "[1e+06,3e+06)" ~ "1M à 3M",
+      avoir_net_bin == "[3e+06, Inf)" ~ "3M et plus"
+    )
+  ,
+  levels = c("0$ et moins","0 à 50k", "50k à 100k",
+             "100k à 200k", "200k à 300k","300k à 500k",
+             "500k à 1M", "1M à 3M","3M et plus"
+             )
+  )
+  )%>% 
+  group_by(avoir_net_bin) %>%
+  summarise(n = n(), sum_PWEIGHT = sum(PWEIGHT),  valeur_fonciere = sum(valeur_fonciere), PWNETWPT = sum(PWNETWPT)) %>%
+  mutate(
+    taxes_foncieres = 0.01 * valeur_fonciere,
+    taux_taxation_sur_patrimoine_du_bin =  if_else(PWNETWPT >0,taxes_foncieres / PWNETWPT,0)
+    ) 
+
+
+binned_pumf_qc %>% 
+  knitr::kable()
+
+
+```
+
+```{r}
+binned_pumf_qc %>%
+  filter( avoir_net_bin != "0$ et moins")  %>% 
+ 
+  ggplot(aes(x= avoir_net_bin, y = taux_taxation_sur_patrimoine_du_bin)) + 
+  geom_col()+ 
+  scale_y_continuous(labels = scales::label_percent(),
+                     #limits = c(0, 0.01)
+                     ) +
+
+    labs(
+    title = "Taux de taxation effectif sur l'avoir net (via taxes foncières)\n en fonction de l'avoir net",
+    subtitle = "On suppose un taux de taxation de la valeur foncière de 1%",
+    caption = "Données PUMF ESF Statcan pour le Québec 2019, calculs @coulsm",
+    x = "Avoir net ($)",
+    y = "Taux de taxation observé sur l'avoir net",
+    fill = "",
+    size = "Poids"
+    )  + 
+  theme(axis.text.x = element_text(angle = 30, vjust = 0.5, hjust=1))
+```
+
+
+# Conclusion   
+
+Ok! 
+C'est super cool.
+La taxe foncière serait une taxe régressive (en fonction de l'avoir net) jusqu'à environ 100 000$, puis décroît tranquillement.
+
+C'est dû au fait que les immeubles représentent une plus grande part des avoirs nets des "pauvres" qui valent moins de 100 000$.
+
+

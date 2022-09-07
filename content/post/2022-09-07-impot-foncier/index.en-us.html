@@ -1,0 +1,473 @@
+---
+title: L'impôt foncier comme alternative à l'impôt sur l'avoir net
+author: simon
+date: '2022-09-07'
+slug: impot-foncier
+categories:
+  - rstats
+  - impot
+  - est
+tags:
+  - tag1
+  - tag2
+keywords:
+  - tech
+---
+
+
+
+<p>Ça parle beaucoup d’impôt sur le patimoine (ou avoir net) ces temps-ci au Québec</p>
+<p>Un échange intéressant entre Pierre-Yves McSween (<span class="citation">@PYMcsween</span>) et Olivier Jacques (<span class="citation">@OliJacques89</span>) sur twitter m’a fait réaliser que l’impôt foncier ressemble vaguement à un impôt sur le patrimoine. Quand je dis que je suis un économiste non pratiquant, c’est un bon exemple de mon manque de culture. :)</p>
+<p>{{% tweet user="PYMcsween" id="1567588625507880964" %}}
+En fait, ce n’est pas un impôt sur l’avoir net, mais un impôt sur l’avoir.</p>
+<p>Si on fait simple et qu’on suppose un taux de taxation foncière de 1%.</p>
+<ul>
+<li>Le jeune qui vient de mettre tout son argent (60 000<span class="math inline">\() en mise fond sur une maison de 300 000\)</span> va payer 3 000$ de taxes foncières. Son taux de taxation “sur le patrimoine” sera de 3 000 / 60 000 = 5%.</li>
+</ul>
+<p>-Son vieux voisin a aussi une maison de 300 000<span class="math inline">\(. Il vient de terminer de la payer. Il n&#39;a aucune autre économie lui non plus. Son taux de taxation &quot;sur le patrimoine&quot; sera donc de 3 000 / 300 000\)</span> = 1%.</p>
+<p>Le voisin a un avoir net 5x plus élevé, mais il a payé la même taxe en absolu, si bien que son taux de taxation est 5x moins élevé.</p>
+<p>Dans mon exemple, on observe qu’il y a un taux de taxation régressif en fonction de l’avoir net. C’est pas si cool.</p>
+<p>La question que je me pose aujourd’hui:
+- Est-ce que dans la vraie vie le taux est progressif, uniforme ou régressif?</p>
+<p>On a découvert hier une super source de données: le PUMF de l’Enquête sur la Sécurité Financière du Statistiques Canada.</p>
+<p>Il comporte les variables suivantes
+PWAPRVAL : valeur du domicile principal
+PWASTRST : bien immobiliers autres que la reésidence principale
+PWNETWT : valeur nette de l’unité familliale (base de terminaison).</p>
+<p>C’est tout ce que ça nous prend si on fait l’hypothèse d’un taux de taxation uniforme sur les bien immobiliers:</p>
+<ul>
+<li><p>On va conserver que les observations pour le Québec.</p></li>
+<li><p>On va calculer <code>valeur_fonciere</code> , soit la somme de la valeur du domicile principale et de la valeur des biens immobiliers autre que la résidence principale.</p></li>
+<li><p>On va supposer un taux de taxation sur l’immobilier de 1% pour calculer un “montant de taxes foncières payées”.</p></li>
+<li><p>On va calculer le taux de taxe sur la patrimoine en divisant “montant de taxes foncières payées” par la valeur nette de l’unité familiale.</p></li>
+<li><p>Ensuite, on va regarder si le taux de taxation est régressif ou progressif en fonction de la valeur nette de l’unité familiale.</p></li>
+</ul>
+<p>Pour les gens qui ont un avoir net négatif mais qui paient quand même des taxes foncières, on va… shit.. trouver ça chien et faire semblant qu’ils ont rien payé..</p>
+<p>Lets’ goooo!</p>
+<div id="les-données" class="section level1">
+<h1>Les données</h1>
+<p><a href="https://www.simoncoulombe.com/2022/09/ultra-riches/">On en a parlé hier</a>, c’était super intéressant, allez voir</p>
+</div>
+<div id="les-manips" class="section level1">
+<h1>Les manips</h1>
+<p>Voici à quoi ressemblent les micro-données brutes:</p>
+<table>
+<colgroup>
+<col width="7%" />
+<col width="8%" />
+<col width="7%" />
+<col width="7%" />
+<col width="7%" />
+<col width="7%" />
+<col width="13%" />
+<col width="13%" />
+<col width="25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="right">PWNETWPT</th>
+<th align="right">PWEIGHT</th>
+<th align="right">PWAPRVAL</th>
+<th align="right">PWASTRST</th>
+<th align="left">PAGEMIEG</th>
+<th align="left">gr_age</th>
+<th align="right">valeur_fonciere</th>
+<th align="right">taxes_foncieres</th>
+<th align="right">taux_taxation_sur_patrimoine</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="right">8806000</td>
+<td align="right">1393.1613</td>
+<td align="right">800000</td>
+<td align="right">0</td>
+<td align="left">12</td>
+<td align="left">65-plus</td>
+<td align="right">800000</td>
+<td align="right">8000</td>
+<td align="right">0.0009085</td>
+</tr>
+<tr class="even">
+<td align="right">155050</td>
+<td align="right">2935.6096</td>
+<td align="right">390000</td>
+<td align="right">0</td>
+<td align="left">04</td>
+<td align="left">34-moins</td>
+<td align="right">390000</td>
+<td align="right">3900</td>
+<td align="right">0.0251532</td>
+</tr>
+<tr class="odd">
+<td align="right">8738950</td>
+<td align="right">954.6999</td>
+<td align="right">280000</td>
+<td align="right">260000</td>
+<td align="left">05</td>
+<td align="left">35-44</td>
+<td align="right">540000</td>
+<td align="right">5400</td>
+<td align="right">0.0006179</td>
+</tr>
+<tr class="even">
+<td align="right">5005</td>
+<td align="right">1367.6644</td>
+<td align="right">0</td>
+<td align="right">0</td>
+<td align="left">04</td>
+<td align="left">34-moins</td>
+<td align="right">0</td>
+<td align="right">0</td>
+<td align="right">0.0000000</td>
+</tr>
+<tr class="odd">
+<td align="right">73500</td>
+<td align="right">1813.3366</td>
+<td align="right">72500</td>
+<td align="right">0</td>
+<td align="left">14</td>
+<td align="left">65-plus</td>
+<td align="right">72500</td>
+<td align="right">725</td>
+<td align="right">0.0098639</td>
+</tr>
+<tr class="even">
+<td align="right">1308950</td>
+<td align="right">2063.1375</td>
+<td align="right">200000</td>
+<td align="right">57500</td>
+<td align="left">08</td>
+<td align="left">45-54</td>
+<td align="right">257500</td>
+<td align="right">2575</td>
+<td align="right">0.0019672</td>
+</tr>
+<tr class="odd">
+<td align="right">138050</td>
+<td align="right">4314.2599</td>
+<td align="right">0</td>
+<td align="right">0</td>
+<td align="left">13</td>
+<td align="left">65-plus</td>
+<td align="right">0</td>
+<td align="right">0</td>
+<td align="right">0.0000000</td>
+</tr>
+<tr class="even">
+<td align="right">117250</td>
+<td align="right">1595.1530</td>
+<td align="right">260000</td>
+<td align="right">0</td>
+<td align="left">04</td>
+<td align="left">34-moins</td>
+<td align="right">260000</td>
+<td align="right">2600</td>
+<td align="right">0.0221748</td>
+</tr>
+<tr class="odd">
+<td align="right">555</td>
+<td align="right">3910.7481</td>
+<td align="right">0</td>
+<td align="right">0</td>
+<td align="left">14</td>
+<td align="left">65-plus</td>
+<td align="right">0</td>
+<td align="right">0</td>
+<td align="right">0.0000000</td>
+</tr>
+<tr class="even">
+<td align="right">422000</td>
+<td align="right">1030.9989</td>
+<td align="right">0</td>
+<td align="right">0</td>
+<td align="left">11</td>
+<td align="left">65-plus</td>
+<td align="right">0</td>
+<td align="right">0</td>
+<td align="right">0.0000000</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="exploratory-data-analysis-en-fait-on-fait-juste-ça-aujourdhui" class="section level1">
+<h1>Exploratory data analysis (en fait on fait juste ça aujourd’hui)</h1>
+<p>Ici on va juste regarder la distribution de la valeur foncière, de la valeur nette puis du taux de taxation effectif sur le patrimoine pour s’assurer que tout a du sens.</p>
+<div id="valeur-foncière" class="section level2">
+<h2>Valeur foncière</h2>
+<p>Valeurs foncières moyenne</p>
+<pre><code>## [1] &quot;221 938$&quot;</code></pre>
+<p>Quantiles de valeur foncière (pondérée)</p>
+<table>
+<thead>
+<tr class="header">
+<th align="right">percentile</th>
+<th align="right">valeur_fonciere</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="right">0.10</td>
+<td align="right">0</td>
+</tr>
+<tr class="even">
+<td align="right">0.25</td>
+<td align="right">0</td>
+</tr>
+<tr class="odd">
+<td align="right">0.40</td>
+<td align="right">26000</td>
+</tr>
+<tr class="even">
+<td align="right">0.50</td>
+<td align="right">150000</td>
+</tr>
+<tr class="odd">
+<td align="right">0.75</td>
+<td align="right">310000</td>
+</tr>
+<tr class="even">
+<td align="right">0.90</td>
+<td align="right">520000</td>
+</tr>
+<tr class="odd">
+<td align="right">0.95</td>
+<td align="right">725000</td>
+</tr>
+<tr class="even">
+<td align="right">0.99</td>
+<td align="right">1650000</td>
+</tr>
+</tbody>
+</table>
+<p><img src="/post/2022-09-07-impot-foncier/index.en-us_files/figure-html/unnamed-chunk-7-1.png" width="672" /></p>
+</div>
+<div id="avoir-nets" class="section level2">
+<h2>Avoir nets</h2>
+<p>Avoir net moyen</p>
+<pre><code>## [1] &quot;547 451$&quot;</code></pre>
+<p>Quantiles de avoir net (pondérée)</p>
+<table>
+<thead>
+<tr class="header">
+<th align="right">percentile</th>
+<th align="right">PWNETWPT</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="right">0.10</td>
+<td align="right">2650</td>
+</tr>
+<tr class="even">
+<td align="right">0.25</td>
+<td align="right">39450</td>
+</tr>
+<tr class="odd">
+<td align="right">0.40</td>
+<td align="right">146500</td>
+</tr>
+<tr class="even">
+<td align="right">0.50</td>
+<td align="right">245500</td>
+</tr>
+<tr class="odd">
+<td align="right">0.75</td>
+<td align="right">661250</td>
+</tr>
+<tr class="even">
+<td align="right">0.90</td>
+<td align="right">1332500</td>
+</tr>
+<tr class="odd">
+<td align="right">0.95</td>
+<td align="right">1941500</td>
+</tr>
+<tr class="even">
+<td align="right">0.99</td>
+<td align="right">4572700</td>
+</tr>
+</tbody>
+</table>
+<p>Histogram des avoirs nets</p>
+<p><img src="/post/2022-09-07-impot-foncier/index.en-us_files/figure-html/unnamed-chunk-10-1.png" width="672" /></p>
+</div>
+<div id="taux-de-taxation-sur-le-patrimoine" class="section level2">
+<h2>Taux de taxation sur le patrimoine</h2>
+<p>taux de taxation effectif sur le patrimoine moyen</p>
+<pre><code>## [1] &quot;0.56%&quot;</code></pre>
+<p>Quantiles de taux de taxation effectif sur le patrimoine (pondérée)</p>
+<table>
+<thead>
+<tr class="header">
+<th align="right">percentile</th>
+<th align="right">taux_taxation_sur_patrimoine</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="right">0.10</td>
+<td align="right">0.0000000</td>
+</tr>
+<tr class="even">
+<td align="right">0.25</td>
+<td align="right">0.0000000</td>
+</tr>
+<tr class="odd">
+<td align="right">0.40</td>
+<td align="right">0.0003764</td>
+</tr>
+<tr class="even">
+<td align="right">0.50</td>
+<td align="right">0.0024785</td>
+</tr>
+<tr class="odd">
+<td align="right">0.75</td>
+<td align="right">0.0069550</td>
+</tr>
+<tr class="even">
+<td align="right">0.90</td>
+<td align="right">0.0123395</td>
+</tr>
+<tr class="odd">
+<td align="right">0.95</td>
+<td align="right">0.0187879</td>
+</tr>
+<tr class="even">
+<td align="right">0.99</td>
+<td align="right">0.0407830</td>
+</tr>
+</tbody>
+</table>
+<p>Histogram des avoirs nets</p>
+<p><img src="/post/2022-09-07-impot-foncier/index.en-us_files/figure-html/unnamed-chunk-13-1.png" width="672" /></p>
+</div>
+</div>
+<div id="analyse" class="section level1">
+<h1>Analyse</h1>
+<p>C’est ici qu’on va enfin regarder si la taxe foncière est régressive (pourcentage décroît avec l’avoir net) ou progressive (pourcentage accroît avec l’avoir net).</p>
+<p>En fait, on pourrait simplement regarder si la part de la valeur foncière dans les avoir nets augmente avec la valeur des avoir nets, mais j’ai envie de travailler avec des dollars..</p>
+<p>On va commencer par regarder le montant des taxes foncières en fonction de l’avoir net.</p>
+<p><img src="/post/2022-09-07-impot-foncier/index.en-us_files/figure-html/unnamed-chunk-14-1.png" width="672" />
+Au moins le montant absolu de la taxe foncière a tendance à augmenter avec l’avoir net!</p>
+<p>Voyons maintenant si le taux de taxation du patrimoine a tendance à augmenter avec l’avoir net:</p>
+<p><img src="/post/2022-09-07-impot-foncier/index.en-us_files/figure-html/unnamed-chunk-15-1.png" width="672" />
+Ici par contre c’est vraiment pas clair comment le taux évolue.
+Peut-être en zoomant en bas à gauche?</p>
+<p><img src="/post/2022-09-07-impot-foncier/index.en-us_files/figure-html/unnamed-chunk-16-1.png" width="672" /></p>
+<p>Oh!! C’est intéressant ça. Ça semble vouloir être progressif jusqu’à environ 300 000$, puis régressif.</p>
+<p>On va faire des buckets, peut-être que ce sera plus clair.</p>
+<table>
+<colgroup>
+<col width="12%" />
+<col width="3%" />
+<col width="11%" />
+<col width="14%" />
+<col width="9%" />
+<col width="14%" />
+<col width="33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">avoir_net_bin</th>
+<th align="right">n</th>
+<th align="right">sum_PWEIGHT</th>
+<th align="right">valeur_fonciere</th>
+<th align="right">PWNETWPT</th>
+<th align="right">taxes_foncieres</th>
+<th align="right">taux_taxation_sur_patrimoine_du_bin</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">0$ et moins</td>
+<td align="right">75</td>
+<td align="right">183003.39</td>
+<td align="right">2230000</td>
+<td align="right">-2609215</td>
+<td align="right">22300.0</td>
+<td align="right">0.0000000</td>
+</tr>
+<tr class="even">
+<td align="left">0 à 50k</td>
+<td align="right">353</td>
+<td align="right">898175.89</td>
+<td align="right">4222250</td>
+<td align="right">5912455</td>
+<td align="right">42222.5</td>
+<td align="right">0.0071413</td>
+</tr>
+<tr class="odd">
+<td align="left">50k à 100k</td>
+<td align="right">98</td>
+<td align="right">235365.02</td>
+<td align="right">8156500</td>
+<td align="right">7351120</td>
+<td align="right">81565.0</td>
+<td align="right">0.0110956</td>
+</tr>
+<tr class="even">
+<td align="left">100k à 200k</td>
+<td align="right">173</td>
+<td align="right">438963.06</td>
+<td align="right">22568500</td>
+<td align="right">25507620</td>
+<td align="right">225685.0</td>
+<td align="right">0.0088477</td>
+</tr>
+<tr class="odd">
+<td align="left">200k à 300k</td>
+<td align="right">154</td>
+<td align="right">356080.65</td>
+<td align="right">31040250</td>
+<td align="right">38157270</td>
+<td align="right">310402.5</td>
+<td align="right">0.0081348</td>
+</tr>
+<tr class="even">
+<td align="left">300k à 500k</td>
+<td align="right">229</td>
+<td align="right">482629.51</td>
+<td align="right">55611900</td>
+<td align="right">90927465</td>
+<td align="right">556119.0</td>
+<td align="right">0.0061161</td>
+</tr>
+<tr class="odd">
+<td align="left">500k à 1M</td>
+<td align="right">374</td>
+<td align="right">655769.28</td>
+<td align="right">133407600</td>
+<td align="right">267998705</td>
+<td align="right">1334076.0</td>
+<td align="right">0.0049779</td>
+</tr>
+<tr class="even">
+<td align="left">1M à 3M</td>
+<td align="right">455</td>
+<td align="right">529757.27</td>
+<td align="right">251354875</td>
+<td align="right">761825150</td>
+<td align="right">2513548.8</td>
+<td align="right">0.0032994</td>
+</tr>
+<tr class="odd">
+<td align="left">3M et plus</td>
+<td align="right">92</td>
+<td align="right">69596.93</td>
+<td align="right">132703000</td>
+<td align="right">531430870</td>
+<td align="right">1327030.0</td>
+<td align="right">0.0024971</td>
+</tr>
+</tbody>
+</table>
+<p><img src="/post/2022-09-07-impot-foncier/index.en-us_files/figure-html/unnamed-chunk-18-1.png" width="672" /></p>
+</div>
+<div id="conclusion" class="section level1">
+<h1>Conclusion</h1>
+<p>Ok!
+C’est super cool.
+La taxe foncière serait une taxe régressive (en fonction de l’avoir net) jusqu’à environ 100 000$, puis décroît tranquillement.</p>
+<p>C’est dû au fait que les immeubles représentent une plus grande part des avoirs nets des “pauvres” qui valent moins de 100 000$.</p>
+</div>

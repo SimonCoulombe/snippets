@@ -55,12 +55,6 @@ options(scipen=999)
 ```
 
 
-
-```{r}
-
-blogdown::shortcode('tweet', '1567150861448511488')
-```
-
 ```{r}
 blogdown::shortcode('tweet', '1567150862723588097')
 ```
