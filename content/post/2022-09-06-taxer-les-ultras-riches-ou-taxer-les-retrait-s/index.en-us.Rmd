@@ -99,7 +99,7 @@ Chez les Québécois , elle était de seulement 237 800$.
 Quand on regarde par âge, on se rend compte que plus on est vieux, plus on a accumulé d'avoirs en prévision de la retraite.  Ainsi, la médiane des 55-64 ans était de 690 000$
 
 ```{r}
-age_canada <- tribble(~gr_age, ~percentile,  ~avoir_net,  ~class,
+age_canada <- tribble(~gr_age, ~percentile,  ~avoir_net,  ~type_variable,
         "34-moins", "50", 48800, "canada",
         "35-44", "50", 234400,  "canada",
         "45-54", "50", 521100,  "canada",
@@ -109,8 +109,12 @@ age_canada <- tribble(~gr_age, ~percentile,  ~avoir_net,  ~class,
 age_canada %>%
   ggplot(aes(x=gr_age, y = avoir_net)) +
   geom_col()+ 
+    scale_y_continuous(labels = scales::label_dollar(suffix = "$", prefix ="", big.mark = " ") ) + 
   labs(
-    title = "Avoir net médian selon l'âge pour les unités familiales canadiennes en 2019"
+    title = "Avoir net médian selon l'âge pour les unités familiales canadiennes en 2019",
+    caption = "Données PUMF ESF Statcan, calculs @coulsm",
+    x = "Groupe d'âge",
+    y = "Avoir net"
     )
 ```
 
@@ -135,7 +139,7 @@ Le tableau ne permet donc de savoir que les  avoirs nets des 10e 30e, 50e, 70e e
 
 ```{r}
 
-percentiles_canada <- tribble(~percentile, ~avoir_net, ~class,
+percentiles_canada <- tribble(~percentile, ~avoir_net, ~type_variable,
         "10", 3000, "canada",
         "30", 88000, "canada",
         "50", 329900, "canada",
@@ -153,7 +157,7 @@ En plus, on peut choisir la géographie de notre choix, soit le Québec.
 Ça concorde, la médiane du Québecv est de 237 800, soit ce qu'on avait déjà vu dans le quotidien.  Voici les autres chiffres qu'on apprend pour le Québec:
 
 ```{r}
-percentiles_quebec <- tribble(~percentile, ~avoir_net, ~class,
+percentiles_quebec <- tribble(~percentile, ~avoir_net, ~type_variable,
         "10", 2600, "quebec",
         "30", 62000, "quebec",
         "50", 237800, "quebec",
@@ -169,10 +173,15 @@ Déjà, on voit que le top 10 des ménages Québécois valait 1 312 000 $ ou plu
 
 ```{r}
 percentiles_quebec %>%  bind_rows(percentiles_canada) %>%
-  ggplot(aes(x=percentile, y = avoir_net, fill = class ))+
+  ggplot(aes(x=percentile, y = avoir_net, fill = type_variable ))+
   geom_col(position = "dodge")+ 
+    scale_y_continuous(labels = scales::label_dollar(suffix = "$", prefix ="", big.mark = " ") ) + 
   labs(
-    title = "Avoir net médian selon le percentile pour les unités familiales canadiennes\n et québécoises en 2019"
+    title = "Avoir net médian selon le percentile pour les unités familiales canadiennes\n et québécoises en 2019",
+    caption = "Données PUMF ESF Statcan, calculs @coulsm",
+    x = "Percentile de revenu",
+    y = "Avoir net",
+    fill = ""
     )
   
 ```
@@ -562,14 +571,19 @@ Hmisc::wtd.quantile(pumf$PWNETWPT, pumf$PWEIGHT, probs = 0.50)
 my_percentiles <- c(0.10, 0.30, 0.5, 0.7, 0.9)
 percentiles_canada_pumf <- tibble(percentile  = as.character(100 * my_percentiles),
       avoir_net =  Hmisc::wtd.quantile(pumf$PWNETWPT, pumf$PWEIGHT, probs = my_percentiles),
-      class = "canada_pumf"
+      type_variable = "canada_pumf"
 )
 percentiles_canada_pumf %>% bind_rows(percentiles_canada) %>% 
-  ggplot(aes(x=percentile, y = avoir_net, fill = class ))+
+  ggplot(aes(x=percentile, y = avoir_net, fill = type_variable ))+
   geom_col(position = "dodge")+ 
+    scale_y_continuous(labels = scales::label_dollar(suffix = "$", prefix ="", big.mark = " ") ) + 
   labs(
     title = "Avoir net médian selon le percentile pour les unités familiales canadiennes\n selon tableaux canada et selon nos calculs dans pumf",
-    subtitle = "YES! on peut reproduire les chiffres canadiens par percentile avec notre échantillon!"
+    subtitle = "YES! on peut reproduire les chiffres canadiens par percentile avec notre échantillon!",
+    caption = "Données PUMF ESF Statcan, calculs @coulsm",
+    x = "Percentile",
+    y = "Avoir net",
+    fill = ""
     )
 ```
 ok , on est vraiment proches!!  
@@ -593,14 +607,19 @@ my_pumf <- pumf  %>%
 
 age_canada_pumf <- my_pumf %>% group_by(gr_age) %>%
   summarise(avoir_net = Hmisc::wtd.quantile(PWNETWPT, PWEIGHT, probs = 0.50), .groups = "drop") %>%
-  mutate(percentile = "50", class = "canada_pumf")
+  mutate(percentile = "50", type_variable = "canada_pumf")
 
 age_canada_pumf %>% bind_rows(age_canada) %>% 
-  ggplot(aes(x=gr_age, y = avoir_net, fill = class ))+
+  ggplot(aes(x=gr_age, y = avoir_net, fill = type_variable ))+
   geom_col(position = "dodge")+ 
+    scale_y_continuous(labels = scales::label_dollar(suffix = "$", prefix ="", big.mark = " ") ) + 
   labs(
     title = "Avoir net médian selon l'âge pour les unités familiales canadiennes\n selon tableaux canada et selon nos calculs dans pumf",
-    subtitle = "YES! on peut reproduire les chiffres canadiens par âge avec notre échantillon!"
+    subtitle = "YES! on peut reproduire les chiffres canadiens par âge avec notre échantillon!",
+    caption = "Données PUMF ESF Statcan, calculs @coulsm",
+    x = "Groupe d'âge",
+    y = "Avoir net",
+    fill = ""
     )
 
 ```
@@ -614,14 +633,19 @@ pumf_qc <- pumf %>% filter(PPVRES == "24")
 
 percentiles_quebec_pumf <- tibble(percentile  = as.character(100 * my_percentiles),
       avoir_net =  Hmisc::wtd.quantile(pumf_qc$PWNETWPT, pumf_qc$PWEIGHT, probs = my_percentiles),
-      class = "quebec_pumf"
+      type_variable = "quebec_pumf"
 )
 percentiles_quebec_pumf %>% bind_rows(percentiles_quebec) %>% 
-  ggplot(aes(x=percentile, y = avoir_net, fill = class ))+
+  ggplot(aes(x=percentile, y = avoir_net, fill = type_variable ))+
   geom_col(position = "dodge")+ 
+    scale_y_continuous(labels = scales::label_dollar(suffix = "$", prefix ="", big.mark = " ") ) + 
   labs(
     title = "Avoir net médian selon le percentile pour les unités familiales québécoises\n selon tableaux quebec et selon nos calculs dans pumf",
-    subtitle = "YES! on peut reproduire les chiffres officiels québécois avec notre échantillon!"
+    subtitle = "YES! on peut reproduire les chiffres officiels québécois avec notre échantillon!",
+    caption = "Données PUMF ESF Statcan, calculs @coulsm",
+    x = "Percentile",
+    y = "Avoir net",
+    fill = ""
     )
   
 ```
@@ -657,15 +681,19 @@ my_many_percentiles <- c(0.01, 0.05, 0.10, 0.30, 0.5, 0.7, 0.8, 0.9, 0.95, 0.99)
 
 percentiles_quebec_pumf <- tibble(percentile  = stringr::str_pad(as.character(100 * my_many_percentiles), side = "left", width = 2, pad ="0" ),
       avoir_net =  Hmisc::wtd.quantile(pumf_qc$PWNETWPT, pumf_qc$PWEIGHT, probs = my_many_percentiles),
-      class = "quebec_pumf"
+      type_variable = "quebec_pumf"
 )
 percentiles_quebec_pumf %>% 
-  ggplot(aes(x=percentile, y = avoir_net, fill = class ))+
+  ggplot(aes(x=percentile, y = avoir_net, fill = type_variable ))+
   geom_col(position = "dodge")+ 
+    scale_y_continuous(labels = scales::label_dollar(suffix = "$", prefix ="", big.mark = " ") ) + 
   labs(
     title = "Le 95e percentile des ménages Québécois avait un avoir net de 1 941 500$.",
     subtitle = "mais parfois ils sont 2 adultes..",
-    caption = "PUMF et calculs de @coulsim"
+    caption = "Données PUMF ESF Statcan, calculs @coulsm",
+    x = "Percentile",
+    y = "Avoir net",
+    fill = ""
     )
   
 ```
@@ -725,7 +753,7 @@ PFMTYPG_quebec_pumf <- my_pumf %>%
   filter(PPVRES == "24") %>%
   group_by(PFMTYPG) %>%
   summarise(avoir_net = Hmisc::wtd.quantile(PWNETWPT, PWEIGHT, probs = 0.95), .groups = "drop") %>%
-  mutate(percentile = "95", class = "quebec_pumf") %>%
+  mutate(percentile = "95", type_variable = "quebec_pumf") %>%
   left_join(PFMTYPG_codes)
 
 PFMTYPG_quebec_pumf
@@ -825,11 +853,11 @@ avoirs_nets_quebec_par_age_pumf <- my_pumf %>%
   filter(PPVRES == "24") %>%
   group_nest(gr_age)  %>%
   mutate(avoir_nets = purrr::map2(data, gr_age, ~
-      #tibble(percentile  = stringr::str_pad(as.character(100 * my_many_percentiles), side="left", pad  = "0", width = 2),
-        tibble(percentile  = as.character(100 * my_many_percentiles), 
+      tibble(percentile  = stringr::str_pad(as.character(100 * my_many_percentiles), side="left", pad  = "0", width = 2),
+      #  tibble(percentile  = as.character(100 * my_many_percentiles), 
       avoir_net =  Hmisc::wtd.quantile(.x$PWNETWPT, .x$PWEIGHT, probs = my_many_percentiles),
       gr_age = .y,
-      class = "quebec_pumf"
+      type_variable = "quebec_pumf"
 )
     
    ) ) %>%
@@ -841,10 +869,13 @@ avoirs_nets_quebec_par_age_pumf %>%
   ggplot(aes(x=percentile, y = avoir_net ))+
   geom_col(position = "dodge")+ 
   facet_wrap(~gr_age) + 
+  scale_y_continuous(labels = scales::label_dollar(suffix = "$", prefix ="", big.mark = " ") ) + 
   labs(
     title = "10% des ménages de 55-64 ans et plus ont un avoir net de 2 million et plus",
     subtitle = "C'est le cas d'environ 5% des 45-54 et des , 2% des 35-44 et moins d'un pourcent des moins de 34 ans.",
-    caption = "data: PUMF ESF 2019, calculs @coulsim"
+    caption = "Données PUMF ESF Statcan, calculs @coulsm",
+    x = "Percentile",
+    y = "Avoir net"
     )
 ```
 
