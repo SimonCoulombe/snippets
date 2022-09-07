@@ -1,5 +1,5 @@
 ---
-title: taxer les ultras riches ou taxer les retraités
+title: taxer les ultras riches
 author: simon
 date: '2022-09-06'
 slug: ultra-riches
@@ -54,7 +54,7 @@ options(scipen=999)
 
 ```
 
-Ils l'ont encore fait.  Québec Solidaire a identifié le bon problème (bravo)et proposé une solution étrange.
+
 
 ```{r}
 
@@ -65,22 +65,26 @@ blogdown::shortcode('tweet', '1567150861448511488')
 blogdown::shortcode('tweet', '1567150862723588097')
 ```
 
-Gabriel Nadeau-Dubois dit que quelqu'un dans le top 5% est un ultra-riche.  C'est drôle, avant on était  "We are the 99%", maintenant il vise "We are the 95%".
+Québec Solidaire a identifié un bon problème aujourd'hui avec son idée de taxer la richesses.     
 
-Si vous avez un million de dollar à 65 ans (et pas de maison), vous avez assez d'argent pour dépenser environ 50 000$ par année jusqu'à votre mort.
-Ce n'est certainement pas ça être un ultra-riche.
+J'ai tilté sur quelques choses.  
 
-Mais surtout, j'ai la facheuse impression que quelqu'un qui a 1 million à 65 ans n'est pas le top 5%, mais plutôt quel part autour du 25-30% et qu'on se retrouverait ainsi à taxer le quart des nouveaux retraités.  
+- Premièrement, je n'irais pas jusqu'à dire que quelqu'un qui vaut un million de dollars est un ultra-riche.    Si vous êtes une femme de 65 ans et que vous avez un million de dollar dans votre REER à 65 ans (et pas de maison), vous avez assez d'argent pour vous acheter [une annuité à la Sun Life](https://www.sunlife.ca/en/tools-and-resources/tools-and-calculators/annuity-calculator/) qui va vous donner 52 298 beaux dollars avant impôt (environ 34 384 après impôt)  à chaque année jusqu'à votre mort. Vos héritiers ne recevront rien, parce que c'est une annuité.
+![](img/annuity1.jpg)
+![](img/annuity2.jpg)
+Ce n'est certainement pas ça que j'Appelle être un ultra-riche.
 
-Est-ce qu'on est rendu à dire "We are the 75%" ?  
+Ensuite, j'ai l'impression que le pourcentage de gens qui valent plus d'un million à l'approche de la retraite va être beaucoup plus élevé que 5%.  Je ne serais pas surpris que ce soit quelque chose comme 20% des 55-64 ans. Est-ce qu'on veut vraiment emmerder une forte proportiondes  nouveaux/futurs retraités en leur demandant d'estimer la valeur marchande de leur maison et de leur fond de pension et de leur voiture usagée à chaque année pour leur prélever genre 100$ d'impôt?
 
-C'est bien beau "eat the rich", mais ça commence à faire beaucoup de riches à manger...
+Avant on était  "We are the 99%", maintenant on vise "We are the 95%", voire  "We are the 80%" chez les 55-64 ans si mon hypothèse se vérifie.  C'est bien beau "eat the rich", mais ça commence à faire beaucoup de riches à manger  ... :)
 
-On creuse!  
+Dans tous les cas, c'est pas des montants énormes.  On parle de 1000$ à 2 millions d'actifs nets.
+
+On investigue!  
 
 # Les données  
 
-La meilleure source de données au Canada pour la valeur nettes de gens, c'est l'enquête sur la sécurité financières des ménages de statistique canada.  Déjà, le plus gros problème c'est qu'elle vise le ménage, plutôt que l'individu.  L'information qu'elle va nous donner va donc être la valeur nette des ménages.   
+La meilleure source de données au Canada pour la valeur nettes de gens, c'est l'enquête sur la sécurité financières des ménages de statistique canada.  Déjà, le plus gros problème c'est qu'elle vise le ménage, plutôt que l'individu comme la mesure de Québec Solidaire.  
 
 Le premier tableau à voir est donc le Tableau 1 dans le Quotidien du 22 décembre 2020. 
 
@@ -102,8 +106,6 @@ age_canada <- tribble(~gr_age, ~percentile,  ~avoir_net,  ~class,
         "55-64", "50", 690000,  "canada",
         "65-plus", "50", 543200,  "canada",)
 #age_canada
-```
-```{r}
 age_canada %>%
   ggplot(aes(x=gr_age, y = avoir_net)) +
   geom_col()+ 
@@ -160,13 +162,17 @@ percentiles_quebec <- tribble(~percentile, ~avoir_net, ~class,
 percentiles_quebec
 ```
 
+Déjà, on voit que le top 10 des ménages Québécois valait 1 312 000 $ ou plus en 2019.  Certains de ces ménages comptent 2 adultes et le plan de QS est de taxer les personnes qui valent plus de 1 000 000, pas les ménages.
+
+
+
 
 ```{r}
 percentiles_quebec %>%  bind_rows(percentiles_canada) %>%
   ggplot(aes(x=percentile, y = avoir_net, fill = class ))+
   geom_col(position = "dodge")+ 
   labs(
-    title = "Avoir net médian selon le percentile pour les unités familiales canadiennes et québécoises en 2019"
+    title = "Avoir net médian selon le percentile pour les unités familiales canadiennes\n et québécoises en 2019"
     )
   
 ```
@@ -528,26 +534,27 @@ pumf <- read_fwf(here::here("content/post/2022-09-06-taxer-les-ultras-riches-ou-
 ```
 
 
-Ça ressemble à ça une fois importé.  On a 10 442 lignes et une centaine de colonnes.
-Les variables d'intérêt sont:
-PWEIGHT , le poids de l'observation.
-PWNETWPG, la valeur nette de l'unité familiale selon la base de long terme.  
-PWNETWPT, la valeur nette de l'unité familiale selon la base de la terminaison  (je ne sais pas quelle est la bonne base à utiliser, mais les chiffres se ressemblent)
-PAGEMIEG, la catégorie d'âge 
-PPVRES, la province de résidence  
+Voici les 10 premières lignes du dataset.  On a 10 442 lignes et une centaine de colonnes.
+Les variables d'intérêt sont:  
+* PWEIGHT , le poids de l'observation.  
+* PWNETWPG, la valeur nette de l'unité familiale selon la base de long terme.    
+* PWNETWPT, la valeur nette de l'unité familiale selon la base de la terminaison  (je ne sais pas quelle est la bonne base à utiliser, mais les chiffres se ressemblent)  
+* PAGEMIEG, la catégorie d'âge   
+* PPVRES, la province de résidence    
+* PFMTYPG, le type de famille    
 
 ```{r}
 pumf %>% print(n=10)
 ```
 
 C'est quoi la valeur médiane de la valeur nette au Canada.
-On va utiliser la fonctioin Hmisc::wtd.quantile(),  car on doit utiliser les poids d'échantillonnage.
+On va utiliser la fonction Hmisc::wtd.quantile(),  car on doit utiliser les poids d'échantillonnage.
 
 ```{r}
 Hmisc::wtd.quantile(pumf$PWNETWPT, pumf$PWEIGHT, probs = 0.50)
 ```
 
-338 450!!  C'est proche  du chiffre officiel de 329 900$ qu'on avait dans les tableaux.  Ça ne semble pas trop brisé.   Qu'en est-il des autres percentiles qu'on connait (10, 30, 50, 70, 90) ?
+338 450!!  C'est proche  du chiffre officiel de 329 900$ qu'on avait dans les tableaux.  On ne s'attendait pas à avoir qqch d'identique car nous avons seulement un échantillon des données qui ont été utilisées pour calculer les chiffres officiels. Ça ne semble donc pas trop brisé.   Qu'en est-il des autres percentiles qu'on connait (10, 30, 50, 70, 90) ?
 
 
 ```{r}
@@ -562,7 +569,7 @@ percentiles_canada_pumf %>% bind_rows(percentiles_canada) %>%
   geom_col(position = "dodge")+ 
   labs(
     title = "Avoir net médian selon le percentile pour les unités familiales canadiennes\n selon tableaux canada et selon nos calculs dans pumf",
-    subtitle = "YES! on peut reproduire les chiffres canadiens avec notre échantillon!"
+    subtitle = "YES! on peut reproduire les chiffres canadiens par percentile avec notre échantillon!"
     )
 ```
 ok , on est vraiment proches!!  
@@ -580,24 +587,20 @@ my_pumf <- pumf  %>%
            PAGEMIEG %in% c("07","08") ~ "45-54",
            PAGEMIEG %in% c("09","10") ~ "55-64",
            PAGEMIEG %in% c("11","12","13","14") ~ "65-plus",
-
          )
   ) %>%
   ungroup()
 
-
-
 age_canada_pumf <- my_pumf %>% group_by(gr_age) %>%
   summarise(avoir_net = Hmisc::wtd.quantile(PWNETWPT, PWEIGHT, probs = 0.50), .groups = "drop") %>%
   mutate(percentile = "50", class = "canada_pumf")
-
 
 age_canada_pumf %>% bind_rows(age_canada) %>% 
   ggplot(aes(x=gr_age, y = avoir_net, fill = class ))+
   geom_col(position = "dodge")+ 
   labs(
     title = "Avoir net médian selon l'âge pour les unités familiales canadiennes\n selon tableaux canada et selon nos calculs dans pumf",
-    subtitle = "YES! on peut reproduire les chiffres canadiens avec notre échantillon!"
+    subtitle = "YES! on peut reproduire les chiffres canadiens par âge avec notre échantillon!"
     )
 
 ```
@@ -623,7 +626,6 @@ percentiles_quebec_pumf %>% bind_rows(percentiles_quebec) %>%
   
 ```
 
-
 Ok, ça veut dire qu'on est vraiment capables de reproduire les chiffres officiels à peu de chose près.  On n'aurait pas pu espérer mieux sachant qu'on travaille avec un échantillon de ce qui est utilisé pour les chiffres officiels.
 
 Maintenant qu'on a confirmé que l'on sait comment travailler avec le PUMF, nous allons enfin pouvoir créer des données "originales" 
@@ -636,12 +638,19 @@ quel est le pourcentage de ménages québécois dont l'avoir net est supérieur 
 ```{r}
 pumf_qc <- pumf %>% filter(PPVRES == "24")
 pumf_qc %>%   summarise(pct_over_1_million = sum((PWNETWPT > 1e6) * PWEIGHT) / sum(PWEIGHT)) 
-
 ```
 15.57% des ménages québécois ont un avoir net supérieur à 1 million.  
-C'est vastement supérieur au 5% annoncé par QS, mais plusieurs de ces ménages sont composés de 2 adultes.
+C'est vastement supérieur au 5% annoncé par QS, mais plusieurs de ces ménages sont composés de 2 adultes.  On va avoir besoin de séparer tout ça plus tard.  
 
-Tant qu'à être ici, quel est l'avoir net du top 5%  des ménags? 
+Tant qu'à être ici, quel pourcentage des ménages ont plus de 2 millions d'actif net?
+```{r}
+pumf_qc <- pumf %>% filter(PPVRES == "24")
+pumf_qc %>%   summarise(pct_over_2_million = sum((PWNETWPT > 2e6) * PWEIGHT) / sum(PWEIGHT)) 
+```
+4.6% des ménages (toutes tailles confondues)  ont un avoir net de plus de 2 millions. 
+
+
+Tant qu'à être ici, quel est l'avoir net du top 5%  des ménages? 
 ```{r}
 my_many_percentiles <- c(0.01, 0.05, 0.10, 0.30, 0.5, 0.7, 0.8, 0.9, 0.95, 0.99)
 
@@ -654,8 +663,8 @@ percentiles_quebec_pumf %>%
   ggplot(aes(x=percentile, y = avoir_net, fill = class ))+
   geom_col(position = "dodge")+ 
   labs(
-    title = "Le 95e percentile de Québécois avait un avoir net de 1 941 500$.",
-    subtitle = "Est-ce que QS a juste pris le chiffre de 2 millions par ménage puis l'a divisé par 2 pour avoir un montant par individu? Peut-être.",
+    title = "Le 95e percentile des ménages Québécois avait un avoir net de 1 941 500$.",
+    subtitle = "mais parfois ils sont 2 adultes..",
     caption = "PUMF et calculs de @coulsim"
     )
   
@@ -664,16 +673,17 @@ Le 95e percentile de Québécois avait un avoir net de 1 941 500$.
 Est-ce que QS a juste pris le chiffre de 2 millions puis l'a divisé par 2 pour avoir un montant par individu en supposant que tous les ménages étaient composés d'un couple?  
 
 
-Je ne serais pas surpris. Mais il y a une autre option.  Il existe  a une variable dans l'enquête: le type de ménage (PFMTYPG). 
+Peut-être. Mais il y a une autre option.  Il existe  a une variable dans l'enquête: le type de ménage (PFMTYPG). 
 
-Les options sont:
--personne seule
--couple sans enfant
--couple avec enfant ou famille monoparentale
--autre famille 
-- non déclaré
+Les options sont:  
+* personne seule  
+* couple sans enfant  
+* couple avec enfant ou famille monoparentale  
+* autre famille   
+- non déclaré  
 
-C'est weird, j'aurais aimé ça pouvoir connaître le nombre d'adultes, mais je ne peux pas à cause de la catégorie #3 qui peut compter 1 ou 2 adultes.
+
+C'est weird, j'aurais aimé ça pouvoir connaître le nombre d'adultes, mais je ne peux pas à cause de la catégorie #3 qui peut compter 1 ou 2 adultes.  
 
 On va commencer par regarder le pourcentage de chaque type de ménage qui a plus d'1 million en avoir net.
 
@@ -694,6 +704,9 @@ pumf_qc %>%  left_join(PFMTYPG_codes)  %>% group_by( type_menage) %>% summarise(
 
 ```
 Ce sont 5.2% des personnes seules et 25% des couples sans enfants qui ont un actif net de plus d'un million.  Ce sont 12%  des couples avec enfants et des familles monoparentales  qui sont millionnaires.
+
+On se souvient que c'était 15.7% des ménages globalement qui avaient 1 million ou plus.
+
 
 On va regarder le pourcentage des familles qui ont plus de 2 millions de dollars d'actifs car les couples doivent partager l'actif entre 2 adultes.  
 
@@ -720,14 +733,14 @@ PFMTYPG_quebec_pumf
 
 Le 95e percentile des personnes seules au Québec est de 1044800$, tout âge confondu.
 C'est peut-être juste ça.  un peu plus de 5% des personnes seules valent plus d'un million.
+
+
 Pour les couples sans enfants, le top 5% vaut 2.3 million.  Donc si on divise par 2 adultes, c'est aussi un peu plus de 5% des personnes qui valent plus d'un million.  
 
 Pour les familles (1 ou 2 parents), le top 5% vaut 1.5 million
 
-Il existe une autre variable intéressante : PFSZ, soit le nombre de personnes dans l'unité familialeé  
+Il existe une autre variable intéressante : PFSZ, soit le nombre de personnes dans l'unité familiale. Mais là je suis fatigué.
 
-Supposons qu'ils ont fait ça et que la cible du 95% est de 2 millions de dollar d'avoir net par ménage.
-La question qui demeure est "à quel percentile correspond le nombre de 2 millions de dollar dans chaque groupe d'âge?
 
 
 ```{r}
@@ -837,6 +850,17 @@ avoirs_nets_quebec_par_age_pumf %>%
 
 # Conclusion
 
+Juste pour être clair:  
+
+Je ne suis pas contre le concept de l'impôt sur la fortune.  
+
+Je suis juste un peu outré par le qualificatif de "ultra riche" pour 10-11% des retraités.  
+Je suis aussi un peu outré qu'on alourdirait la charge de travail au moment de préparer les impôt pour  10-15% du monde qui va devoir passer 2 jours à estimer la valeur de sa maison et obtenir la valeur estimée de son fond de pention chaque année pour payer au final peut-être 100$ d'impôt supplémentaire.
+
+Bref, on pourrait peut-être commencer à un niveau plus élevé (mettons 2 millions, chiffre au pif), mais avec un taux plus élevé pour compenser.
+
+Voici nos findings:  
+
 * On n'a pas réussi à trouver la source de données utilisée par Québec Solidaire.  En effet, l'Enquête sur la sécurité des ménages a comme unité de sondage le ménage plutôt que l'individu.  
 * On a trouvé des chiffres qui pourraient expliquer leur barême:   
      * 5.2% des personnes seules ont plus de 1 million.
@@ -848,7 +872,7 @@ avoirs_nets_quebec_par_age_pumf %>%
       * 9.6% des personnes seules qui ont plus de 1 million, 
       * 13.3% des couples sans enfants qui ont 2 millions, 
       * 12.9% des couples avec enfants ou des familles monoparentales ont plus de 2 millions.
-      * Chez les 55-64, on ne parle donc plus de "We are de 99%" mais plutôt de "We are the 89%-ish".
+      * Chez les 55-64, on ne parle donc plus de "We are de 99%" mais plutôt de "We are the 89%-ish".  Mon hypothèse de we are the 80% est donc infirmée, mais c'était un bel effort.
       
 
 

@@ -1,5 +1,5 @@
 ---
-title: taxer les ultras riches ou taxer les retraités
+title: taxer les ultras riches
 author: simon
 date: '2022-09-06'
 slug: ultra-riches
@@ -15,26 +15,30 @@ keywords:
 
 
 
-<p>Ils l’ont encore fait. Québec Solidaire a identifié le bon problème (bravo)et proposé une solution étrange.</p>
 <p>{{% tweet "1567150861448511488" %}}</p>
 <p>{{% tweet "1567150862723588097" %}}</p>
-<p>Gabriel Nadeau-Dubois dit que quelqu’un dans le top 5% est un ultra-riche. C’est drôle, avant on était “We are the 99%”, maintenant il vise “We are the 95%”.</p>
-<p>Si vous avez un million de dollar à 65 ans (et pas de maison), vous avez assez d’argent pour dépenser environ 50 000$ par année jusqu’à votre mort.
-Ce n’est certainement pas ça être un ultra-riche.</p>
-<p>Mais surtout, j’ai la facheuse impression que quelqu’un qui a 1 million à 65 ans n’est pas le top 5%, mais plutôt quel part autour du 25-30% et qu’on se retrouverait ainsi à taxer le quart des nouveaux retraités.</p>
-<p>Est-ce qu’on est rendu à dire “We are the 75%” ?</p>
-<p>C’est bien beau “eat the rich”, mais ça commence à faire beaucoup de riches à manger…</p>
-<p>On creuse!</p>
+<p>Québec Solidaire a identifié un bon problème aujourd’hui avec son idée de taxer la richesses.</p>
+<p>J’ai tilté sur quelques choses.</p>
+<ul>
+<li>Premièrement, je n’irais pas jusqu’à dire que quelqu’un qui vaut un million de dollars est un ultra-riche. Si vous êtes une femme de 65 ans et que vous avez un million de dollar dans votre REER à 65 ans (et pas de maison), vous avez assez d’argent pour vous acheter <a href="https://www.sunlife.ca/en/tools-and-resources/tools-and-calculators/annuity-calculator/">une annuité à la Sun Life</a> qui va vous donner 52 298 beaux dollars avant impôt (environ 34 384 après impôt) à chaque année jusqu’à votre mort. Vos héritiers ne recevront rien, parce que c’est une annuité.
+<img src="img/annuity1.jpg" />
+<img src="img/annuity2.jpg" />
+Ce n’est certainement pas ça que j’Appelle être un ultra-riche.</li>
+</ul>
+<p>Ensuite, j’ai l’impression que le pourcentage de gens qui valent plus d’un million à l’approche de la retraite va être beaucoup plus élevé que 5%. Je ne serais pas surpris que ce soit quelque chose comme 20% des 55-64 ans. Est-ce qu’on veut vraiment emmerder une forte proportiondes nouveaux/futurs retraités en leur demandant d’estimer la valeur marchande de leur maison et de leur fond de pension et de leur voiture usagée à chaque année pour leur prélever genre 100$ d’impôt?</p>
+<p>Avant on était “We are the 99%”, maintenant on vise “We are the 95%”, voire “We are the 80%” chez les 55-64 ans si mon hypothèse se vérifie. C’est bien beau “eat the rich”, mais ça commence à faire beaucoup de riches à manger … :)</p>
+<p>Dans tous les cas, c’est pas des montants énormes. On parle de 1000$ à 2 millions d’actifs nets.</p>
+<p>On investigue!</p>
 <div id="les-données" class="section level1">
 <h1>Les données</h1>
-<p>La meilleure source de données au Canada pour la valeur nettes de gens, c’est l’enquête sur la sécurité financières des ménages de statistique canada. Déjà, le plus gros problème c’est qu’elle vise le ménage, plutôt que l’individu. L’information qu’elle va nous donner va donc être la valeur nette des ménages.</p>
+<p>La meilleure source de données au Canada pour la valeur nettes de gens, c’est l’enquête sur la sécurité financières des ménages de statistique canada. Déjà, le plus gros problème c’est qu’elle vise le ménage, plutôt que l’individu comme la mesure de Québec Solidaire.</p>
 <p>Le premier tableau à voir est donc le Tableau 1 dans le Quotidien du 22 décembre 2020.</p>
 <p><a href="https://www150.statcan.gc.ca/n1/daily-quotidien/201222/dq201222b-fra.htm" class="uri">https://www150.statcan.gc.ca/n1/daily-quotidien/201222/dq201222b-fra.htm</a></p>
 <p><img src="img/tableau1.jpg" /></p>
 <p>La richesse médiane des ménages au Canada était de 329 900$ en 2019.
 Chez les Québécois , elle était de seulement 237 800$.</p>
 <p>Quand on regarde par âge, on se rend compte que plus on est vieux, plus on a accumulé d’avoirs en prévision de la retraite. Ainsi, la médiane des 55-64 ans était de 690 000$</p>
-<p><img src="/post/2022-09-06-taxer-les-ultras-riches-ou-taxer-les-retrait-s/index.en-us_files/figure-html/unnamed-chunk-4-1.png" width="672" /></p>
+<p><img src="/post/2022-09-06-taxer-les-ultras-riches-ou-taxer-les-retrait-s/index.en-us_files/figure-html/unnamed-chunk-3-1.png" width="672" /></p>
 <p>Le problème, c’est qu’on veut connaître le 95e percentile, chez les Québécois, pour les 55-64 ans et que le tableau ne permet de ventiler que par une variable à la fois (âge, ou province) en plus de n’avoir que la médiane.</p>
 <p>Il existe un autre tableau qui permet d’avoir plus de détails, le tableau <a href="https://www150.statcan.gc.ca/t1/tbl1/fr/tv.action?pid=1110004901&amp;pickMembers%5B0%5D=1.1&amp;pickMembers%5B1%5D=2.27&amp;pickMembers%5B2%5D=4.5&amp;cubeTimeFrame.startYear=1999&amp;cubeTimeFrame.endYear=2019&amp;referencePeriods=19990101%2C20190101">11-10-0049-01</a>.</p>
 <p><img src="img/tableau2.jpg" /></p>
@@ -62,7 +66,8 @@ Ainsi, la médiane du quintile inférieur d’avoir net ( 3000$), correspond au 
 ## 3 50            237800 quebec
 ## 4 70            545000 quebec
 ## 5 90           1312000 quebec</code></pre>
-<p><img src="/post/2022-09-06-taxer-les-ultras-riches-ou-taxer-les-retrait-s/index.en-us_files/figure-html/unnamed-chunk-7-1.png" width="672" /></p>
+<p>Déjà, on voit que le top 10 des ménages Québécois valait 1 312 000 $ ou plus en 2019. Certains de ces ménages comptent 2 adultes et le plan de QS est de taxer les personnes qui valent plus de 1 000 000, pas les ménages.</p>
+<p><img src="/post/2022-09-06-taxer-les-ultras-riches-ou-taxer-les-retrait-s/index.en-us_files/figure-html/unnamed-chunk-6-1.png" width="672" /></p>
 <p>On a progressé pas mal! On a la richesse du ménage au 90e percentile au Québec.<br />
 C’est pas encore ça qu’on veut!<br />
 On veut la richesse de l’individu au 95e percentile des 55-64 ans au Québec.
@@ -74,13 +79,14 @@ On va devoir continuer à travailler.</p>
 <code>SAS/SFS2019_EFAM_PUMF_i.SAS</code> explique les caractéristique du fichier à importer (largeur et type des colonnes dans le fichier texte)
 <code>SFS2019_PUMF_F.pdf</code> contient le dictionnaire des données (c’est quoi la colonne province? c’est PPVRES. C’est quoi le code de la province de Québec? c’est 24.)</p>
 <p>Ok, let’s go, j’importe ça dans R.</p>
-<p>Ça ressemble à ça une fois importé. On a 10 442 lignes et une centaine de colonnes.
-Les variables d’intérêt sont:
-PWEIGHT , le poids de l’observation.
-PWNETWPG, la valeur nette de l’unité familiale selon la base de long terme.<br />
-PWNETWPT, la valeur nette de l’unité familiale selon la base de la terminaison (je ne sais pas quelle est la bonne base à utiliser, mais les chiffres se ressemblent)
-PAGEMIEG, la catégorie d’âge
-PPVRES, la province de résidence</p>
+<p>Voici les 10 premières lignes du dataset. On a 10 442 lignes et une centaine de colonnes.
+Les variables d’intérêt sont:<br />
+* PWEIGHT , le poids de l’observation.<br />
+* PWNETWPG, la valeur nette de l’unité familiale selon la base de long terme.<br />
+* PWNETWPT, la valeur nette de l’unité familiale selon la base de la terminaison (je ne sais pas quelle est la bonne base à utiliser, mais les chiffres se ressemblent)<br />
+* PAGEMIEG, la catégorie d’âge<br />
+* PPVRES, la province de résidence<br />
+* PFMTYPG, le type de famille</p>
 <pre><code>## # A tibble: 10,422 × 100
 ##    PEFAMID PWEIGHT PAGEMIEG PAS1MRAG PAS1MRG1 PAS1MRG2 PASR1MFA PASR1MR PASRBUYG
 ##    &lt;chr&gt;     &lt;dbl&gt; &lt;chr&gt;       &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;   &lt;dbl&gt;    &lt;dbl&gt;
@@ -102,16 +108,16 @@ PPVRES, la province de résidence</p>
 ## #   PASRSKP &lt;dbl&gt;, PATTCRC &lt;dbl&gt;, PATTCRLM &lt;dbl&gt;, PATTCRR &lt;dbl&gt;, PATTCRU &lt;dbl&gt;,
 ## #   PATTDIF &lt;dbl&gt;, PATTLCP &lt;dbl&gt;, PATTLCR &lt;dbl&gt;, PATTPAYD &lt;dbl&gt;, …</code></pre>
 <p>C’est quoi la valeur médiane de la valeur nette au Canada.
-On va utiliser la fonctioin Hmisc::wtd.quantile(), car on doit utiliser les poids d’échantillonnage.</p>
+On va utiliser la fonction Hmisc::wtd.quantile(), car on doit utiliser les poids d’échantillonnage.</p>
 <pre><code>##    50% 
 ## 338450</code></pre>
-<p>338 450!! C’est proche du chiffre officiel de 329 900$ qu’on avait dans les tableaux. Ça ne semble pas trop brisé. Qu’en est-il des autres percentiles qu’on connait (10, 30, 50, 70, 90) ?</p>
-<p><img src="/post/2022-09-06-taxer-les-ultras-riches-ou-taxer-les-retrait-s/index.en-us_files/figure-html/unnamed-chunk-11-1.png" width="672" />
+<p>338 450!! C’est proche du chiffre officiel de 329 900$ qu’on avait dans les tableaux. On ne s’attendait pas à avoir qqch d’identique car nous avons seulement un échantillon des données qui ont été utilisées pour calculer les chiffres officiels. Ça ne semble donc pas trop brisé. Qu’en est-il des autres percentiles qu’on connait (10, 30, 50, 70, 90) ?</p>
+<p><img src="/post/2022-09-06-taxer-les-ultras-riches-ou-taxer-les-retrait-s/index.en-us_files/figure-html/unnamed-chunk-10-1.png" width="672" />
 ok , on est vraiment proches!!</p>
 <p>Juste pour être sûrs, est-ce qu’on est capable de reproduire les chiffres par groupe d’âge aussi?</p>
-<p><img src="/post/2022-09-06-taxer-les-ultras-riches-ou-taxer-les-retrait-s/index.en-us_files/figure-html/unnamed-chunk-12-1.png" width="672" /></p>
+<p><img src="/post/2022-09-06-taxer-les-ultras-riches-ou-taxer-les-retrait-s/index.en-us_files/figure-html/unnamed-chunk-11-1.png" width="672" /></p>
 <p>What about les percentiles du Québec?</p>
-<p><img src="/post/2022-09-06-taxer-les-ultras-riches-ou-taxer-les-retrait-s/index.en-us_files/figure-html/unnamed-chunk-13-1.png" width="672" /></p>
+<p><img src="/post/2022-09-06-taxer-les-ultras-riches-ou-taxer-les-retrait-s/index.en-us_files/figure-html/unnamed-chunk-12-1.png" width="672" /></p>
 <p>Ok, ça veut dire qu’on est vraiment capables de reproduire les chiffres officiels à peu de chose près. On n’aurait pas pu espérer mieux sachant qu’on travaille avec un échantillon de ce qui est utilisé pour les chiffres officiels.</p>
 <p>Maintenant qu’on a confirmé que l’on sait comment travailler avec le PUMF, nous allons enfin pouvoir créer des données “originales”</p>
 <p>here we gooooooooooooo</p>
@@ -121,17 +127,23 @@ ok , on est vraiment proches!!</p>
 ##                &lt;dbl&gt;
 ## 1              0.156</code></pre>
 <p>15.57% des ménages québécois ont un avoir net supérieur à 1 million.<br />
-C’est vastement supérieur au 5% annoncé par QS, mais plusieurs de ces ménages sont composés de 2 adultes.</p>
-<p>Tant qu’à être ici, quel est l’avoir net du top 5% des ménags?
+C’est vastement supérieur au 5% annoncé par QS, mais plusieurs de ces ménages sont composés de 2 adultes. On va avoir besoin de séparer tout ça plus tard.</p>
+<p>Tant qu’à être ici, quel pourcentage des ménages ont plus de 2 millions d’actif net?</p>
+<pre><code>## # A tibble: 1 × 1
+##   pct_over_2_million
+##                &lt;dbl&gt;
+## 1             0.0464</code></pre>
+<p>4.6% des ménages (toutes tailles confondues) ont un avoir net de plus de 2 millions.</p>
+<p>Tant qu’à être ici, quel est l’avoir net du top 5% des ménages?
 <img src="/post/2022-09-06-taxer-les-ultras-riches-ou-taxer-les-retrait-s/index.en-us_files/figure-html/unnamed-chunk-15-1.png" width="672" />
 Le 95e percentile de Québécois avait un avoir net de 1 941 500$.
 Est-ce que QS a juste pris le chiffre de 2 millions puis l’a divisé par 2 pour avoir un montant par individu en supposant que tous les ménages étaient composés d’un couple?</p>
-<p>Je ne serais pas surpris. Mais il y a une autre option. Il existe a une variable dans l’enquête: le type de ménage (PFMTYPG).</p>
-<p>Les options sont:
--personne seule
--couple sans enfant
--couple avec enfant ou famille monoparentale
--autre famille
+<p>Peut-être. Mais il y a une autre option. Il existe a une variable dans l’enquête: le type de ménage (PFMTYPG).</p>
+<p>Les options sont:<br />
+* personne seule<br />
+* couple sans enfant<br />
+* couple avec enfant ou famille monoparentale<br />
+* autre famille<br />
 - non déclaré</p>
 <p>C’est weird, j’aurais aimé ça pouvoir connaître le nombre d’adultes, mais je ne peux pas à cause de la catégorie #3 qui peut compter 1 ou 2 adultes.</p>
 <p>On va commencer par regarder le pourcentage de chaque type de ménage qui a plus d’1 million en avoir net.</p>
@@ -144,6 +156,7 @@ Est-ce que QS a juste pris le chiffre de 2 millions puis l’a divisé par 2 pou
 ## 4 Non déclaré                                                   0.762 
 ## 5 Personne seule                                                0.0524</code></pre>
 <p>Ce sont 5.2% des personnes seules et 25% des couples sans enfants qui ont un actif net de plus d’un million. Ce sont 12% des couples avec enfants et des familles monoparentales qui sont millionnaires.</p>
+<p>On se souvient que c’était 15.7% des ménages globalement qui avaient 1 million ou plus.</p>
 <p>On va regarder le pourcentage des familles qui ont plus de 2 millions de dollars d’actifs car les couples doivent partager l’actif entre 2 adultes.</p>
 <pre><code>## # A tibble: 5 × 2
 ##   type_menage                                       pct_over_2_million
@@ -164,18 +177,16 @@ Est-ce que QS a juste pris le chiffre de 2 millions puis l’a divisé par 2 pou
 ## 4 4         2326500 95         quebec_pumf Autres types de famille              
 ## 5 9        14336450 95         quebec_pumf Non déclaré</code></pre>
 <p>Le 95e percentile des personnes seules au Québec est de 1044800$, tout âge confondu.
-C’est peut-être juste ça. un peu plus de 5% des personnes seules valent plus d’un million.
-Pour les couples sans enfants, le top 5% vaut 2.3 million. Donc si on divise par 2 adultes, c’est aussi un peu plus de 5% des personnes qui valent plus d’un million.</p>
+C’est peut-être juste ça. un peu plus de 5% des personnes seules valent plus d’un million.</p>
+<p>Pour les couples sans enfants, le top 5% vaut 2.3 million. Donc si on divise par 2 adultes, c’est aussi un peu plus de 5% des personnes qui valent plus d’un million.</p>
 <p>Pour les familles (1 ou 2 parents), le top 5% vaut 1.5 million</p>
-<p>Il existe une autre variable intéressante : PFSZ, soit le nombre de personnes dans l’unité familialeé</p>
-<p>Supposons qu’ils ont fait ça et que la cible du 95% est de 2 millions de dollar d’avoir net par ménage.
-La question qui demeure est “à quel percentile correspond le nombre de 2 millions de dollar dans chaque groupe d’âge?</p>
-<div id="dvkpiitbok" style="overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<p>Il existe une autre variable intéressante : PFSZ, soit le nombre de personnes dans l’unité familiale. Mais là je suis fatigué.</p>
+<div id="bjiypaiokx" style="overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
 <style>html {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', 'Fira Sans', 'Droid Sans', Arial, sans-serif;
 }
 
-#dvkpiitbok .gt_table {
+#bjiypaiokx .gt_table {
   display: table;
   border-collapse: collapse;
   margin-left: auto;
@@ -200,7 +211,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-left-color: #D3D3D3;
 }
 
-#dvkpiitbok .gt_heading {
+#bjiypaiokx .gt_heading {
   background-color: #FFFFFF;
   text-align: center;
   border-bottom-color: #FFFFFF;
@@ -212,7 +223,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-right-color: #D3D3D3;
 }
 
-#dvkpiitbok .gt_title {
+#bjiypaiokx .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -224,7 +235,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-bottom-width: 0;
 }
 
-#dvkpiitbok .gt_subtitle {
+#bjiypaiokx .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -236,13 +247,13 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-top-width: 0;
 }
 
-#dvkpiitbok .gt_bottom_border {
+#bjiypaiokx .gt_bottom_border {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#dvkpiitbok .gt_col_headings {
+#bjiypaiokx .gt_col_headings {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -257,7 +268,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-right-color: #D3D3D3;
 }
 
-#dvkpiitbok .gt_col_heading {
+#bjiypaiokx .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -277,7 +288,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   overflow-x: hidden;
 }
 
-#dvkpiitbok .gt_column_spanner_outer {
+#bjiypaiokx .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -289,15 +300,15 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   padding-right: 4px;
 }
 
-#dvkpiitbok .gt_column_spanner_outer:first-child {
+#bjiypaiokx .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#dvkpiitbok .gt_column_spanner_outer:last-child {
+#bjiypaiokx .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#dvkpiitbok .gt_column_spanner {
+#bjiypaiokx .gt_column_spanner {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
@@ -309,7 +320,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   width: 100%;
 }
 
-#dvkpiitbok .gt_group_heading {
+#bjiypaiokx .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -334,7 +345,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   vertical-align: middle;
 }
 
-#dvkpiitbok .gt_empty_group_heading {
+#bjiypaiokx .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -349,15 +360,15 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   vertical-align: middle;
 }
 
-#dvkpiitbok .gt_from_md > :first-child {
+#bjiypaiokx .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#dvkpiitbok .gt_from_md > :last-child {
+#bjiypaiokx .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#dvkpiitbok .gt_row {
+#bjiypaiokx .gt_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -376,7 +387,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   overflow-x: hidden;
 }
 
-#dvkpiitbok .gt_stub {
+#bjiypaiokx .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -389,7 +400,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   padding-right: 5px;
 }
 
-#dvkpiitbok .gt_stub_row_group {
+#bjiypaiokx .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -403,11 +414,11 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   vertical-align: top;
 }
 
-#dvkpiitbok .gt_row_group_first td {
+#bjiypaiokx .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#dvkpiitbok .gt_summary_row {
+#bjiypaiokx .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -417,16 +428,16 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   padding-right: 5px;
 }
 
-#dvkpiitbok .gt_first_summary_row {
+#bjiypaiokx .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#dvkpiitbok .gt_first_summary_row.thick {
+#bjiypaiokx .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#dvkpiitbok .gt_last_summary_row {
+#bjiypaiokx .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -436,7 +447,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-bottom-color: #D3D3D3;
 }
 
-#dvkpiitbok .gt_grand_summary_row {
+#bjiypaiokx .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -446,7 +457,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   padding-right: 5px;
 }
 
-#dvkpiitbok .gt_first_grand_summary_row {
+#bjiypaiokx .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -456,11 +467,11 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-top-color: #D3D3D3;
 }
 
-#dvkpiitbok .gt_striped {
+#bjiypaiokx .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#dvkpiitbok .gt_table_body {
+#bjiypaiokx .gt_table_body {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -469,7 +480,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-bottom-color: #D3D3D3;
 }
 
-#dvkpiitbok .gt_footnotes {
+#bjiypaiokx .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -483,7 +494,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-right-color: #D3D3D3;
 }
 
-#dvkpiitbok .gt_footnote {
+#bjiypaiokx .gt_footnote {
   margin: 0px;
   font-size: 90%;
   padding-left: 4px;
@@ -492,7 +503,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   padding-right: 5px;
 }
 
-#dvkpiitbok .gt_sourcenotes {
+#bjiypaiokx .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -506,7 +517,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-right-color: #D3D3D3;
 }
 
-#dvkpiitbok .gt_sourcenote {
+#bjiypaiokx .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -514,64 +525,64 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   padding-right: 5px;
 }
 
-#dvkpiitbok .gt_left {
+#bjiypaiokx .gt_left {
   text-align: left;
 }
 
-#dvkpiitbok .gt_center {
+#bjiypaiokx .gt_center {
   text-align: center;
 }
 
-#dvkpiitbok .gt_right {
+#bjiypaiokx .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#dvkpiitbok .gt_font_normal {
+#bjiypaiokx .gt_font_normal {
   font-weight: normal;
 }
 
-#dvkpiitbok .gt_font_bold {
+#bjiypaiokx .gt_font_bold {
   font-weight: bold;
 }
 
-#dvkpiitbok .gt_font_italic {
+#bjiypaiokx .gt_font_italic {
   font-style: italic;
 }
 
-#dvkpiitbok .gt_super {
+#bjiypaiokx .gt_super {
   font-size: 65%;
 }
 
-#dvkpiitbok .gt_footnote_marks {
+#bjiypaiokx .gt_footnote_marks {
   font-style: italic;
   font-weight: normal;
   font-size: 75%;
   vertical-align: 0.4em;
 }
 
-#dvkpiitbok .gt_asterisk {
+#bjiypaiokx .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#dvkpiitbok .gt_indent_1 {
+#bjiypaiokx .gt_indent_1 {
   text-indent: 5px;
 }
 
-#dvkpiitbok .gt_indent_2 {
+#bjiypaiokx .gt_indent_2 {
   text-indent: 10px;
 }
 
-#dvkpiitbok .gt_indent_3 {
+#bjiypaiokx .gt_indent_3 {
   text-indent: 15px;
 }
 
-#dvkpiitbok .gt_indent_4 {
+#bjiypaiokx .gt_indent_4 {
   text-indent: 20px;
 }
 
-#dvkpiitbok .gt_indent_5 {
+#bjiypaiokx .gt_indent_5 {
   text-indent: 25px;
 }
 </style>
@@ -606,12 +617,12 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   
 </table>
 </div>
-<div id="iihtktnkuf" style="overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<div id="kadhwyymku" style="overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
 <style>html {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', 'Fira Sans', 'Droid Sans', Arial, sans-serif;
 }
 
-#iihtktnkuf .gt_table {
+#kadhwyymku .gt_table {
   display: table;
   border-collapse: collapse;
   margin-left: auto;
@@ -636,7 +647,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-left-color: #D3D3D3;
 }
 
-#iihtktnkuf .gt_heading {
+#kadhwyymku .gt_heading {
   background-color: #FFFFFF;
   text-align: center;
   border-bottom-color: #FFFFFF;
@@ -648,7 +659,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-right-color: #D3D3D3;
 }
 
-#iihtktnkuf .gt_title {
+#kadhwyymku .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -660,7 +671,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-bottom-width: 0;
 }
 
-#iihtktnkuf .gt_subtitle {
+#kadhwyymku .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -672,13 +683,13 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-top-width: 0;
 }
 
-#iihtktnkuf .gt_bottom_border {
+#kadhwyymku .gt_bottom_border {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#iihtktnkuf .gt_col_headings {
+#kadhwyymku .gt_col_headings {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -693,7 +704,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-right-color: #D3D3D3;
 }
 
-#iihtktnkuf .gt_col_heading {
+#kadhwyymku .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -713,7 +724,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   overflow-x: hidden;
 }
 
-#iihtktnkuf .gt_column_spanner_outer {
+#kadhwyymku .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -725,15 +736,15 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   padding-right: 4px;
 }
 
-#iihtktnkuf .gt_column_spanner_outer:first-child {
+#kadhwyymku .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#iihtktnkuf .gt_column_spanner_outer:last-child {
+#kadhwyymku .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#iihtktnkuf .gt_column_spanner {
+#kadhwyymku .gt_column_spanner {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
@@ -745,7 +756,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   width: 100%;
 }
 
-#iihtktnkuf .gt_group_heading {
+#kadhwyymku .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -770,7 +781,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   vertical-align: middle;
 }
 
-#iihtktnkuf .gt_empty_group_heading {
+#kadhwyymku .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -785,15 +796,15 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   vertical-align: middle;
 }
 
-#iihtktnkuf .gt_from_md > :first-child {
+#kadhwyymku .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#iihtktnkuf .gt_from_md > :last-child {
+#kadhwyymku .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#iihtktnkuf .gt_row {
+#kadhwyymku .gt_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -812,7 +823,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   overflow-x: hidden;
 }
 
-#iihtktnkuf .gt_stub {
+#kadhwyymku .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -825,7 +836,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   padding-right: 5px;
 }
 
-#iihtktnkuf .gt_stub_row_group {
+#kadhwyymku .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -839,11 +850,11 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   vertical-align: top;
 }
 
-#iihtktnkuf .gt_row_group_first td {
+#kadhwyymku .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#iihtktnkuf .gt_summary_row {
+#kadhwyymku .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -853,16 +864,16 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   padding-right: 5px;
 }
 
-#iihtktnkuf .gt_first_summary_row {
+#kadhwyymku .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#iihtktnkuf .gt_first_summary_row.thick {
+#kadhwyymku .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#iihtktnkuf .gt_last_summary_row {
+#kadhwyymku .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -872,7 +883,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-bottom-color: #D3D3D3;
 }
 
-#iihtktnkuf .gt_grand_summary_row {
+#kadhwyymku .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -882,7 +893,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   padding-right: 5px;
 }
 
-#iihtktnkuf .gt_first_grand_summary_row {
+#kadhwyymku .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -892,11 +903,11 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-top-color: #D3D3D3;
 }
 
-#iihtktnkuf .gt_striped {
+#kadhwyymku .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#iihtktnkuf .gt_table_body {
+#kadhwyymku .gt_table_body {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -905,7 +916,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-bottom-color: #D3D3D3;
 }
 
-#iihtktnkuf .gt_footnotes {
+#kadhwyymku .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -919,7 +930,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-right-color: #D3D3D3;
 }
 
-#iihtktnkuf .gt_footnote {
+#kadhwyymku .gt_footnote {
   margin: 0px;
   font-size: 90%;
   padding-left: 4px;
@@ -928,7 +939,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   padding-right: 5px;
 }
 
-#iihtktnkuf .gt_sourcenotes {
+#kadhwyymku .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -942,7 +953,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-right-color: #D3D3D3;
 }
 
-#iihtktnkuf .gt_sourcenote {
+#kadhwyymku .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -950,64 +961,64 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   padding-right: 5px;
 }
 
-#iihtktnkuf .gt_left {
+#kadhwyymku .gt_left {
   text-align: left;
 }
 
-#iihtktnkuf .gt_center {
+#kadhwyymku .gt_center {
   text-align: center;
 }
 
-#iihtktnkuf .gt_right {
+#kadhwyymku .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#iihtktnkuf .gt_font_normal {
+#kadhwyymku .gt_font_normal {
   font-weight: normal;
 }
 
-#iihtktnkuf .gt_font_bold {
+#kadhwyymku .gt_font_bold {
   font-weight: bold;
 }
 
-#iihtktnkuf .gt_font_italic {
+#kadhwyymku .gt_font_italic {
   font-style: italic;
 }
 
-#iihtktnkuf .gt_super {
+#kadhwyymku .gt_super {
   font-size: 65%;
 }
 
-#iihtktnkuf .gt_footnote_marks {
+#kadhwyymku .gt_footnote_marks {
   font-style: italic;
   font-weight: normal;
   font-size: 75%;
   vertical-align: 0.4em;
 }
 
-#iihtktnkuf .gt_asterisk {
+#kadhwyymku .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#iihtktnkuf .gt_indent_1 {
+#kadhwyymku .gt_indent_1 {
   text-indent: 5px;
 }
 
-#iihtktnkuf .gt_indent_2 {
+#kadhwyymku .gt_indent_2 {
   text-indent: 10px;
 }
 
-#iihtktnkuf .gt_indent_3 {
+#kadhwyymku .gt_indent_3 {
   text-indent: 15px;
 }
 
-#iihtktnkuf .gt_indent_4 {
+#kadhwyymku .gt_indent_4 {
   text-indent: 20px;
 }
 
-#iihtktnkuf .gt_indent_5 {
+#kadhwyymku .gt_indent_5 {
   text-indent: 25px;
 }
 </style>
@@ -1042,12 +1053,12 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   
 </table>
 </div>
-<div id="koguiklfnp" style="overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<div id="ytpcodpnie" style="overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
 <style>html {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', 'Fira Sans', 'Droid Sans', Arial, sans-serif;
 }
 
-#koguiklfnp .gt_table {
+#ytpcodpnie .gt_table {
   display: table;
   border-collapse: collapse;
   margin-left: auto;
@@ -1072,7 +1083,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-left-color: #D3D3D3;
 }
 
-#koguiklfnp .gt_heading {
+#ytpcodpnie .gt_heading {
   background-color: #FFFFFF;
   text-align: center;
   border-bottom-color: #FFFFFF;
@@ -1084,7 +1095,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-right-color: #D3D3D3;
 }
 
-#koguiklfnp .gt_title {
+#ytpcodpnie .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -1096,7 +1107,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-bottom-width: 0;
 }
 
-#koguiklfnp .gt_subtitle {
+#ytpcodpnie .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -1108,13 +1119,13 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-top-width: 0;
 }
 
-#koguiklfnp .gt_bottom_border {
+#ytpcodpnie .gt_bottom_border {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#koguiklfnp .gt_col_headings {
+#ytpcodpnie .gt_col_headings {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -1129,7 +1140,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-right-color: #D3D3D3;
 }
 
-#koguiklfnp .gt_col_heading {
+#ytpcodpnie .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -1149,7 +1160,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   overflow-x: hidden;
 }
 
-#koguiklfnp .gt_column_spanner_outer {
+#ytpcodpnie .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -1161,15 +1172,15 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   padding-right: 4px;
 }
 
-#koguiklfnp .gt_column_spanner_outer:first-child {
+#ytpcodpnie .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#koguiklfnp .gt_column_spanner_outer:last-child {
+#ytpcodpnie .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#koguiklfnp .gt_column_spanner {
+#ytpcodpnie .gt_column_spanner {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
@@ -1181,7 +1192,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   width: 100%;
 }
 
-#koguiklfnp .gt_group_heading {
+#ytpcodpnie .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -1206,7 +1217,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   vertical-align: middle;
 }
 
-#koguiklfnp .gt_empty_group_heading {
+#ytpcodpnie .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -1221,15 +1232,15 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   vertical-align: middle;
 }
 
-#koguiklfnp .gt_from_md > :first-child {
+#ytpcodpnie .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#koguiklfnp .gt_from_md > :last-child {
+#ytpcodpnie .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#koguiklfnp .gt_row {
+#ytpcodpnie .gt_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -1248,7 +1259,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   overflow-x: hidden;
 }
 
-#koguiklfnp .gt_stub {
+#ytpcodpnie .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -1261,7 +1272,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   padding-right: 5px;
 }
 
-#koguiklfnp .gt_stub_row_group {
+#ytpcodpnie .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -1275,11 +1286,11 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   vertical-align: top;
 }
 
-#koguiklfnp .gt_row_group_first td {
+#ytpcodpnie .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#koguiklfnp .gt_summary_row {
+#ytpcodpnie .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -1289,16 +1300,16 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   padding-right: 5px;
 }
 
-#koguiklfnp .gt_first_summary_row {
+#ytpcodpnie .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#koguiklfnp .gt_first_summary_row.thick {
+#ytpcodpnie .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#koguiklfnp .gt_last_summary_row {
+#ytpcodpnie .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -1308,7 +1319,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-bottom-color: #D3D3D3;
 }
 
-#koguiklfnp .gt_grand_summary_row {
+#ytpcodpnie .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -1318,7 +1329,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   padding-right: 5px;
 }
 
-#koguiklfnp .gt_first_grand_summary_row {
+#ytpcodpnie .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -1328,11 +1339,11 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-top-color: #D3D3D3;
 }
 
-#koguiklfnp .gt_striped {
+#ytpcodpnie .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#koguiklfnp .gt_table_body {
+#ytpcodpnie .gt_table_body {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -1341,7 +1352,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-bottom-color: #D3D3D3;
 }
 
-#koguiklfnp .gt_footnotes {
+#ytpcodpnie .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -1355,7 +1366,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-right-color: #D3D3D3;
 }
 
-#koguiklfnp .gt_footnote {
+#ytpcodpnie .gt_footnote {
   margin: 0px;
   font-size: 90%;
   padding-left: 4px;
@@ -1364,7 +1375,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   padding-right: 5px;
 }
 
-#koguiklfnp .gt_sourcenotes {
+#ytpcodpnie .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -1378,7 +1389,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-right-color: #D3D3D3;
 }
 
-#koguiklfnp .gt_sourcenote {
+#ytpcodpnie .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -1386,64 +1397,64 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   padding-right: 5px;
 }
 
-#koguiklfnp .gt_left {
+#ytpcodpnie .gt_left {
   text-align: left;
 }
 
-#koguiklfnp .gt_center {
+#ytpcodpnie .gt_center {
   text-align: center;
 }
 
-#koguiklfnp .gt_right {
+#ytpcodpnie .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#koguiklfnp .gt_font_normal {
+#ytpcodpnie .gt_font_normal {
   font-weight: normal;
 }
 
-#koguiklfnp .gt_font_bold {
+#ytpcodpnie .gt_font_bold {
   font-weight: bold;
 }
 
-#koguiklfnp .gt_font_italic {
+#ytpcodpnie .gt_font_italic {
   font-style: italic;
 }
 
-#koguiklfnp .gt_super {
+#ytpcodpnie .gt_super {
   font-size: 65%;
 }
 
-#koguiklfnp .gt_footnote_marks {
+#ytpcodpnie .gt_footnote_marks {
   font-style: italic;
   font-weight: normal;
   font-size: 75%;
   vertical-align: 0.4em;
 }
 
-#koguiklfnp .gt_asterisk {
+#ytpcodpnie .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#koguiklfnp .gt_indent_1 {
+#ytpcodpnie .gt_indent_1 {
   text-indent: 5px;
 }
 
-#koguiklfnp .gt_indent_2 {
+#ytpcodpnie .gt_indent_2 {
   text-indent: 10px;
 }
 
-#koguiklfnp .gt_indent_3 {
+#ytpcodpnie .gt_indent_3 {
   text-indent: 15px;
 }
 
-#koguiklfnp .gt_indent_4 {
+#ytpcodpnie .gt_indent_4 {
   text-indent: 20px;
 }
 
-#koguiklfnp .gt_indent_5 {
+#ytpcodpnie .gt_indent_5 {
   text-indent: 25px;
 }
 </style>
@@ -1478,12 +1489,12 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   
 </table>
 </div>
-<div id="vaiphjsscn" style="overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<div id="gfiifbguqn" style="overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
 <style>html {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', 'Fira Sans', 'Droid Sans', Arial, sans-serif;
 }
 
-#vaiphjsscn .gt_table {
+#gfiifbguqn .gt_table {
   display: table;
   border-collapse: collapse;
   margin-left: auto;
@@ -1508,7 +1519,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-left-color: #D3D3D3;
 }
 
-#vaiphjsscn .gt_heading {
+#gfiifbguqn .gt_heading {
   background-color: #FFFFFF;
   text-align: center;
   border-bottom-color: #FFFFFF;
@@ -1520,7 +1531,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-right-color: #D3D3D3;
 }
 
-#vaiphjsscn .gt_title {
+#gfiifbguqn .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -1532,7 +1543,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-bottom-width: 0;
 }
 
-#vaiphjsscn .gt_subtitle {
+#gfiifbguqn .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -1544,13 +1555,13 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-top-width: 0;
 }
 
-#vaiphjsscn .gt_bottom_border {
+#gfiifbguqn .gt_bottom_border {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#vaiphjsscn .gt_col_headings {
+#gfiifbguqn .gt_col_headings {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -1565,7 +1576,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-right-color: #D3D3D3;
 }
 
-#vaiphjsscn .gt_col_heading {
+#gfiifbguqn .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -1585,7 +1596,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   overflow-x: hidden;
 }
 
-#vaiphjsscn .gt_column_spanner_outer {
+#gfiifbguqn .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -1597,15 +1608,15 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   padding-right: 4px;
 }
 
-#vaiphjsscn .gt_column_spanner_outer:first-child {
+#gfiifbguqn .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#vaiphjsscn .gt_column_spanner_outer:last-child {
+#gfiifbguqn .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#vaiphjsscn .gt_column_spanner {
+#gfiifbguqn .gt_column_spanner {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
@@ -1617,7 +1628,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   width: 100%;
 }
 
-#vaiphjsscn .gt_group_heading {
+#gfiifbguqn .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -1642,7 +1653,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   vertical-align: middle;
 }
 
-#vaiphjsscn .gt_empty_group_heading {
+#gfiifbguqn .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -1657,15 +1668,15 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   vertical-align: middle;
 }
 
-#vaiphjsscn .gt_from_md > :first-child {
+#gfiifbguqn .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#vaiphjsscn .gt_from_md > :last-child {
+#gfiifbguqn .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#vaiphjsscn .gt_row {
+#gfiifbguqn .gt_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -1684,7 +1695,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   overflow-x: hidden;
 }
 
-#vaiphjsscn .gt_stub {
+#gfiifbguqn .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -1697,7 +1708,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   padding-right: 5px;
 }
 
-#vaiphjsscn .gt_stub_row_group {
+#gfiifbguqn .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -1711,11 +1722,11 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   vertical-align: top;
 }
 
-#vaiphjsscn .gt_row_group_first td {
+#gfiifbguqn .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#vaiphjsscn .gt_summary_row {
+#gfiifbguqn .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -1725,16 +1736,16 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   padding-right: 5px;
 }
 
-#vaiphjsscn .gt_first_summary_row {
+#gfiifbguqn .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#vaiphjsscn .gt_first_summary_row.thick {
+#gfiifbguqn .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#vaiphjsscn .gt_last_summary_row {
+#gfiifbguqn .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -1744,7 +1755,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-bottom-color: #D3D3D3;
 }
 
-#vaiphjsscn .gt_grand_summary_row {
+#gfiifbguqn .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -1754,7 +1765,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   padding-right: 5px;
 }
 
-#vaiphjsscn .gt_first_grand_summary_row {
+#gfiifbguqn .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -1764,11 +1775,11 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-top-color: #D3D3D3;
 }
 
-#vaiphjsscn .gt_striped {
+#gfiifbguqn .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#vaiphjsscn .gt_table_body {
+#gfiifbguqn .gt_table_body {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -1777,7 +1788,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-bottom-color: #D3D3D3;
 }
 
-#vaiphjsscn .gt_footnotes {
+#gfiifbguqn .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -1791,7 +1802,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-right-color: #D3D3D3;
 }
 
-#vaiphjsscn .gt_footnote {
+#gfiifbguqn .gt_footnote {
   margin: 0px;
   font-size: 90%;
   padding-left: 4px;
@@ -1800,7 +1811,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   padding-right: 5px;
 }
 
-#vaiphjsscn .gt_sourcenotes {
+#gfiifbguqn .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -1814,7 +1825,7 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   border-right-color: #D3D3D3;
 }
 
-#vaiphjsscn .gt_sourcenote {
+#gfiifbguqn .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -1822,64 +1833,64 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
   padding-right: 5px;
 }
 
-#vaiphjsscn .gt_left {
+#gfiifbguqn .gt_left {
   text-align: left;
 }
 
-#vaiphjsscn .gt_center {
+#gfiifbguqn .gt_center {
   text-align: center;
 }
 
-#vaiphjsscn .gt_right {
+#gfiifbguqn .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#vaiphjsscn .gt_font_normal {
+#gfiifbguqn .gt_font_normal {
   font-weight: normal;
 }
 
-#vaiphjsscn .gt_font_bold {
+#gfiifbguqn .gt_font_bold {
   font-weight: bold;
 }
 
-#vaiphjsscn .gt_font_italic {
+#gfiifbguqn .gt_font_italic {
   font-style: italic;
 }
 
-#vaiphjsscn .gt_super {
+#gfiifbguqn .gt_super {
   font-size: 65%;
 }
 
-#vaiphjsscn .gt_footnote_marks {
+#gfiifbguqn .gt_footnote_marks {
   font-style: italic;
   font-weight: normal;
   font-size: 75%;
   vertical-align: 0.4em;
 }
 
-#vaiphjsscn .gt_asterisk {
+#gfiifbguqn .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#vaiphjsscn .gt_indent_1 {
+#gfiifbguqn .gt_indent_1 {
   text-indent: 5px;
 }
 
-#vaiphjsscn .gt_indent_2 {
+#gfiifbguqn .gt_indent_2 {
   text-indent: 10px;
 }
 
-#vaiphjsscn .gt_indent_3 {
+#gfiifbguqn .gt_indent_3 {
   text-indent: 15px;
 }
 
-#vaiphjsscn .gt_indent_4 {
+#gfiifbguqn .gt_indent_4 {
   text-indent: 20px;
 }
 
-#vaiphjsscn .gt_indent_5 {
+#gfiifbguqn .gt_indent_5 {
   text-indent: 25px;
 }
 </style>
@@ -1917,6 +1928,12 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
 </div>
 <div id="conclusion" class="section level1">
 <h1>Conclusion</h1>
+<p>Juste pour être clair:</p>
+<p>Je ne suis pas contre le concept de l’impôt sur la fortune.</p>
+<p>Je suis juste un peu outré par le qualificatif de “ultra riche” pour 10-11% des retraités.<br />
+Je suis aussi un peu outré qu’on alourdirait la charge de travail au moment de préparer les impôt pour 10-15% du monde qui va devoir passer 2 jours à estimer la valeur de sa maison et obtenir la valeur estimée de son fond de pention chaque année pour payer au final peut-être 100$ d’impôt supplémentaire.</p>
+<p>Bref, on pourrait peut-être commencer à un niveau plus élevé (mettons 2 millions, chiffre au pif), mais avec un taux plus élevé pour compenser.</p>
+<p>Voici nos findings:</p>
 <ul>
 <li>On n’a pas réussi à trouver la source de données utilisée par Québec Solidaire. En effet, l’Enquête sur la sécurité des ménages a comme unité de sondage le ménage plutôt que l’individu.<br />
 </li>
@@ -1933,6 +1950,6 @@ La question qui demeure est “à quel percentile correspond le nombre de 2 mill
 * 9.6% des personnes seules qui ont plus de 1 million,
 * 13.3% des couples sans enfants qui ont 2 millions,
 * 12.9% des couples avec enfants ou des familles monoparentales ont plus de 2 millions.
-* Chez les 55-64, on ne parle donc plus de “We are de 99%” mais plutôt de “We are the 89%-ish”.</li>
+* Chez les 55-64, on ne parle donc plus de “We are de 99%” mais plutôt de “We are the 89%-ish”. Mon hypothèse de we are the 80% est donc infirmée, mais c’était un bel effort.</li>
 </ul>
 </div>
