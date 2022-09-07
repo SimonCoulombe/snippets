@@ -871,8 +871,8 @@ avoirs_nets_quebec_par_age_pumf %>%
   facet_wrap(~gr_age) + 
   scale_y_continuous(labels = scales::label_dollar(suffix = "$", prefix ="", big.mark = " ") ) + 
   labs(
-    title = "10% des ménages de 55-64 ans et plus ont un avoir net de 2 million et plus",
-    subtitle = "C'est le cas d'environ 5% des 45-54 et des , 2% des 35-44 et moins d'un pourcent des moins de 34 ans.",
+    title = "Avoir net des ménages québécois selon le groupe d'âge et le percentile de richesse.",
+    subtitle = "10% des ménages de 55-64 ans et plus ont un avoir net de 2 million et plus",
     caption = "Données PUMF ESF Statcan, calculs @coulsm",
     x = "Percentile",
     y = "Avoir net"
