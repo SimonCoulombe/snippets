@@ -501,7 +501,7 @@ my_percentiles <- c(0.10, 0.25, 0.4, 0.50, 0.75, 0.9, 0.95, 0.99)
 tibble(
   percentile = my_percentiles,
   valeur_fonciere = Hmisc::wtd.quantile(pumf_qc$valeur_fonciere, pumf_qc$PWEIGHT, probs = my_percentiles)
-  ) %>%
+) %>%
   knitr::kable()
 ```
 
@@ -511,15 +511,15 @@ pumf_qc %>%
   ggplot(aes(x= valeur_fonciere)) + 
   geom_histogram(aes(weight = PWEIGHT),bins = 30) + 
   scale_x_continuous(labels = scales::label_dollar(suffix = "$", prefix ="", big.mark = " ") ) + 
-     labs(
+  labs(
     title = "Distribution de la valeur foncière",
     subtitle = "",
     caption = "Données PUMF ESF Statcan pour le Québec, calculs @coulsm",
- x = "Valeur foncière ",
- y = "Nombre de ménages",
+    x = "Valeur foncière ",
+    y = "Nombre de ménages",
     #fill = "",
     #size = "Poids"
-    )  
+  )  
 ```
 
 
@@ -540,7 +540,7 @@ my_percentiles <- c(0.10, 0.25, 0.4, 0.50, 0.75, 0.9, 0.95, 0.99)
 tibble(
   percentile = my_percentiles,
   PWNETWPT = Hmisc::wtd.quantile(pumf_qc$PWNETWPT, pumf_qc$PWEIGHT, probs = my_percentiles)
-  ) %>%
+) %>%
   knitr::kable()
 ```
 Histogram des avoirs nets
@@ -550,15 +550,15 @@ pumf_qc %>%
   ggplot(aes(x= PWNETWPT)) + 
   geom_histogram(aes(weight = PWEIGHT),bins = 30) + 
   scale_x_continuous(labels = scales::label_dollar(suffix = "$", prefix ="", big.mark = " ") ) + 
-     labs(
+  labs(
     title = "Distribution des avoirs nets",
     subtitle = "",
     caption = "Données PUMF ESF Statcan pour le Québec, calculs @coulsm",
- x = "Avoir net",
- y = "Nombre de ménages",
+    x = "Avoir net",
+    y = "Nombre de ménages",
     #fill = "",
     #size = "Poids"
-    )  
+  )  
 ```
 
 
@@ -580,7 +580,7 @@ my_percentiles <- c(0.10, 0.25, 0.4, 0.50, 0.75, 0.9, 0.95, 0.99)
 tibble(
   percentile = my_percentiles,
   taux_taxation_sur_patrimoine = Hmisc::wtd.quantile(pumf_qc$taux_taxation_sur_patrimoine, pumf_qc$PWEIGHT, probs = my_percentiles)
-  ) %>%
+) %>%
   knitr::kable()
 ```
 Histogram des avoirs nets
@@ -590,15 +590,15 @@ pumf_qc %>%
   ggplot(aes(x= taux_taxation_sur_patrimoine)) + 
   geom_histogram(aes(weight = PWEIGHT),bins = 30) + 
   scale_x_continuous(labels = scales::label_percent()) + 
-     labs(
+  labs(
     title = "Distribution des  taux de taxation effectif sur le patrimoine",
     subtitle = "",
     caption = "Données PUMF ESF Statcan pour le Québec, calculs @coulsm",
- x = " taux de taxation effectif sur le patrimoine",
- y = "Nombre de ménages",
+    x = " taux de taxation effectif sur le patrimoine",
+    y = "Nombre de ménages",
     #fill = "",
     #size = "Poids"
-    )  
+  )  
 ```
 
 
@@ -623,8 +623,8 @@ pumf_qc %>%
   scale_y_continuous(labels = scales::label_dollar(suffix = "$", prefix ="", big.mark = " ") ) +
   scale_x_continuous(labels = scales::label_dollar(suffix = "$", prefix ="", big.mark = " ") , 
                      #limits = c(0, 1e6)
-                     ) +
-    labs(
+  ) +
+  labs(
     title = "Taxes foncières en fonction de l'avoir net",
     subtitle = "Au moins le montant absolu de la taxe foncière a tendance à augmenter avec l'avoir net",
     caption = "Données PUMF ESF Statcan pour le Québec, calculs @coulsm",
@@ -632,8 +632,8 @@ pumf_qc %>%
     y = "Taxes foncières",
     fill = "",
     size = "Poids"
-    )  
-  
+  )  
+
 ```
 Au moins le montant absolu de la taxe foncière a tendance à augmenter avec l'avoir net! 
 
@@ -646,7 +646,7 @@ pumf_qc %>%
   geom_point(aes( size = PWEIGHT), alpha = 0.05) + 
   geom_smooth(aes(weight = PWEIGHT))  + 
   scale_y_continuous(labels = scales::label_percent()) +
-    labs(
+  labs(
     title = "Taux de taxation sur l'avoir net (via taxes foncières) en fonction de l'avoir net",
     subtitle = "Ici par contre c'est vraiment pas clair que le taux est progressif.",
     caption = "Données PUMF ESF Statcan pour le Québec, calculs @coulsm",
@@ -654,10 +654,10 @@ pumf_qc %>%
     y = "Taux de taxation observé sur l'avoir net",
     fill = "",
     size = "Poids"
-    ) + 
+  ) + 
   scale_x_continuous(labels = scales::label_dollar(suffix = "$", prefix ="", big.mark = " "), 
                      #limits = c(0, 1e6)
-                     )
+  )
 ```
 Ici par contre c'est vraiment pas clair comment le taux évolue.
 Peut-être en zoomant en bas à gauche?
@@ -670,10 +670,10 @@ pumf_qc %>%
   geom_smooth(aes(weight = PWEIGHT))  + 
   scale_y_continuous(labels = scales::label_percent(),
                      limits = c(0, 0.01)) +
-    scale_x_continuous(labels = scales::label_dollar(suffix = "$", prefix ="", big.mark = " "), 
+  scale_x_continuous(labels = scales::label_dollar(suffix = "$", prefix ="", big.mark = " "), 
                      limits = c(0, 1e6)
-                     )+ 
-    labs(
+  )+ 
+  labs(
     title = "Taux de taxation sur l'avoir net (via taxes foncières) en fonction de l'avoir net",
     subtitle = " (zoom sur les avoirs nets de moins de 1M avec un taux de taxation effectif sur le patrimoine de moins de 1%",
     caption = "Données PUMF ESF Statcan pour le Québec, calculs @coulsm",
@@ -681,7 +681,7 @@ pumf_qc %>%
     y = "Taux de taxation observé sur l'avoir net",
     fill = "",
     size = "Poids"
-    )  
+  )  
 
 ```
 
@@ -690,9 +690,10 @@ Oh!!  C'est intéressant ça.  Ça semble vouloir être progressif jusqu'à envi
 On va faire des buckets, peut-être que ce sera plus clair.
 
 ```{r}
-binned_pumf_qc <- pumf_qc %>% 
+
+pumf_qc_bin <- pumf_qc %>% 
   mutate(avoir_net_bin = cut(PWNETWPT, c(-Inf,0, 50000, 100000, 200000, 300000, 500000, 1e6, 3e6,Inf), right = FALSE)) %>%
-   mutate(
+  mutate(
     avoir_net_bin = factor(case_when(
       avoir_net_bin == "[-Inf,0)" ~ "0$ et moins",
       avoir_net_bin == "[0,5e+04)" ~ "0 à 50k",
@@ -704,40 +705,81 @@ binned_pumf_qc <- pumf_qc %>%
       avoir_net_bin == "[1e+06,3e+06)" ~ "1M à 3M",
       avoir_net_bin == "[3e+06, Inf)" ~ "3M et plus"
     )
-  ,
-  levels = c("0$ et moins","0 à 50k", "50k à 100k",
-             "100k à 200k", "200k à 300k","300k à 500k",
-             "500k à 1M", "1M à 3M","3M et plus"
-             )
-  )
-  )%>% 
-  group_by(avoir_net_bin) %>%
-  summarise(n = n(), sum_PWEIGHT = sum(PWEIGHT),  valeur_fonciere = sum(valeur_fonciere), PWNETWPT = sum(PWNETWPT)) %>%
+    ,
+    levels = c("0$ et moins","0 à 50k", "50k à 100k",
+               "100k à 200k", "200k à 300k","300k à 500k",
+               "500k à 1M", "1M à 3M","3M et plus"
+    )
+    )
+  ) %>%
+  mutate(taux_taxation_sur_patrimoine_bin = cut(taux_taxation_sur_patrimoine, c(-Inf,0, 0.0025, 0.0050, 0.0075, 0.01, 0.0125, 0.0150, 0.0175, 0.02, 0.03,0.04,0.05, Inf), right = FALSE)) %>%
   mutate(
-    taxes_foncieres = 0.01 * valeur_fonciere,
-    taux_taxation_sur_patrimoine_du_bin =  if_else(PWNETWPT >0,taxes_foncieres / PWNETWPT,0)
-    ) 
+    taux_taxation_sur_patrimoine_bin = factor(case_when(
+      taux_taxation_sur_patrimoine_bin == "[0,0.0025)" ~ "0.00 à 0.25%",
+      taux_taxation_sur_patrimoine_bin == "[0.0025,0.005)" ~ "0.25 à 0.50%",
+      taux_taxation_sur_patrimoine_bin == "[0.005,0.0075)" ~ "0.50 à 0.75%",
+      taux_taxation_sur_patrimoine_bin == "[0.0075,0.01)" ~ "0.75 à 1.00%",
+      taux_taxation_sur_patrimoine_bin == "[0.01,0.0125)" ~ "1.00 à 1.25%",
+      taux_taxation_sur_patrimoine_bin == "[0.0125,0.015)" ~ "1.25 à 1.50%",
+      taux_taxation_sur_patrimoine_bin == "[0.015,0.0175)" ~ "1.50 à 1.75%",
+      taux_taxation_sur_patrimoine_bin == "[0.0175,0.02)" ~ "1.75 à 2.00%",
+      taux_taxation_sur_patrimoine_bin == "[0.02,0.03)" ~ "2.00 à 3.00%",
+      taux_taxation_sur_patrimoine_bin == "[0.03,0.04)" ~ "3.00 à 4.00%",
+      taux_taxation_sur_patrimoine_bin == "[0.04,0.05)" ~ "4.00 à 5.00%",
+      taux_taxation_sur_patrimoine_bin == "[0.05, Inf)" ~ "5.00% et plus"
+      
+    )
+    ,
+    levels = c("0.00 à 0.25%","0.25 à 0.50%", "0.50 à 0.75%",
+               "0.75 à 1.00%","1.00 à 1.25%", "1.25 à 1.50%","1.50 à 1.75%","1.75 à 2.00%",
+               "2.00 à 3.00%","3.00 à 4.00%","4.00 à 5.00%", "5.00% et plus"
+    )
+    
+    )
+  )
 
 
-binned_pumf_qc %>% 
+
+
+```
+
+```{r}
+
+pouet <- pumf_qc_bin %>% 
+  filter( avoir_net_bin != "0$ et moins")  %>% 
+  group_by(avoir_net_bin) %>%
+  summarise(
+    taux_taxation_sur_patrimoine_du_bin_moyenne_menage = weighted.mean(taux_taxation_sur_patrimoine, PWEIGHT),
+    n = n(), 
+    sum_PWEIGHT = sum(PWEIGHT),  
+    sum_valeur_fonciere = sum(valeur_fonciere), 
+    sum_PWNETWPT = sum(PWNETWPT),
+    sum_taxes_foncieres = sum(taxes_foncieres),
+  ) %>%
+  mutate(
+    taux_taxation_sur_patrimoine_du_bin_moyenne_dollar =  if_else(sum_PWNETWPT >0,sum_taxes_foncieres / sum_PWNETWPT,0)
+  ) 
+
+pouet %>% 
   knitr::kable()
 
 
 ```
 
+
 Le taux de taxation sur l'avoir net *moyen* semble effectivement régressif à partir de 100 000$ car son taux décroît à partir de cette valeur.  
 
 ```{r}
-binned_pumf_qc %>%
+pouet %>%
   filter( avoir_net_bin != "0$ et moins")  %>% 
- 
-  ggplot(aes(x= avoir_net_bin, y = taux_taxation_sur_patrimoine_du_bin)) + 
+  
+  ggplot(aes(x= avoir_net_bin, y = taux_taxation_sur_patrimoine_du_bin_moyenne_menage)) + 
   geom_col()+ 
   scale_y_continuous(labels = scales::label_percent(),
                      #limits = c(0, 0.01)
-                     ) +
-
-    labs(
+  ) +
+  
+  labs(
     title = "Taux de taxation effectif sur l'avoir net  moyen (via taxes foncières)\n en fonction de l'avoir net",
     subtitle = "On suppose un taux de taxation de la valeur foncière de 1%",
     caption = "Données PUMF ESF Statcan pour le Québec 2019, calculs @coulsm",
@@ -745,37 +787,35 @@ binned_pumf_qc %>%
     y = "Taux de taxation observé sur l'avoir net",
     fill = "",
     size = "Poids"
-    )  + 
+  )  + 
   theme(axis.text.x = element_text(angle = 30, vjust = 0.5, hjust=1))
 ```
 
-Mais attention !  Ces moyennes cachent une grande variabilité des taux effectifs.  On observe chez certains pauvres (avoir net inférieur à 50 000$) un taux de taxation sur l'avoir net supérieur à 5%.   Cela arrive lorsque leur valeur foncière est plus de 5x plus élevé que leur avoir net (par exemple, ils ont achet une maison avec une mise de fond de moins de 20% et cela représentait tout leur argent).
+Mais attention !  Ces moyennes cachent une grande variabilité des taux effectifs.  On observe chez certains "pauvres" (avoir net inférieur à 100 000$) un taux de taxation sur l'avoir net supérieur à 5%.   Cela arrive lorsque leur valeur foncière est plus de 5x plus élevé que leur avoir net (par exemple, ils ont achet une maison avec une mise de fond de moins de 20% et cela représentait tout leur argent).
 
 
 
 ```{r}
 
-```
+sommes_par_bin <- 
+  pumf_qc_bin %>% 
+  filter(PWNETWPT>0) %>% 
+  group_by(avoir_net_bin, taux_taxation_sur_patrimoine_bin) %>%
+  summarise(PWEIGHT = sum(PWEIGHT), .groups  = "drop") %>%
+  group_by(avoir_net_bin) %>%
+  mutate(pct = PWEIGHT / sum(PWEIGHT)) %>%
+  ungroup()  %>% 
+  select(-PWEIGHT)
 
-
-
-```{r}
-pumf_qc_bin %>% 
-   filter(PWNETWPT>0) %>% 
-   group_by(avoir_net_bin, taux_taxation_sur_patrimoine_bin) %>%
-   summarise(PWEIGHT = sum(PWEIGHT), .groups  = "drop") %>%
-   group_by(avoir_net_bin) %>%
-   mutate(pct = PWEIGHT / sum(PWEIGHT)) %>%
-   ungroup()  %>% 
-  select(-PWEIGHT) %>%
+sommes_par_bin %>% 
   spread(key = taux_taxation_sur_patrimoine_bin, value = pct) %>%
-   mutate(
+  mutate(
     across(is.numeric, ~replace_na(.x, 0))
   )  %>% 
-   gt(rowname_col = "avoir_net_bin", caption = "Données PUMF ESF Statcan pour le Québec 2019, calculs @coulsm",)  %>%
+  gt(rowname_col = "avoir_net_bin", caption = "Données PUMF ESF Statcan pour le Québec 2019, calculs @coulsm",)  %>%
   tab_header(
     title = "Distribution des taux effectifs de taxation sur l'avoir net  en fonction de l'avoir net  ",
-    subtitle = "Bien que le taux moyen chez le groupe le plus pauvre (0 à 50 000$) soit plus faible, plusieurs (3.1%) d'entre eux font face à un taux effectif supérieur à 5%"
+    subtitle = "Bien que le taux moyen effectif observé chez le groupe le plus pauvre (0 à 50 000$) soit de seulement 0.472% car plusieurs d'entre eux ne possèdent pas d'immobilier, plusieurs (3.1%) d'entre eux font face à un taux supérieur à 5%."
     
   ) %>% 
   fmt_percent(columns = -avoir_net_bin, decimals = 1, sep_mark = " ")  
@@ -784,20 +824,14 @@ pumf_qc_bin %>%
 ou, sous forme graphique: 
 
 ```{r}
-pumf_qc_bin %>% 
-   filter(PWNETWPT>0) %>% 
-   group_by(avoir_net_bin, taux_taxation_sur_patrimoine_bin) %>%
-   summarise(PWEIGHT = sum(PWEIGHT), .groups  = "drop") %>%
-   group_by(avoir_net_bin) %>%
-   mutate(pct = PWEIGHT / sum(PWEIGHT)) %>%
-   ungroup()  %>% 
-ggplot(aes(x= taux_taxation_sur_patrimoine_bin, y = pct ))+
+sommes_par_bin  %>% 
+  ggplot(aes(x= taux_taxation_sur_patrimoine_bin, y = pct ))+
   geom_col() +
-    scale_y_continuous(labels = scales::label_percent(),
+  scale_y_continuous(labels = scales::label_percent(),
                      #limits = c(0, 0.01)
-                     ) +
+  ) +
   facet_wrap(~avoir_net_bin) +
-    labs(
+  labs(
     title = "Distribution des taux de taxation effectif sur l'avoir net (via taxes foncières)\n en fonction de l'avoir net",
     subtitle = "On suppose un taux de taxation de la valeur foncière de 1%",
     caption = "Données PUMF ESF Statcan pour le Québec 2019, calculs @coulsm",
@@ -805,7 +839,7 @@ ggplot(aes(x= taux_taxation_sur_patrimoine_bin, y = pct ))+
     y = "Pourcentage des personnes avec ce taux de taxation observé sur l'avoir net",
     fill = "",
     size = "Poids"
-    )  + 
+  )  + 
   theme(axis.text.x = element_text(angle = 30, vjust = 0.5, hjust=1))
 ```
 

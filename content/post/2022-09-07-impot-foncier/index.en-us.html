@@ -359,37 +359,31 @@ Peut-être en zoomant en bas à gauche?</p>
 <p>On va faire des buckets, peut-être que ce sera plus clair.</p>
 <table>
 <colgroup>
-<col width="12%" />
-<col width="3%" />
-<col width="11%" />
-<col width="14%" />
-<col width="9%" />
-<col width="14%" />
-<col width="33%" />
+<col width="7%" />
+<col width="27%" />
+<col width="2%" />
+<col width="6%" />
+<col width="10%" />
+<col width="7%" />
+<col width="10%" />
+<col width="27%" />
 </colgroup>
 <thead>
 <tr class="header">
 <th align="left">avoir_net_bin</th>
+<th align="right">taux_taxation_sur_patrimoine_du_bin_moyenne_menage</th>
 <th align="right">n</th>
 <th align="right">sum_PWEIGHT</th>
-<th align="right">valeur_fonciere</th>
-<th align="right">PWNETWPT</th>
-<th align="right">taxes_foncieres</th>
-<th align="right">taux_taxation_sur_patrimoine_du_bin</th>
+<th align="right">sum_valeur_fonciere</th>
+<th align="right">sum_PWNETWPT</th>
+<th align="right">sum_taxes_foncieres</th>
+<th align="right">taux_taxation_sur_patrimoine_du_bin_moyenne_dollar</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td align="left">0$ et moins</td>
-<td align="right">75</td>
-<td align="right">183003.39</td>
-<td align="right">2230000</td>
-<td align="right">-2609215</td>
-<td align="right">22300.0</td>
-<td align="right">0.0000000</td>
-</tr>
-<tr class="even">
 <td align="left">0 à 50k</td>
+<td align="right">0.0047160</td>
 <td align="right">353</td>
 <td align="right">898175.89</td>
 <td align="right">4222250</td>
@@ -397,8 +391,9 @@ Peut-être en zoomant en bas à gauche?</p>
 <td align="right">42222.5</td>
 <td align="right">0.0071413</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">50k à 100k</td>
+<td align="right">0.0119654</td>
 <td align="right">98</td>
 <td align="right">235365.02</td>
 <td align="right">8156500</td>
@@ -406,8 +401,9 @@ Peut-être en zoomant en bas à gauche?</p>
 <td align="right">81565.0</td>
 <td align="right">0.0110956</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">100k à 200k</td>
+<td align="right">0.0080738</td>
 <td align="right">173</td>
 <td align="right">438963.06</td>
 <td align="right">22568500</td>
@@ -415,8 +411,9 @@ Peut-être en zoomant en bas à gauche?</p>
 <td align="right">225685.0</td>
 <td align="right">0.0088477</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">200k à 300k</td>
+<td align="right">0.0081696</td>
 <td align="right">154</td>
 <td align="right">356080.65</td>
 <td align="right">31040250</td>
@@ -424,8 +421,9 @@ Peut-être en zoomant en bas à gauche?</p>
 <td align="right">310402.5</td>
 <td align="right">0.0081348</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">300k à 500k</td>
+<td align="right">0.0057910</td>
 <td align="right">229</td>
 <td align="right">482629.51</td>
 <td align="right">55611900</td>
@@ -433,8 +431,9 @@ Peut-être en zoomant en bas à gauche?</p>
 <td align="right">556119.0</td>
 <td align="right">0.0061161</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">500k à 1M</td>
+<td align="right">0.0048203</td>
 <td align="right">374</td>
 <td align="right">655769.28</td>
 <td align="right">133407600</td>
@@ -442,8 +441,9 @@ Peut-être en zoomant en bas à gauche?</p>
 <td align="right">1334076.0</td>
 <td align="right">0.0049779</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">1M à 3M</td>
+<td align="right">0.0033813</td>
 <td align="right">455</td>
 <td align="right">529757.27</td>
 <td align="right">251354875</td>
@@ -451,8 +451,9 @@ Peut-être en zoomant en bas à gauche?</p>
 <td align="right">2513548.8</td>
 <td align="right">0.0032994</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">3M et plus</td>
+<td align="right">0.0025630</td>
 <td align="right">92</td>
 <td align="right">69596.93</td>
 <td align="right">132703000</td>
@@ -462,12 +463,559 @@ Peut-être en zoomant en bas à gauche?</p>
 </tr>
 </tbody>
 </table>
-<p><img src="/post/2022-09-07-impot-foncier/index.en-us_files/figure-html/unnamed-chunk-18-1.png" width="672" /></p>
+<p>Le taux de taxation sur l’avoir net <em>moyen</em> semble effectivement régressif à partir de 100 000$ car son taux décroît à partir de cette valeur.</p>
+<p><img src="/post/2022-09-07-impot-foncier/index.en-us_files/figure-html/unnamed-chunk-19-1.png" width="672" /></p>
+<p>Mais attention ! Ces moyennes cachent une grande variabilité des taux effectifs. On observe chez certains “pauvres” (avoir net inférieur à 100 000$) un taux de taxation sur l’avoir net supérieur à 5%. Cela arrive lorsque leur valeur foncière est plus de 5x plus élevé que leur avoir net (par exemple, ils ont achet une maison avec une mise de fond de moins de 20% et cela représentait tout leur argent).</p>
+<div id="ppmxhvcoxa" style="overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>html {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', 'Fira Sans', 'Droid Sans', Arial, sans-serif;
+}
+
+#ppmxhvcoxa .gt_table {
+  display: table;
+  border-collapse: collapse;
+  margin-left: auto;
+  margin-right: auto;
+  color: #333333;
+  font-size: 16px;
+  font-weight: normal;
+  font-style: normal;
+  background-color: #FFFFFF;
+  width: auto;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #A8A8A8;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #A8A8A8;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+}
+
+#ppmxhvcoxa .gt_heading {
+  background-color: #FFFFFF;
+  text-align: center;
+  border-bottom-color: #FFFFFF;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#ppmxhvcoxa .gt_title {
+  color: #333333;
+  font-size: 125%;
+  font-weight: initial;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-color: #FFFFFF;
+  border-bottom-width: 0;
+}
+
+#ppmxhvcoxa .gt_subtitle {
+  color: #333333;
+  font-size: 85%;
+  font-weight: initial;
+  padding-top: 0;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-color: #FFFFFF;
+  border-top-width: 0;
+}
+
+#ppmxhvcoxa .gt_bottom_border {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#ppmxhvcoxa .gt_col_headings {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#ppmxhvcoxa .gt_col_heading {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+  overflow-x: hidden;
+}
+
+#ppmxhvcoxa .gt_column_spanner_outer {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#ppmxhvcoxa .gt_column_spanner_outer:first-child {
+  padding-left: 0;
+}
+
+#ppmxhvcoxa .gt_column_spanner_outer:last-child {
+  padding-right: 0;
+}
+
+#ppmxhvcoxa .gt_column_spanner {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  overflow-x: hidden;
+  display: inline-block;
+  width: 100%;
+}
+
+#ppmxhvcoxa .gt_group_heading {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#ppmxhvcoxa .gt_empty_group_heading {
+  padding: 0.5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#ppmxhvcoxa .gt_from_md > :first-child {
+  margin-top: 0;
+}
+
+#ppmxhvcoxa .gt_from_md > :last-child {
+  margin-bottom: 0;
+}
+
+#ppmxhvcoxa .gt_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  margin: 10px;
+  border-top-style: solid;
+  border-top-width: 1px;
+  border-top-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  overflow-x: hidden;
+}
+
+#ppmxhvcoxa .gt_stub {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#ppmxhvcoxa .gt_stub_row_group {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 5px;
+  padding-right: 5px;
+  vertical-align: top;
+}
+
+#ppmxhvcoxa .gt_row_group_first td {
+  border-top-width: 2px;
+}
+
+#ppmxhvcoxa .gt_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#ppmxhvcoxa .gt_first_summary_row {
+  border-top-style: solid;
+  border-top-color: #D3D3D3;
+}
+
+#ppmxhvcoxa .gt_first_summary_row.thick {
+  border-top-width: 2px;
+}
+
+#ppmxhvcoxa .gt_last_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#ppmxhvcoxa .gt_grand_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#ppmxhvcoxa .gt_first_grand_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: double;
+  border-top-width: 6px;
+  border-top-color: #D3D3D3;
+}
+
+#ppmxhvcoxa .gt_striped {
+  background-color: rgba(128, 128, 128, 0.05);
+}
+
+#ppmxhvcoxa .gt_table_body {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#ppmxhvcoxa .gt_footnotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#ppmxhvcoxa .gt_footnote {
+  margin: 0px;
+  font-size: 90%;
+  padding-left: 4px;
+  padding-right: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#ppmxhvcoxa .gt_sourcenotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#ppmxhvcoxa .gt_sourcenote {
+  font-size: 90%;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#ppmxhvcoxa .gt_left {
+  text-align: left;
+}
+
+#ppmxhvcoxa .gt_center {
+  text-align: center;
+}
+
+#ppmxhvcoxa .gt_right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+#ppmxhvcoxa .gt_font_normal {
+  font-weight: normal;
+}
+
+#ppmxhvcoxa .gt_font_bold {
+  font-weight: bold;
+}
+
+#ppmxhvcoxa .gt_font_italic {
+  font-style: italic;
+}
+
+#ppmxhvcoxa .gt_super {
+  font-size: 65%;
+}
+
+#ppmxhvcoxa .gt_footnote_marks {
+  font-style: italic;
+  font-weight: normal;
+  font-size: 75%;
+  vertical-align: 0.4em;
+}
+
+#ppmxhvcoxa .gt_asterisk {
+  font-size: 100%;
+  vertical-align: 0;
+}
+
+#ppmxhvcoxa .gt_indent_1 {
+  text-indent: 5px;
+}
+
+#ppmxhvcoxa .gt_indent_2 {
+  text-indent: 10px;
+}
+
+#ppmxhvcoxa .gt_indent_3 {
+  text-indent: 15px;
+}
+
+#ppmxhvcoxa .gt_indent_4 {
+  text-indent: 20px;
+}
+
+#ppmxhvcoxa .gt_indent_5 {
+  text-indent: 25px;
+}
+</style>
+<table class="gt_table">
+  <caption><span id="tab:unnamed-chunk-20">Table 1: </span>Données PUMF ESF Statcan pour le Québec 2019, calculs @coulsm</caption>
+  <thead class="gt_header">
+    <tr>
+      <td colspan="13" class="gt_heading gt_title gt_font_normal" style>Distribution des taux effectifs de taxation sur l'avoir net  en fonction de l'avoir net  </td>
+    </tr>
+    <tr>
+      <td colspan="13" class="gt_heading gt_subtitle gt_font_normal gt_bottom_border" style>Bien que le taux moyen effectif observé chez le groupe le plus pauvre (0 à 50 000$) soit de seulement 0.472% car plusieurs d'entre eux ne possèdent pas d'immobilier, plusieurs (3.1%) d'entre eux font face à un taux supérieur à 5%.</td>
+    </tr>
+  </thead>
+  <thead class="gt_col_headings">
+    <tr>
+      <th class="gt_col_heading gt_columns_bottom_border gt_left" rowspan="1" colspan="1" scope="col"></th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col">0.00 à 0.25%</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col">0.25 à 0.50%</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col">0.50 à 0.75%</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col">0.75 à 1.00%</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col">1.00 à 1.25%</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col">1.25 à 1.50%</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col">1.50 à 1.75%</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col">1.75 à 2.00%</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col">2.00 à 3.00%</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col">3.00 à 4.00%</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col">4.00 à 5.00%</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1" scope="col">5.00% et plus</th>
+    </tr>
+  </thead>
+  <tbody class="gt_table_body">
+    <tr><th scope="row" class="gt_row gt_left gt_stub">0 à 50k</th>
+<td class="gt_row gt_right">92.4%</td>
+<td class="gt_row gt_right">0.3%</td>
+<td class="gt_row gt_right">1.2%</td>
+<td class="gt_row gt_right">0.6%</td>
+<td class="gt_row gt_right">0.0%</td>
+<td class="gt_row gt_right">0.2%</td>
+<td class="gt_row gt_right">0.0%</td>
+<td class="gt_row gt_right">0.6%</td>
+<td class="gt_row gt_right">0.7%</td>
+<td class="gt_row gt_right">0.6%</td>
+<td class="gt_row gt_right">0.2%</td>
+<td class="gt_row gt_right">3.1%</td></tr>
+    <tr><th scope="row" class="gt_row gt_left gt_stub">50k à 100k</th>
+<td class="gt_row gt_right">51.4%</td>
+<td class="gt_row gt_right">2.5%</td>
+<td class="gt_row gt_right">0.0%</td>
+<td class="gt_row gt_right">6.8%</td>
+<td class="gt_row gt_right">3.1%</td>
+<td class="gt_row gt_right">3.1%</td>
+<td class="gt_row gt_right">3.5%</td>
+<td class="gt_row gt_right">2.5%</td>
+<td class="gt_row gt_right">14.9%</td>
+<td class="gt_row gt_right">8.1%</td>
+<td class="gt_row gt_right">1.2%</td>
+<td class="gt_row gt_right">2.9%</td></tr>
+    <tr><th scope="row" class="gt_row gt_left gt_stub">100k à 200k</th>
+<td class="gt_row gt_right">38.3%</td>
+<td class="gt_row gt_right">1.6%</td>
+<td class="gt_row gt_right">6.4%</td>
+<td class="gt_row gt_right">13.5%</td>
+<td class="gt_row gt_right">13.0%</td>
+<td class="gt_row gt_right">9.7%</td>
+<td class="gt_row gt_right">1.5%</td>
+<td class="gt_row gt_right">8.0%</td>
+<td class="gt_row gt_right">7.0%</td>
+<td class="gt_row gt_right">1.0%</td>
+<td class="gt_row gt_right">0.0%</td>
+<td class="gt_row gt_right">0.0%</td></tr>
+    <tr><th scope="row" class="gt_row gt_left gt_stub">200k à 300k</th>
+<td class="gt_row gt_right">25.1%</td>
+<td class="gt_row gt_right">4.8%</td>
+<td class="gt_row gt_right">14.4%</td>
+<td class="gt_row gt_right">16.7%</td>
+<td class="gt_row gt_right">16.5%</td>
+<td class="gt_row gt_right">7.9%</td>
+<td class="gt_row gt_right">8.6%</td>
+<td class="gt_row gt_right">3.5%</td>
+<td class="gt_row gt_right">2.5%</td>
+<td class="gt_row gt_right">0.0%</td>
+<td class="gt_row gt_right">0.0%</td>
+<td class="gt_row gt_right">0.0%</td></tr>
+    <tr><th scope="row" class="gt_row gt_left gt_stub">300k à 500k</th>
+<td class="gt_row gt_right">20.7%</td>
+<td class="gt_row gt_right">25.2%</td>
+<td class="gt_row gt_right">23.6%</td>
+<td class="gt_row gt_right">17.6%</td>
+<td class="gt_row gt_right">8.3%</td>
+<td class="gt_row gt_right">1.7%</td>
+<td class="gt_row gt_right">0.8%</td>
+<td class="gt_row gt_right">0.4%</td>
+<td class="gt_row gt_right">1.7%</td>
+<td class="gt_row gt_right">0.0%</td>
+<td class="gt_row gt_right">0.0%</td>
+<td class="gt_row gt_right">0.0%</td></tr>
+    <tr><th scope="row" class="gt_row gt_left gt_stub">500k à 1M</th>
+<td class="gt_row gt_right">20.0%</td>
+<td class="gt_row gt_right">40.3%</td>
+<td class="gt_row gt_right">23.5%</td>
+<td class="gt_row gt_right">9.3%</td>
+<td class="gt_row gt_right">4.1%</td>
+<td class="gt_row gt_right">1.1%</td>
+<td class="gt_row gt_right">0.6%</td>
+<td class="gt_row gt_right">0.6%</td>
+<td class="gt_row gt_right">0.4%</td>
+<td class="gt_row gt_right">0.0%</td>
+<td class="gt_row gt_right">0.0%</td>
+<td class="gt_row gt_right">0.0%</td></tr>
+    <tr><th scope="row" class="gt_row gt_left gt_stub">1M à 3M</th>
+<td class="gt_row gt_right">49.4%</td>
+<td class="gt_row gt_right">31.4%</td>
+<td class="gt_row gt_right">9.6%</td>
+<td class="gt_row gt_right">5.4%</td>
+<td class="gt_row gt_right">3.6%</td>
+<td class="gt_row gt_right">0.5%</td>
+<td class="gt_row gt_right">0.2%</td>
+<td class="gt_row gt_right">0.0%</td>
+<td class="gt_row gt_right">0.0%</td>
+<td class="gt_row gt_right">0.0%</td>
+<td class="gt_row gt_right">0.0%</td>
+<td class="gt_row gt_right">0.0%</td></tr>
+    <tr><th scope="row" class="gt_row gt_left gt_stub">3M et plus</th>
+<td class="gt_row gt_right">65.1%</td>
+<td class="gt_row gt_right">21.3%</td>
+<td class="gt_row gt_right">9.9%</td>
+<td class="gt_row gt_right">2.1%</td>
+<td class="gt_row gt_right">1.6%</td>
+<td class="gt_row gt_right">0.0%</td>
+<td class="gt_row gt_right">0.0%</td>
+<td class="gt_row gt_right">0.0%</td>
+<td class="gt_row gt_right">0.0%</td>
+<td class="gt_row gt_right">0.0%</td>
+<td class="gt_row gt_right">0.0%</td>
+<td class="gt_row gt_right">0.0%</td></tr>
+  </tbody>
+  
+  
+</table>
+</div>
+<p>ou, sous forme graphique:</p>
+<p><img src="/post/2022-09-07-impot-foncier/index.en-us_files/figure-html/unnamed-chunk-21-1.png" width="672" /></p>
 </div>
 <div id="conclusion" class="section level1">
 <h1>Conclusion</h1>
 <p>Ok!
 C’est super cool.
 La taxe foncière serait une taxe régressive (en fonction de l’avoir net) jusqu’à environ 100 000$, puis décroît tranquillement.</p>
+<p>Mais attention, c’est loin d’être uniforme. Environ 3% des ménages plus pauvres (ceux en bas de 100 000$) fait face à des taux de taxation effectif</p>
 <p>C’est dû au fait que les immeubles représentent une plus grande part des avoirs nets des “pauvres” qui valent moins de 100 000$.</p>
 </div>
