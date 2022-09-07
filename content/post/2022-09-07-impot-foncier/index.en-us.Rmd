@@ -725,6 +725,8 @@ binned_pumf_qc %>%
 
 ```
 
+Le taux de taxation sur l'avoir net *moyen* semble effectivement régressif à partir de 100 000$ car son taux décroît à partir de cette valeur.  
+
 ```{r}
 binned_pumf_qc %>%
   filter( avoir_net_bin != "0$ et moins")  %>% 
@@ -736,7 +738,7 @@ binned_pumf_qc %>%
                      ) +
 
     labs(
-    title = "Taux de taxation effectif sur l'avoir net (via taxes foncières)\n en fonction de l'avoir net",
+    title = "Taux de taxation effectif sur l'avoir net  moyen (via taxes foncières)\n en fonction de l'avoir net",
     subtitle = "On suppose un taux de taxation de la valeur foncière de 1%",
     caption = "Données PUMF ESF Statcan pour le Québec 2019, calculs @coulsm",
     x = "Avoir net ($)",
@@ -747,12 +749,75 @@ binned_pumf_qc %>%
   theme(axis.text.x = element_text(angle = 30, vjust = 0.5, hjust=1))
 ```
 
+Mais attention !  Ces moyennes cachent une grande variabilité des taux effectifs.  On observe chez certains pauvres (avoir net inférieur à 50 000$) un taux de taxation sur l'avoir net supérieur à 5%.   Cela arrive lorsque leur valeur foncière est plus de 5x plus élevé que leur avoir net (par exemple, ils ont achet une maison avec une mise de fond de moins de 20% et cela représentait tout leur argent).
+
+
+
+```{r}
+
+```
+
+
+
+```{r}
+pumf_qc_bin %>% 
+   filter(PWNETWPT>0) %>% 
+   group_by(avoir_net_bin, taux_taxation_sur_patrimoine_bin) %>%
+   summarise(PWEIGHT = sum(PWEIGHT), .groups  = "drop") %>%
+   group_by(avoir_net_bin) %>%
+   mutate(pct = PWEIGHT / sum(PWEIGHT)) %>%
+   ungroup()  %>% 
+  select(-PWEIGHT) %>%
+  spread(key = taux_taxation_sur_patrimoine_bin, value = pct) %>%
+   mutate(
+    across(is.numeric, ~replace_na(.x, 0))
+  )  %>% 
+   gt(rowname_col = "avoir_net_bin", caption = "Données PUMF ESF Statcan pour le Québec 2019, calculs @coulsm",)  %>%
+  tab_header(
+    title = "Distribution des taux effectifs de taxation sur l'avoir net  en fonction de l'avoir net  ",
+    subtitle = "Bien que le taux moyen chez le groupe le plus pauvre (0 à 50 000$) soit plus faible, plusieurs (3.1%) d'entre eux font face à un taux effectif supérieur à 5%"
+    
+  ) %>% 
+  fmt_percent(columns = -avoir_net_bin, decimals = 1, sep_mark = " ")  
+```
+
+ou, sous forme graphique: 
+
+```{r}
+pumf_qc_bin %>% 
+   filter(PWNETWPT>0) %>% 
+   group_by(avoir_net_bin, taux_taxation_sur_patrimoine_bin) %>%
+   summarise(PWEIGHT = sum(PWEIGHT), .groups  = "drop") %>%
+   group_by(avoir_net_bin) %>%
+   mutate(pct = PWEIGHT / sum(PWEIGHT)) %>%
+   ungroup()  %>% 
+ggplot(aes(x= taux_taxation_sur_patrimoine_bin, y = pct ))+
+  geom_col() +
+    scale_y_continuous(labels = scales::label_percent(),
+                     #limits = c(0, 0.01)
+                     ) +
+  facet_wrap(~avoir_net_bin) +
+    labs(
+    title = "Distribution des taux de taxation effectif sur l'avoir net (via taxes foncières)\n en fonction de l'avoir net",
+    subtitle = "On suppose un taux de taxation de la valeur foncière de 1%",
+    caption = "Données PUMF ESF Statcan pour le Québec 2019, calculs @coulsm",
+    x = "Taux de taxation sur le patrimoine observé (%)",
+    y = "Pourcentage des personnes avec ce taux de taxation observé sur l'avoir net",
+    fill = "",
+    size = "Poids"
+    )  + 
+  theme(axis.text.x = element_text(angle = 30, vjust = 0.5, hjust=1))
+```
+
+
 
 # Conclusion   
 
 Ok! 
 C'est super cool.
 La taxe foncière serait une taxe régressive (en fonction de l'avoir net) jusqu'à environ 100 000$, puis décroît tranquillement.
+
+Mais attention, c'est loin d'être uniforme.   Environ 3% des ménages plus pauvres (ceux en bas de 100 000$) fait face à des taux de taxation effectif
 
 C'est dû au fait que les immeubles représentent une plus grande part des avoirs nets des "pauvres" qui valent moins de 100 000$.
 
