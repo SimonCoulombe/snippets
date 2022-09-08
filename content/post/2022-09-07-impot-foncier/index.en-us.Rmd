@@ -712,7 +712,7 @@ pumf_qc_bin <- pumf_qc %>%
     )
     )
   ) %>%
-  mutate(taux_taxation_sur_patrimoine_bin = cut(taux_taxation_sur_patrimoine, c(-Inf,0, 0.0025, 0.0050, 0.0075, 0.01, 0.0125, 0.0150, 0.0175, 0.02, 0.03,0.04,0.05, Inf), right = TRUE)) %>%
+  mutate(taux_taxation_sur_patrimoine_bin = cut(taux_taxation_sur_patrimoine, c(-Inf,0, 0.0025, 0.0050, 0.0075, 0.01, 0.0125, 0.0150, 0.0175, 0.02, 0.03,0.05, Inf), right = TRUE)) %>%
   mutate(
     taux_taxation_sur_patrimoine_bin = factor(case_when(
       taux_taxation_sur_patrimoine_bin ==  "(-Inf,0]" ~ "0",
@@ -725,15 +725,14 @@ pumf_qc_bin <- pumf_qc %>%
       taux_taxation_sur_patrimoine_bin == "(0.015,0.0175]" ~ "1.50 à 1.75%",
       taux_taxation_sur_patrimoine_bin == "(0.0175,0.02]" ~ "1.75 à 2.00%",
       taux_taxation_sur_patrimoine_bin == "(0.02,0.03]" ~ "2.00 à 3.00%",
-      taux_taxation_sur_patrimoine_bin == "(0.03,0.04]" ~ "3.00 à 4.00%",
-      taux_taxation_sur_patrimoine_bin == "(0.04,0.05]" ~ "4.00 à 5.00%",
+      taux_taxation_sur_patrimoine_bin == "(0.03,0.05]" ~ "3.00 à 5.00%",
       taux_taxation_sur_patrimoine_bin == "(0.05, Inf]" ~ "5.00% et plus"
       
     )
     ,
     levels = c("0", "0.00 à 0.25%","0.25 à 0.50%", "0.50 à 0.75%",
                "0.75 à 1.00%","1.00 à 1.25%", "1.25 à 1.50%","1.50 à 1.75%","1.75 à 2.00%",
-               "2.00 à 3.00%","3.00 à 4.00%","4.00 à 5.00%", "5.00% et plus"
+               "2.00 à 3.00%","3.00 à 5.00%", "5.00% et plus"
     )
     
     )

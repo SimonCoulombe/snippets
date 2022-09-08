@@ -1,0 +1,754 @@
+---
+title: Combien rapporterait la taxe sur la richesse de QS ?
+author: Simon
+date: '2022-09-08'
+slug: combien-taxe-richesse
+categories:
+  - rstats
+  - pumf
+  - ESF
+  - qs2022
+tags:
+  - tag1
+  - tag2
+keywords:
+  - tech
+---
+
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE,
+  #dpi = 150,
+  #fig.width = 5,
+  #fig.height = 5,
+  cache = FALSE # cache= TRUE leads to Error: path for html_dependency not found: error
+)
+library(matrixStats) # pour weightedMedian https://stackoverflow.com/questions/2748725/is-there-a-weighted-median-function
+library(dplyr)
+library(sf)
+library(readr)
+library(tidyr)
+library(janitor)
+library(readr)
+library(stringr)
+library(ggplot2)
+library(ggspatial)# for annotation_map_tile
+library(ggtext) # for element markdown
+library(hrbrthemes)
+library(tidygeocoder)
+library(patchwork)
+library(gt)
+library(wesanderson)
+library(scales) # pour dollar
+
+ggplot2::theme_set(theme_minimal()) # this ggplot2 theme uses roboto condensed font, which works well with the font used for the whole document.
+#options(ggplot2.discrete.fill  = function() scale_fill_viridis_d() )
+#options(ggplot2.continuous.fill  = function() scale_fill_viridis_c())
+#options(ggplot2.discrete.colour = function() scale_color_viridis_d())
+#options(ggplot2.continuous.colour = function() scale_color_viridis_c())
+
+options(ggplot2.discrete.fill  = function() scale_fill_manual(values = wes_palette(4, name = "Darjeeling1", type = "discrete")))
+options(ggplot2.continuous.fill  = function() scale_fill_manual(values = wes_palette(8, name = "Darjeeling1", type = "continuous")))
+options(ggplot2.discrete.colour = function()  scale_color_manual(values = wes_palette(4, name = "Darjeeling1", type = "discrete")))
+options(ggplot2.continuous.colour = function() scale_color_manual(values = wes_palette(8, name = "Darjeeling1", type = "continuous")))
+
+
+options(scipen=999)
+
+
+```
+
+Ça parle beaucoup d'impôt sur le patimoine (ou avoir net) ces temps-ci au Québec!
+
+Dans un post précédent, j'ai validé la proportion des gens qui seraient touchés par la taxe sur la richesse proposée.
+
+[Rappelons les paramètres](https://www.lesoleil.com/2022/09/06/les-grands-fortunes-dans-la-mire-fiscale-de-quebec-solidaire-4fe7386f5fb8cbea5defbaa3684795e8):
+
+Impôt sur les grandes fortunes :
+
+* Le premier million d'actifs net est exempté d’impôt  
+* Entre 1 million et 9,9 millions: 0,1% de l’actif net
+* Entre 10 millions et 99 millions: 1% de l’actif net
+* Plus de 100 millions: 1,5% de l’actif net
+
+La question que je me pose aujourd'hui:
+- Combien est-ce qu'on peut aller chercher avec cette taxe là?  
+- Combien est-ce qu'on perdrait en fichant la paix aux gens en bas de 2 millions?  3?
+
+let's gooo
+
+
+# Les données   
+
+On a découvert hier une super source de données:  le PUMF de l'Enquête sur la Sécurité Financière du Statistiques Canada.  
+[On en a parlé hier](https://www.simoncoulombe.com/2022/09/ultra-riches/) et [plus tôt aujourd'hui](https://www.simoncoulombe.com/2022/09/impot-foncier/), c'était super intéressant, allez voir 
+
+Il comporte 2003 les données de 2003 ménages au Québec, chacun ayant un poids échantillonal entre 150 et 8000.
+
+Les variables que l'on va utiliser sont les suivantes:  
+
+
+PWNETWT : valeur nette de l'unité familliale (base de terminaison).  
+PFMTYPG : le type de famille 
+
+
+Voici les types de familles possibles :
+
+```{r}
+
+PFMTYPG_codes <-
+  tribble(
+    ~PFMTYPG, ~type_menage ,
+    "1", "Personne seule",
+    "2", "Couple, sans enfant",
+    "3", "Couple, avec des enfants et famille monoparentale",
+    "4", "Autres types de famille",
+    "9", "Non déclaré"
+  )
+PFMTYPG_codes
+```
+
+Le problème c'est que la taxe de QS serait sur l'avoir net de l'individu et que nous disposons de l'avoir net du ménage.
+On va faire l'hypothèse (assez forte), que les adultes dans le ménage vont se partager à part égales l'avoir net afin de minimiser leur charge fiscale.
+
+Un problème important subsite:  pour les types de familles #3, #4 et #5 il pourrait y avoir 1 ou 2 adultes.
+
+Nous allons donc faire deux scénarios: Le "impôt maximum", où l'on suppose qu'il n'y a qu'un seul adulte et le scénario "impôt minimum" où l'o suppose qu'il y a deux adultes.  
+
+# Les manips   
+```{r}
+pumf <- read_fwf(here::here("content/post/2022-09-06-taxer-les-ultras-riches-ou-taxer-les-retrait-s/data/SFS2019_PUMF_F/SFS2019_EFAM_PUMF.txt"),
+                 col_types = list(
+                   PEFAMID  = col_character(),
+                   PAGEMIEG   = col_character(),
+                   PASRINTG   = col_character(),
+                   PDWTYP     = col_character(),
+                   PEDUCMIE   = col_character(),
+                   PEFMJSIF   = col_character(),
+                   PFCRN      = col_character(),
+                   PFMTYPG    = col_character(),
+                   PFRSPST    = col_character(),
+                   PFSZ0017   = col_character(),
+                   PFSZ1824   = col_character(),
+                   PFSZ2544   = col_character(),
+                   PFSZ4564   = col_character(),
+                   PFSZ65UP   = col_character(),
+                   PLFCHRME   = col_character(),
+                   PLFFPTME   = col_character(),
+                   PLFPDMEG   = col_character(),
+                   PPVRES     = col_character(),
+                   PREGION    = col_character(),
+                   PRETIRME   = col_character(),
+                   VERDATE    = col_character(),
+                   .default = col_double()
+                 ),
+                 fwf_positions(
+                   c(
+                     1,
+                     6,
+                     18,
+                     20,
+                     21,
+                     22,
+                     23,
+                     31,
+                     32,
+                     34,
+                     35,
+                     36,
+                     44,
+                     46,
+                     47,
+                     48,
+                     49,
+                     50,
+                     51,
+                     53,
+                     54,
+                     55,
+                     57,
+                     58,
+                     60,
+                     64,
+                     65,
+                     66,
+                     67,
+                     73,
+                     74,
+                     75,
+                     76,
+                     77,
+                     78,
+                     79,
+                     80,
+                     81,
+                     82,
+                     83,
+                     84,
+                     85,
+                     86,
+                     94,
+                     95,
+                     96,
+                     97,
+                     105,
+                     113,
+                     115,
+                     123,
+                     128,
+                     129,
+                     130,
+                     131,
+                     132,
+                     133,
+                     134,
+                     135,
+                     136,
+                     137,
+                     138,
+                     139,
+                     148,
+                     149,
+                     150,
+                     151,
+                     152,
+                     154,
+                     155,
+                     156,
+                     157,
+                     169,
+                     181,
+                     193,
+                     205,
+                     217,
+                     229,
+                     241,
+                     253,
+                     265,
+                     277,
+                     289,
+                     301,
+                     313,
+                     325,
+                     337,
+                     349,
+                     361,
+                     373,
+                     385,
+                     397,
+                     409,
+                     421,
+                     433,
+                     445,
+                     457,
+                     469,
+                     481,
+                     493
+                   ),
+                   c(
+                     5,
+                     17,
+                     19,
+                     20,
+                     21,
+                     22,
+                     30,
+                     31,
+                     33,
+                     34,
+                     35,
+                     43,
+                     45,
+                     46,
+                     47,
+                     48,
+                     49,
+                     50,
+                     52,
+                     53,
+                     54,
+                     56,
+                     57,
+                     59,
+                     63,
+                     64,
+                     65,
+                     66,
+                     72,
+                     73,
+                     74,
+                     75,
+                     76,
+                     77,
+                     78,
+                     79,
+                     80,
+                     81,
+                     82,
+                     83,
+                     84,
+                     85,
+                     93,
+                     94,
+                     95,
+                     96,
+                     104,
+                     112,
+                     114,
+                     122,
+                     127,
+                     128,
+                     129,
+                     130,
+                     131,
+                     132,
+                     133,
+                     134,
+                     135,
+                     136,
+                     137,
+                     138,
+                     147,
+                     148,
+                     149,
+                     150,
+                     151,
+                     153,
+                     154,
+                     155,
+                     156,
+                     168,
+                     180,
+                     192,
+                     204,
+                     216,
+                     228,
+                     240,
+                     252,
+                     264,
+                     276,
+                     288,
+                     300,
+                     312,
+                     324,
+                     336,
+                     348,
+                     360,
+                     372,
+                     384,
+                     396,
+                     408,
+                     420,
+                     432,
+                     444,
+                     456,
+                     468,
+                     480,
+                     492,
+                     502
+                   ),
+                   c(
+                     "PEFAMID",
+                     "PWEIGHT",
+                     "PAGEMIEG",
+                     "PAS1MRAG",
+                     "PAS1MRG1",
+                     "PAS1MRG2",
+                     "PASR1MFA",
+                     "PASR1MR" ,
+                     "PASRBUYG",
+                     "PASRCNMG",
+                     "PASRCON" ,
+                     "PASRCST" ,
+                     "PASRCURG",
+                     "PASRDPO1",
+                     "PASRDPO2",
+                     "PASRDPO3",
+                     "PASRDPO4",
+                     "PASRDPO5",
+                     "PASRDWNG",
+                     "PASRFNMG",
+                     "PASRINT" ,
+                     "PASRINTG",
+                     "PASRMOAG",
+                     "PASRMPFG",
+                     "PASRMRYG",
+                     "PASRRNTG",
+                     "PASRSKP" ,
+                     "PATTCRC" ,
+                     "PATTCRLM",
+                     "PATTCRR" ,
+                     "PATTCRU" ,
+                     "PATTDIF" ,
+                     "PATTLCP" ,
+                     "PATTLCR" ,
+                     "PATTPAYD",
+                     "PATTRSA" ,
+                     "PATTRSH" ,
+                     "PATTRSL" ,
+                     "PATTRSP" ,
+                     "PATTRSR" ,
+                     "PATTSTIN",
+                     "PATTSKP" ,
+                     "PATTLMLC",
+                     "PBUSIND" ,
+                     "PDWTYP"  ,
+                     "PEDUCMIE",
+                     "PEFATINC",
+                     "PEFGTR"  ,
+                     "PEFMJSIF",
+                     "PEFMTINC",
+                     "PEXMG1A" ,
+                     "PEXMG1F" ,
+                     "PFCRN"   ,
+                     "PFMTYPG" ,
+                     "PFRSPST" ,
+                     "PFSZ"    ,
+                     "PFSZ0017",
+                     "PFSZ1824",
+                     "PFSZ2544",
+                     "PFSZ4564",
+                     "PFSZ65UP",
+                     "PFTENUR" ,
+                     "PINHERT" ,
+                     "PLFCHRME",
+                     "PLFFPTME",
+                     "PLFPDMEG",
+                     "PNBEARG" ,
+                     "PPVRES"  ,
+                     "PREGION" ,
+                     "PRETIRME",
+                     "PGDRMIE" ,
+                     "PWAOTPEN",
+                     "PWAPRVAL",
+                     "PWARPPG" ,
+                     "PWARPPT" ,
+                     "PWARRIF" ,
+                     "PWARRSPL",
+                     "PWASTBND",
+                     "PWASTDEP",
+                     "PWASTMUI",
+                     "PWASTOIN",
+                     "PWASTONF",
+                     "PWASTRST",
+                     "PWASTSTK",
+                     "PWASTVHE",
+                     "PWATFS"  ,
+                     "PWATOTPG",
+                     "PWATOTPT",
+                     "PWBUSEQ" ,
+                     "PWDPRMOR",
+                     "PWDSLOAN",
+                     "PWDSTCRD",
+                     "PWDSTLOC",
+                     "PWDSTODB",
+                     "PWDSTOMR",
+                     "PWDSTVHN",
+                     "PWDTOTAL",
+                     "PWNETWPG",
+                     "PWNETWPT",
+                     "VERDATE"
+                   )
+                 )
+                 
+)
+
+```
+
+
+
+```{r}
+taxes <- function(x){
+  case_when(
+    x < 1e6 ~ 0,
+    x < 10e6 ~   (x-1e6) *0.001,  # tops out at 9000
+    x < 100e6  ~ 9000 + (x -10e6) * 0.01,  # tops out at 909000
+    TRUE ~ 909000 + (x- 100e6) *0.015
+  )
+}
+
+pumf_qc <- pumf %>% 
+  filter(PPVRES =="24") %>% 
+  select( PWNETWPT, PWEIGHT, PWAPRVAL, PWASTRST, PWEIGHT, PAGEMIEG, PFMTYPG) %>% 
+  mutate(gr_age =
+           case_when
+         ( PAGEMIEG %in% c("01","02","03","04") ~ "34-moins",
+           PAGEMIEG %in% c("05","06") ~ "35-44",
+           PAGEMIEG %in% c("07","08") ~ "45-54",
+           PAGEMIEG %in% c("09","10") ~ "55-64",
+           PAGEMIEG %in% c("11","12","13","14") ~ "65-plus",
+         )
+  ) %>% 
+  left_join(PFMTYPG_codes)  %>%
+  mutate(
+    nombre_adulte_scenario_min = if_else(PFMTYPG %in% c(1), 1, 2),
+    nombre_adulte_scenario_max = if_else(PFMTYPG %in% c(1,3,4,9), 1, 2)
+  ) 
+
+
+```
+
+* Le premier million d'actifs net est exempté d’impôt  
+* Entre 1 million et 9,9 millions: 0,1% de l’actif net
+* Entre 10 millions et 99 millions: 1% de l’actif net
+* Plus de 100 millions: 1,5% de l’actif net
+
+
+
+
+Voici à quoi ressemblent les micro-données brutes préparées (et triées en ordre descendant d'avoir net)
+```{r}
+pumf_qc_scenario1 <- pumf_qc  %>%
+  mutate(valeur_par_adulte_scenario_min =  PWNETWPT / nombre_adulte_scenario_min,
+         valeur_par_adulte_scenario_max =  PWNETWPT / nombre_adulte_scenario_max,
+         taxe_par_adulte_scenario_min = taxes(valeur_par_adulte_scenario_min),
+         taxe_par_adulte_scenario_max = taxes(valeur_par_adulte_scenario_max),
+         taxe_totale_scenario_min = taxe_par_adulte_scenario_min * nombre_adulte_scenario_min,
+         taxe_totale_scenario_max = taxe_par_adulte_scenario_max * nombre_adulte_scenario_max
+  )
+
+pumf_qc_scenario1 %>% arrange(desc(taxe_totale_scenario_max))  %>%
+  print(n=10)
+```
+
+
+Vous pouvez voir que le ménage le plus cher de l'échantillon a une valeur nette de 17 741 925$ (PWNETWPT) et qu'il représente 1186 ménages (PWEIGHT). 
+Apparemment on n'est pas tombés sur les Desmarais.
+
+Première déception:  leur type de ménage (PFMTYPG) est le "9", soit "Non déclaré".  
+Deuxième déception:  c'est le cas de 31 des 33 ménages les plus riches de l'échantillon.  C'est probablement pour mieux préserver la confidentialité de nos riches.  
+
+
+Ça fait une sacré différence selon le scénario.  Pour le ménage le plus riche, un seul individu valant 17M paierait 86 419\$, tandis que deux individus valant 8.8M paieraient seulement 7 870\$ pour un total de 15 741 \$.   
+
+On récupèrerait  donc plus de 5x plus d'argent dans le premier scénario.
+
+
+Voici quand même la valeur totale qu'on obtient au Québec dans les 2 scénarios, ainsi que dans un scénario où la moitié des familles dont on ne connait pas la taille sont composées d'une personne 
+seul et l'autre moitié d'un couple.
+
+
+```{r scenario1}
+pumf_qc_scenario1 %>% 
+  group_by(type_menage) %>% 
+  summarise(
+    nombre_observations = n(),
+    nombre_observations_ponderees = sum(PWEIGHT),
+nombre_menages_taxes_scenario_min = sum( PWEIGHT* as.numeric(taxe_totale_scenario_min>0) ),
+    nombre_menages_taxes_scenario_max = sum(PWEIGHT* as.numeric(taxe_totale_scenario_max>0) ),
+    taxe_totale_scenario_min = sum(taxe_totale_scenario_min * PWEIGHT),
+    taxe_totale_scenario_max = sum(taxe_totale_scenario_max * PWEIGHT)
+  ) %>%
+  mutate(nombre_menages_taxes_scenario_50_50 =(nombre_menages_taxes_scenario_min+nombre_menages_taxes_scenario_max)/2  )%>% 
+  mutate(taxe_totale_scenario_50_50 =(taxe_totale_scenario_min+taxe_totale_scenario_max)/2  )%>% 
+  arrange(desc(taxe_totale_scenario_max)) %>% 
+  gt(rowname_col = "type_menage", caption = "Données PUMF ESF Statcan pour le Québec 2019, calculs @coulsim",)  %>%
+  tab_header(
+    title = "Taxe sur la richesse récoltée selon le type de ménage",
+    ##    subtitle = "Bien que le taux moyen effectif observé chez le groupe le plus pauvre (0 à 50 000$) soit de seulement 0.472% car plusieurs (92.4%) d'entre eux ne possèdent pas d'immobilier, plusieurs (2.8%) d'entre eux font face à un taux supérieur à 5%."
+    
+  ) %>% 
+     cols_label(
+    nombre_observations = "Nombre d'observations",
+    nombre_observations_ponderees = "Nombre pondéré de ménages",
+    nombre_menages_taxes_scenario_min = "Nombre de ménages taxés dans le scénario minimal",
+    nombre_menages_taxes_scenario_max = "Nombre de ménages taxés dans le scénario maximal",
+    nombre_menages_taxes_scenario_50_50 = "Nombre de ménages taxés dans le scénario 50-50",
+    taxe_totale_scenario_min = "Taxe totale perçue dans le scénario minimal",
+    taxe_totale_scenario_max = "Taxe totale perçue dans le scénario maximal",
+    taxe_totale_scenario_50_50 = "Taxe totale perçue dans le scénario 50-50"
+  ) %>% 
+  fmt_currency(columns = all_of(c("taxe_totale_scenario_min", "taxe_totale_scenario_max")) , sep_mark = " ", decimals = 0)   %>% 
+  fmt_number(columns = everything(), decimals = 0) %>% 
+  summary_rows(
+    columns = is.numeric,
+    fns = list(Total = "sum"),
+    decimals = 0
+  )  %>% 
+   tab_options(., 
+               container.width = 1080,
+               #container.height =     5000
+               )
+```
+
+
+En 2019, la taxe de Québec solidaire aurait permis de récolter entre 383M et 784M dans les 2 scénarios extrêmes, avec un chiffre de scénario mitoyen semi-réaliste de 584M.
+
+# Scénario 2   
+
+Ok, mettons qu'on ne fait pas chier les gens avant 2 millions, ça fait quoi?
+
+```{r, echo = TRUE}
+
+taxes2 <- function(x){
+  case_when(
+    x < 2e6 ~ 0,
+    x < 10e6 ~   (x-2e6) *0.001,  # tops out at 8000
+    x < 100e6  ~ 8000 + (x -10e6) * 0.01,  # tops out at 908000
+    TRUE ~ 908000 + (x- 100e6) *0.015
+  )
+}
+```
+
+
+```{r scenario2}
+
+
+
+pumf_qc_scenario2 <- pumf_qc  %>%
+  mutate(valeur_par_adulte_scenario_min =  PWNETWPT / nombre_adulte_scenario_min,
+         valeur_par_adulte_scenario_max =  PWNETWPT / nombre_adulte_scenario_max,
+         taxe_par_adulte_scenario_min = taxes2(valeur_par_adulte_scenario_min),
+         taxe_par_adulte_scenario_max = taxes2(valeur_par_adulte_scenario_max),
+         taxe_totale_scenario_min = taxe_par_adulte_scenario_min * nombre_adulte_scenario_min,
+         taxe_totale_scenario_max = taxe_par_adulte_scenario_max * nombre_adulte_scenario_max
+  )
+
+
+pumf_qc_scenario2 %>% 
+  group_by(type_menage) %>% 
+  summarise(
+    nombre_observations = n(),
+    nombre_observations_ponderees = sum(PWEIGHT),
+nombre_menages_taxes_scenario_min = sum( PWEIGHT* as.numeric(taxe_totale_scenario_min>0) ),
+    nombre_menages_taxes_scenario_max = sum(PWEIGHT* as.numeric(taxe_totale_scenario_max>0) ),
+    taxe_totale_scenario_min = sum(taxe_totale_scenario_min * PWEIGHT),
+    taxe_totale_scenario_max = sum(taxe_totale_scenario_max * PWEIGHT)
+  ) %>%
+  mutate(nombre_menages_taxes_scenario_50_50 =(nombre_menages_taxes_scenario_min+nombre_menages_taxes_scenario_max)/2  )%>% 
+  mutate(taxe_totale_scenario_50_50 =(taxe_totale_scenario_min+taxe_totale_scenario_max)/2  )%>% 
+  arrange(desc(taxe_totale_scenario_max)) %>% 
+  gt(rowname_col = "type_menage", caption = "Données PUMF ESF Statcan pour le Québec 2019, calculs @coulsim",)  %>%
+  tab_header(
+    title = "Taxe sur la richesse récoltée selon le type de ménage (scénario cut-off 2M$)",
+    ##    subtitle = "Bien que le taux moyen effectif observé chez le groupe le plus pauvre (0 à 50 000$) soit de seulement 0.472% car plusieurs (92.4%) d'entre eux ne possèdent pas d'immobilier, plusieurs (2.8%) d'entre eux font face à un taux supérieur à 5%."
+    
+  ) %>% 
+     cols_label(
+    nombre_observations = "Nombre d'observations",
+    nombre_observations_ponderees = "Nombre pondéré de ménages",
+    nombre_menages_taxes_scenario_min = "Nombre de ménages taxés dans le scénario minimal",
+    nombre_menages_taxes_scenario_max = "Nombre de ménages taxés dans le scénario maximal",
+    nombre_menages_taxes_scenario_50_50 = "Nombre de ménages taxés dans le scénario 50-50 ",
+    taxe_totale_scenario_min = "Taxe totale perçue dans le scénario minimal",
+    taxe_totale_scenario_max = "Taxe totale perçue dans le scénario maximal",
+    taxe_totale_scenario_50_50 = "Taxe totale perçue dans le scénario 50-50"
+  ) %>% 
+  fmt_currency(columns = all_of(c("taxe_totale_scenario_min", "taxe_totale_scenario_max")) , sep_mark = " ", decimals = 0)   %>% 
+  fmt_number(columns = everything(), decimals = 0) %>% 
+  summary_rows(
+    columns = is.numeric,
+    fns = list(Total = "sum"),
+    decimals = 0
+  ) %>% 
+   tab_options(., 
+               container.width = 1080,
+               #container.height =     5000
+               )
+```
+Dans le scénario 50-50 du plan "cut-off à à 2 millions", on collecterait 355M.  C'est quand même 229M de moins (39%) que dans le scénario initial ( 584M).
+
+Par contre, on fait chier 93 353 ménages au lieu de 330 864, une baisse de 71.7%
+
+
+# Scenario 3  
+
+Ok, est-ce qu'on peut retrouver un montant similaire au 584M initial en augmentant le taux d'imposition entre 2M et 10 M à 0.2% au lieu de 0.1% ?
+```{r, echo = TRUE, eval = TRUE}
+
+taxes3 <- function(x){
+  case_when(
+    x < 2e6 ~ 0,
+    x < 10e6 ~   (x-2e6) *0.002,  # tops out at 16000
+    x < 100e6  ~ 16000 + (x -10e6) * 0.01,  # tops out at 916000
+    TRUE ~ 916000 + (x- 100e6) *0.015
+  )
+}
+```
+
+
+
+```{r scenario3}
+
+
+
+pumf_qc_scenario3 <- pumf_qc  %>%
+  mutate(valeur_par_adulte_scenario_min =  PWNETWPT / nombre_adulte_scenario_min,
+         valeur_par_adulte_scenario_max =  PWNETWPT / nombre_adulte_scenario_max,
+         taxe_par_adulte_scenario_min = taxes3(valeur_par_adulte_scenario_min),
+         taxe_par_adulte_scenario_max = taxes3(valeur_par_adulte_scenario_max),
+         taxe_totale_scenario_min = taxe_par_adulte_scenario_min * nombre_adulte_scenario_min,
+         taxe_totale_scenario_max = taxe_par_adulte_scenario_max * nombre_adulte_scenario_max
+  )
+
+
+pumf_qc_scenario3 %>% 
+  group_by(type_menage) %>% 
+  summarise(
+    nombre_observations = n(),
+    nombre_observations_ponderees = sum(PWEIGHT),
+nombre_menages_taxes_scenario_min = sum( PWEIGHT* as.numeric(taxe_totale_scenario_min>0) ),
+    nombre_menages_taxes_scenario_max = sum(PWEIGHT* as.numeric(taxe_totale_scenario_max>0) ),
+    taxe_totale_scenario_min = sum(taxe_totale_scenario_min * PWEIGHT),
+    taxe_totale_scenario_max = sum(taxe_totale_scenario_max * PWEIGHT)
+  ) %>%
+  mutate(nombre_menages_taxes_scenario_50_50 =(nombre_menages_taxes_scenario_min+nombre_menages_taxes_scenario_max)/2  )%>% 
+  mutate(taxe_totale_scenario_50_50 =(taxe_totale_scenario_min+taxe_totale_scenario_max)/2  )%>% 
+  arrange(desc(taxe_totale_scenario_max)) %>% 
+  gt(rowname_col = "type_menage", caption = "Données PUMF ESF Statcan pour le Québec 2019, calculs @coulsim",)  %>%
+  tab_header(
+    title = "Taxe sur la richesse récoltée selon le type de ménage (scénario 3: cut-off 2M$, taux de 0.2% entre 2M et 10M)",
+    ##    subtitle = "Bien que le taux moyen effectif observé chez le groupe le plus pauvre (0 à 50 000$) soit de seulement 0.472% car plusieurs (92.4%) d'entre eux ne possèdent pas d'immobilier, plusieurs (2.8%) d'entre eux font face à un taux supérieur à 5%."
+    
+  ) %>% 
+     cols_label(
+    nombre_observations = "Nombre d'observations",
+    nombre_observations_ponderees = "Nombre pondéré de ménages",
+    nombre_menages_taxes_scenario_min = "Nombre de ménages taxés dans le scénario minimal",
+    nombre_menages_taxes_scenario_max = "Nombre de ménages taxés dans le scénario maximal",
+    nombre_menages_taxes_scenario_50_50 = "Nombre de ménages taxés dans le scénario 50-50",
+    taxe_totale_scenario_min = "Taxe totale perçue dans le scénario minimal",
+    taxe_totale_scenario_max = "Taxe totale perçue dans le scénario maximal",
+    taxe_totale_scenario_50_50 = "Taxe totale perçue dans le scénario 50-50"
+  ) %>% 
+  fmt_currency(columns = all_of(c("taxe_totale_scenario_min", "taxe_totale_scenario_max")) , sep_mark = " ", decimals = 0)   %>% 
+  fmt_number(columns = everything(), decimals = 0) %>% 
+  summary_rows(
+    columns = is.numeric,
+    fns = list(Total = "sum"),
+    decimals = 0
+  ) %>% 
+   tab_options(., 
+               container.width = 1080,
+               #container.height =     5000
+               )
+```
+
+573M ! 
+C'est pas mal proche du 584M initial, et ça embête seulement les gens doublement millionnaire en leur demande de payer 2000$ par millions à partir du 2e (et 10 000\$ par million à partir du 10e)
+
+
+# Conclusion   
+
+Les données du PUMF de l'Enquête sur la Sécurité Financière de 2019 nous permettent de savoir que la taxe sur la richesse aurait rapporté entre 383M et 784M en utilisant les règles énoncées par QS.  Il s'agit de deux scénarios extrêmes, où l'on suppose que toutes les familles dans les catégorie "Non déclaré", "Autres types de famille" et "Couple, avec des enfants et famille monoparentale" sont composé soit de personnes seules (scénario impôt maximal) ou de couples (scénario impôt minimal) 
+
+Un scénario mitoyen semi-réaliste où la moitié de ces ménages seraient composé de personnes seules et l'autre moitié de couple permettrait de récolter **584M** auprès de **330,864** des 3,849,341 ménages  du Québec (8.59%).
+
+Ce pourcentage est beaucoup plus élevé que ceux que nous avions vu hier quand j'avais trouvé 5.2% pour les personnes seules et de 6.8% pour les couples sans enfants.  C'est parce qu'hier je ne m'étais pas intéressés aux familles où le nombre d'adultes était inconu.  Dans les familles "non déclarés", ce sont **64%** de 66 000 ménages qui paient dans le scénario 50-50.  Pour les "autres types de familles ce sont **16.9%** de 486 400 ménages.  Enfin, pour les ménages composés de "couples avec enfants et famille monoparentale", si on suppose que la moitié ne comporte qu'un adulte, on arrive à 7.5% des 759 009 ménages.  Ce dernier chiffre est probablement surestimé, car j'ai supposé 50% de familles monoparentales alors que la [réalité est plus proche de 29.5%](https://msss.gouv.qc.ca/professionnels/statistiques-donnees-sante-bien-etre/statistiques-de-sante-et-de-bien-etre-selon-le-sexe-volet-national/familles-monoparentales/)
+
+
+Nous avons ensuite créé un deuxième ensemble de règles, le scénario #2, où ce sont les 2 premiers millions qui seraient exonérés plutôt que seulement le premier.  Sous cet ensemble de règles,  on ne collectait que **355 millions** dans le scénario 50-50, une baisse de  229M (39%) par rapport à l'ensemble de règles initial.  Par contre, on embêtait seulement **93 353 ménages**  au lieu de 330 864, une baisse de 71.7%.  Embêter 2.4% des ménages au lieu de 8.59% des ménages me parait plus raisonnable, mais il faudrait quand même retrouver ces 229 millions.
+
+Nous avons donc créé un  troisième ensemble de règles, le scénario #3, où les 2 premiers millions sont exonérés mais où le taux de taxation sur l'avoir net est de 2000\$ par millions plutôt que de 1000\$ par million entre 2M et 10M. Sous cet ensemble de règles, on collecte alors **573 millions** auprès des mêmes **93 353 ménages** que dans scénario #2.
+
+Conclusion: le troisième ensemble de règle permettrait de récolter presque autant d'argent que celui proposé par QS (573M vs 584M) et on pourrait dire "We are the 97.5%ish" au lieu de "We are the 91.4%"
+
+
+
+
+
