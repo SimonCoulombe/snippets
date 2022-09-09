@@ -131,7 +131,7 @@ g1 <- donnees_annuelles %>%
        x = "année financière") + 
   guides(colour = "none")  # pas de légende pour "color"  parce que dans patchwork je vais avoir une légende pour "fill"
 
-g1
+#g1
 ```
 ```{r}
 g2 <- donnees_annuelles %>% 
@@ -145,7 +145,7 @@ g2 <- donnees_annuelles %>%
   guides(colour = "none") # pas de légende pour "color"  parce que dans patchwork je vais avoir une légende pour "fill"
 
 
-g2
+#g2
 ```
 Évolution du don moyen
 ```{r}
@@ -159,7 +159,7 @@ g3 <- donnees_annuelles %>%
        x = "année financière") + 
   guides(colour = "none") # pas de légende pour "color"  parce que dans patchwork je vais avoir une légende pour "fill"
 
-g3
+#g3
 ```
 
 
@@ -174,7 +174,7 @@ g4 <- contributions %>%
        y = "Nombre de dons",
        x = "Montant du don",
        fill = "Parti")
-g4
+#g4
 ```
 
 ```{r}
@@ -198,7 +198,9 @@ ggsave(
   bg= "white"
 )
 
-#knitr::plot_crop(png_file) # remove whitespace around map
+knitr::plot_crop(png_file) # remove whitespace around map
+
+my_patch
 ```
 
 
@@ -237,28 +239,6 @@ totaux_circ <- donnees_annuelles_circ_2021_2022 %>%
   mutate( rang_circ = rank(-1 * montant_total_circ)) %>%
   arrange(rang_circ) 
 
-
-```
-
-
-# Battleground 2021-2022 
-
-
-Ici, on va regarder les sommes 2021-2022
-Les machines de guerre en 2021-2022:
-
-```{r}
-donnees_annuelles_circ_2021_2022 %>% 
-  arrange(desc(montant_total)) %>%
-  head(10)
-```
-
-
-
-Les dépenses dans les circonscriptions  avec le plus de $ en jeu
-```{r}
-
-  
 
 ```
 
@@ -328,5 +308,47 @@ table_retention <- table_retention_data %>%
 
 gtsave(table_retention,
        here::here("content/post/2022-09-05-regardons-donc-les-dons/output/table_retention.png"))
+
+table_retention_data
 ```
+
+# Battleground 2021-2022 
+
+
+Ici, on va regarder les sommes 2021-2022 pour se donner une idée d'où sont les plus grandes batailles.
+
+
+Voici les équipes (circonscription-parti) qui ont accumulé le plus d'argent en 20212022:
+
+```{r}
+donnees_annuelles_circ_2021_2022 %>% 
+  arrange(desc(montant_total))%>%
+  head(10) %>%
+  knitr::kable()
+  
+```
+
+
+Voici les circonscriptions où le plus d'argent a été accumulé, tous partis confondus.
+
+```{r}
+donnees_annuelles_circ_2021_2022 %>% 
+  ggplot()
+```
+
+```{r}
+
+palmares_circ <- donnees_annuelles_circ_2021_2022 %>%
+  group_by(nm_circ) %>%
+  summarise(montant_total = sum(montant_total)) %>% 
+  arrange(desc(montant_total))
+
+palmares_circ %>%
+  head(10) %>%
+  knitr::kable()
+
+```
+
+
+
 

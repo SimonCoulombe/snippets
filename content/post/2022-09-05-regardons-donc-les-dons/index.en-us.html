@@ -17,36 +17,159 @@ keywords:
 
 <div id="données-annuelles-aggrégées" class="section level1">
 <h1>Données annuelles aggrégées</h1>
-<p><img src="/post/2022-09-05-regardons-donc-les-dons/index.en-us_files/figure-html/unnamed-chunk-4-1.png" width="672" />
-<img src="/post/2022-09-05-regardons-donc-les-dons/index.en-us_files/figure-html/unnamed-chunk-5-1.png" width="672" />
-Évolution du don moyen
-<img src="/post/2022-09-05-regardons-donc-les-dons/index.en-us_files/figure-html/unnamed-chunk-6-1.png" width="672" /></p>
-<p><img src="/post/2022-09-05-regardons-donc-les-dons/index.en-us_files/figure-html/unnamed-chunk-7-1.png" width="672" /></p>
+<p>Évolution du don moyen</p>
+<pre><code>## [1] &quot;/home/simon/git/snippets/content/post/2022-09-05-regardons-donc-les-dons/output/evolution_des_dons.png&quot;</code></pre>
+<p><img src="/post/2022-09-05-regardons-donc-les-dons/index.en-us_files/figure-html/unnamed-chunk-8-1.png" width="672" /></p>
 </div>
 <div id="données-annuelles-par-circonscriptions" class="section level1">
 <h1>Données annuelles par circonscriptions</h1>
-</div>
-<div id="battleground-2021-2022" class="section level1">
-<h1>Battleground 2021-2022</h1>
-<p>Ici, on va regarder les sommes 2021-2022
-Les machines de guerre en 2021-2022:</p>
-<pre><code>## # A tibble: 10 × 4
-##    entite_politique        nm_circ                    montant_total     n
-##    &lt;chr&gt;                   &lt;chr&gt;                              &lt;dbl&gt; &lt;int&gt;
-##  1 Québec solidaire        Taschereau                        49253.   521
-##  2 Québec solidaire        Mercier                           44250.   430
-##  3 Québec solidaire        Gouin                             43861.   468
-##  4 Québec solidaire        Laurier-Dorion                    38071.   379
-##  5 Coalition avenir Québec Brome-Missisquoi                  36740    340
-##  6 Coalition avenir Québec Mégantic                          36065    296
-##  7 Coalition avenir Québec Chicoutimi                        35280    251
-##  8 Parti québécois         Taschereau                        34012    374
-##  9 Québec solidaire        Hochelaga-Maisonneuve             33855.   355
-## 10 Québec solidaire        Sainte-Marie-Saint-Jacques        33272.   339</code></pre>
-<p>Les dépenses dans les circonscriptions avec le plus de $ en jeu</p>
 </div>
 <div id="rétention-et-attraction" class="section level1">
 <h1>Rétention et attraction</h1>
 <p>Rétention: Quel est le pourcentage de donateurs qui de 2021 qui ont aussi donné en 2022 ?
 Attraction: Quel est le pourcentage des donateurs de 2022 qui n’avaient pas donné en 2021 ?</p>
+<pre><code>## # A tibble: 5 × 7
+##   entite_politique      pct_retention pct_nouveau total_donneurs_… don_2021_seul
+##   &lt;chr&gt;                         &lt;dbl&gt;       &lt;dbl&gt;            &lt;int&gt;         &lt;int&gt;
+## 1 Québec solidaire              0.573       0.435             7421          2199
+## 2 Parti québécois               0.507       0.433            10531          3739
+## 3 Coalition avenir Qué…         0.414       0.489            14240          5979
+## 4 Parti conservateur d…         0.346       0.733            14786          4953
+## 5 Parti libéral du Qué…         0.322       0.526             5594          2794
+## # … with 2 more variables: don_2021_et_2022 &lt;int&gt;, don_2022_seul &lt;int&gt;</code></pre>
+</div>
+<div id="battleground-2021-2022" class="section level1">
+<h1>Battleground 2021-2022</h1>
+<p>Ici, on va regarder les sommes 2021-2022 pour se donner une idée d’où sont les plus grandes batailles.</p>
+<p>Voici les équipes (circonscription-parti) qui ont accumulé le plus d’argent en 20212022:</p>
+<table>
+<colgroup>
+<col width="34%" />
+<col width="39%" />
+<col width="20%" />
+<col width="5%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th align="left">entite_politique</th>
+<th align="left">nm_circ</th>
+<th align="right">montant_total</th>
+<th align="right">n</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Québec solidaire</td>
+<td align="left">Taschereau</td>
+<td align="right">49253.20</td>
+<td align="right">521</td>
+</tr>
+<tr class="even">
+<td align="left">Québec solidaire</td>
+<td align="left">Mercier</td>
+<td align="right">44249.88</td>
+<td align="right">430</td>
+</tr>
+<tr class="odd">
+<td align="left">Québec solidaire</td>
+<td align="left">Gouin</td>
+<td align="right">43861.36</td>
+<td align="right">468</td>
+</tr>
+<tr class="even">
+<td align="left">Québec solidaire</td>
+<td align="left">Laurier-Dorion</td>
+<td align="right">38071.11</td>
+<td align="right">379</td>
+</tr>
+<tr class="odd">
+<td align="left">Coalition avenir Québec</td>
+<td align="left">Brome-Missisquoi</td>
+<td align="right">36740.00</td>
+<td align="right">340</td>
+</tr>
+<tr class="even">
+<td align="left">Coalition avenir Québec</td>
+<td align="left">Mégantic</td>
+<td align="right">36065.00</td>
+<td align="right">296</td>
+</tr>
+<tr class="odd">
+<td align="left">Coalition avenir Québec</td>
+<td align="left">Chicoutimi</td>
+<td align="right">35280.00</td>
+<td align="right">251</td>
+</tr>
+<tr class="even">
+<td align="left">Parti québécois</td>
+<td align="left">Taschereau</td>
+<td align="right">34012.00</td>
+<td align="right">374</td>
+</tr>
+<tr class="odd">
+<td align="left">Québec solidaire</td>
+<td align="left">Hochelaga-Maisonneuve</td>
+<td align="right">33855.24</td>
+<td align="right">355</td>
+</tr>
+<tr class="even">
+<td align="left">Québec solidaire</td>
+<td align="left">Sainte-Marie-Saint-Jacques</td>
+<td align="right">33271.73</td>
+<td align="right">339</td>
+</tr>
+</tbody>
+</table>
+<p>Voici les circonscriptions où le plus d’argent a été accumulé, tous partis confondus.</p>
+<p><img src="/post/2022-09-05-regardons-donc-les-dons/index.en-us_files/figure-html/unnamed-chunk-13-1.png" width="672" /></p>
+<table>
+<thead>
+<tr class="header">
+<th align="left">nm_circ</th>
+<th align="right">montant_total</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Taschereau</td>
+<td align="right">125904.53</td>
+</tr>
+<tr class="even">
+<td align="left">Jean-Talon</td>
+<td align="right">87094.49</td>
+</tr>
+<tr class="odd">
+<td align="left">Mont-Royal-Outremont</td>
+<td align="right">82495.44</td>
+</tr>
+<tr class="even">
+<td align="left">Brome-Missisquoi</td>
+<td align="right">74959.82</td>
+</tr>
+<tr class="odd">
+<td align="left">Berthier</td>
+<td align="right">73499.76</td>
+</tr>
+<tr class="even">
+<td align="left">Mercier</td>
+<td align="right">73393.28</td>
+</tr>
+<tr class="odd">
+<td align="left">Verdun</td>
+<td align="right">70675.81</td>
+</tr>
+<tr class="even">
+<td align="left">Louis-Hébert</td>
+<td align="right">70136.79</td>
+</tr>
+<tr class="odd">
+<td align="left">Sherbrooke</td>
+<td align="right">68554.12</td>
+</tr>
+<tr class="even">
+<td align="left">Sainte-Marie-Saint-Jacques</td>
+<td align="right">67495.73</td>
+</tr>
+</tbody>
+</table>
 </div>
