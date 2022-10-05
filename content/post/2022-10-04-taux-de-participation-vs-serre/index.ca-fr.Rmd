@@ -66,7 +66,10 @@ couleurs <- c(
 
 Question:  Est-ce que le taux de participation est corrélée avec le fait d'avoir une élection "serrée" dans une circonscription?
 
-Réponse : pas vraiment : 
+Réponse : pas vraiment.
+
+Nouvelle hypothèse: peut-être qu'On devrait mettre le nombre de victoires du parti dominant dans les 10 dernières élections en X.
+
 
 
 données proviennent d'ici:
@@ -141,11 +144,11 @@ matable <- candidats %>%
 
 p1 <- matable %>%
   mutate(text = paste0(nom_de_la_circonscription, " gagnant: ", gagnant, " deuxième:", deuxieme)) %>% 
-  ggplot(aes(x= avance, y = taux_de_participation, text = text )) +
+  ggplot(aes(x= avance, y = taux_de_participation , text = text )) + 
   geom_point(aes(fill = gagnant, color = deuxieme), shape = 21, size =3 ) +
   
   #geom_line(stat="smooth", method="gam", size=1, linetype="solid", alpha=0.5, show.legend=FALSE)  %>% 
-  geom_smooth( show.legend= FALSE, se = FALSE, alpha = 0.5, color = "grey50") +  # aes(color= gagnant)
+  geom_smooth(aes(text= NULL), show.legend= FALSE, se = FALSE, alpha = 0.5, color = "grey50") +  # aes(color= gagnant)
   scale_colour_manual(values = couleurs)+ 
   scale_fill_manual(values = couleurs) +
     labs(
@@ -158,7 +161,7 @@ p1 <- matable %>%
   ) + 
   
   scale_x_percent(expand =  expansion(mult = 0.1), limits = c(0, NA)) + 
-  scale_y_percent(expand = expansion(mult = 0.1), limits = c(0, NA))
+  scale_y_percent(expand = expansion(mult = 0.1))  # , limits = c(0, NA)  pas besoin de ramener le y à zéro
  
 p1
 ```
