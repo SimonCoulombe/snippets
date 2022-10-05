@@ -119,8 +119,6 @@ candidats <-  readr::read_delim(here::here("content/post/2022-10-04-taux-de-part
 matable <- candidats %>% 
   group_by(numero_de_la_circonscription) %>%
   arrange(numero_de_la_circonscription, desc(nombre_total_de_votes)) %>% 
-  mutate(rang = rank(-nombre_total_de_votes)) %>%
-  filter(rang %in% c(1,2 )) %>%
   mutate(parti_politique = 
            case_when(
              abreviation_du_parti_politique == "C.A.Q.-E.F.L." ~ "CAQ",
@@ -128,17 +126,21 @@ matable <- candidats %>%
                abreviation_du_parti_politique == "P.L.Q./Q.L.P." ~ "PLQ",
                abreviation_du_parti_politique == "P.Q." ~ "PQ",
                abreviation_du_parti_politique == "Q.S." ~ "QS",
-             TRUE ~ "WTF"
-           )) %>% 
+             TRUE ~ "WTF"),
+             pcq = max(taux_de_vote/100 * (parti_politique=="PCQ"))
+           ) %>% 
+  
+  
+  mutate(rang = rank(-nombre_total_de_votes)) %>%
+  filter(rang %in% c(1,2 )) %>%
   mutate(deuxieme = lead(parti_politique),
          avance = (taux_de_vote - lead(taux_de_vote) ) / 100 
          )%>%
   filter(rang ==1) %>%
   ungroup() %>% 
   left_join(circonscriptions %>% select(numero_de_la_circonscription, taux_de_participation, nom_de_la_circonscription)) %>% 
-  select(numero_de_la_circonscription, nom_de_la_circonscription,  gagnant = parti_politique, deuxieme, avance, taux_de_participation) %>%
+  select(numero_de_la_circonscription, nom_de_la_circonscription,  gagnant = parti_politique, deuxieme, avance, taux_de_participation,pcq) %>%
   mutate(taux_de_participation = taux_de_participation/ 100)
-
 ```
 ```{r}
 
@@ -174,3 +176,38 @@ temp <- ggplotly(p1 + theme(legend.position ="none"), tooltip="text")
 widgetframe::frameWidget(temp)
 ```
 
+
+Nouvelle Hypothèse: est-ce que le taux de participation augmente avec le pourcentage de vote obtenu par le PCQ ?  Si oui, ça solidifierait l'idée que les électeurs du PCQ sont des nouveaux électeurs qui s'abstenaient dans le passé.
+
+Résultat: on dirait que oui!! 
+
+```{r}
+p2 <- matable %>%
+  mutate(text = paste0(nom_de_la_circonscription, " gagnant: ", gagnant, " deuxième:", deuxieme)) %>% 
+  ggplot(aes(x= pcq, y = taux_de_participation , text = text )) + 
+  geom_point(aes(fill = gagnant, color = deuxieme), shape = 21, size =3 ) +
+  
+  #geom_line(stat="smooth", method="gam", size=1, linetype="solid", alpha=0.5, show.legend=FALSE)  %>% 
+  geom_smooth(aes(text= NULL), show.legend= FALSE, se = FALSE, alpha = 0.5, color = "grey50") +  # aes(color= gagnant)
+  scale_colour_manual(values = couleurs)+ 
+  scale_fill_manual(values = couleurs) +
+    labs(
+    title = "Le taux de participation augmente avec le pourcentage de vote obtenu par le PCQ",
+    subtitle = "Ça semble conforter l'idée que les électeurs PCQ sont des 'nouveaux'" ,
+    caption = "graph: @coulsim, données: Élections Québec 2022",
+    fill = "Gagnant",
+    color = "Deuxième",
+    x = "Pourcentage de vote PCQ",
+    y = "Taux de participation"
+  ) + 
+  
+  scale_x_percent(expand =  expansion(mult = 0.1), limits = c(0, NA)) + 
+  scale_y_percent(expand = expansion(mult = 0.1))  # , limits = c(0, NA)  pas besoin de ramener le y à zéro
+ 
+p2
+```
+
+```{r}
+temp <- ggplotly(p2 + theme(legend.position ="none"), tooltip="text") 
+widgetframe::frameWidget(temp)
+```
