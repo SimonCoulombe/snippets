@@ -1,0 +1,173 @@
+---
+title: Corrélation élection serrée vs taux de participation?
+author: simon
+date: '2022-10-04'
+slug: taux_de_participation_vs_serre
+categories:
+  - qc2022
+tags:
+  - tag1
+  - tag2
+keywords:
+  - tech
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE,
+  #dpi = 150,
+  #fig.width = 5,
+  #fig.height = 5,
+  cache = FALSE # cache= TRUE leads to Error: path for html_dependency not found: error
+)
+library(cancensus)
+library(dplyr)
+library(sf)
+library(mapview)
+library(DT)
+library(widgetframe)
+library(RColorBrewer)
+library(tongfen)
+library(readr)
+library(tidyr)
+library(janitor)
+library(purrr)
+library(tictoc)
+library(ggplot2)
+library(ggspatial)# for annotation_map_tile
+library(ggtext) # for element markdown
+library(readr)
+library(stringr)
+options(scipen = 9999)
+library(hrbrthemes)
+library(tidygeocoder)
+library(patchwork)
+library(gt)
+library(plotly)
+library(widgetframe)
+ggplot2::theme_set(theme_minimal()) # this ggplot2 theme uses roboto condensed font, which works well with the font used for the whole document.
+options(ggplot2.discrete.fill  = function() scale_fill_viridis_d() )
+options(ggplot2.continuous.fill  = function() scale_fill_viridis_c())
+options(ggplot2.discrete.colour = function() scale_color_viridis_d())
+options(ggplot2.continuous.colour = function() scale_color_viridis_c())
+options(scipen=999)
+couleurs <- c(
+  "QS"= "#FF8040",
+  "PQ" = "#004C9D",
+  "CAQ" = "#1E90FF",
+  "PCQ"=   "#7B5804" , # "#6495ED",
+  "PLQ" = "red" # "#F08080"
+  
+)
+
+```
+
+Question:  Est-ce que le taux de participation est corrélée avec le fait d'avoir une élection "serrée" dans une circonscription?
+
+Réponse : pas vraiment : 
+
+
+données proviennent d'ici:
+https://www.dgeq.org/donnees.html
+
+on utilise 
+https://www.dgeq.org/circonscriptions.csv
+pour le taux de participation et 
+candidats.csv
+pour le nombre de votes des candidats.
+
+```{r}
+circonscriptions <-  readr::read_delim(here::here("content/post/2022-10-04-taux-de-participation-vs-serre/circonscriptions.csv"), 
+                       locale = locale(encoding = "windows-1252"), 
+                       col_types = cols(.default = col_character()),
+                       delim =";") %>%
+  janitor::clean_names() %>% 
+  mutate(across(.cols= c(starts_with("nombre"), starts_with("taux")), function(x){as.numeric(x)})) 
+# 
+# 
+# partispolitiques <-  readr::read_delim(here::here("content/post/2022-10-04-taux-de-participation-vs-serre/partispolitiques.csv"), 
+#                        locale = locale(encoding = "windows-1252"), 
+#                        col_types = cols(.default = col_character()),
+#                        delim =";") %>%
+#   janitor::clean_names()
+# 
+# 
+# 
+# statistiques <-  readr::read_delim(here::here("content/post/2022-10-04-taux-de-participation-vs-serre/statistiques.csv"), 
+#                        locale = locale(encoding = "windows-1252"), 
+#                        col_types = cols(.default = col_character()),
+#                        delim =";") %>%
+#   janitor::clean_names()
+# 
+
+candidats <-  readr::read_delim(here::here("content/post/2022-10-04-taux-de-participation-vs-serre/candidats.csv"), 
+                       locale = locale(encoding = "windows-1252"), 
+                       col_types = cols(.default = col_character()),
+                       delim =";") %>%
+    janitor::clean_names()%>% 
+  mutate(across(.cols= c(starts_with("nombre"), starts_with("taux")), function(x){as.numeric(x)})) 
+
+```
+
+```{r}
+
+matable <- candidats %>% 
+  group_by(numero_de_la_circonscription) %>%
+  arrange(numero_de_la_circonscription, desc(nombre_total_de_votes)) %>% 
+  mutate(rang = rank(-nombre_total_de_votes)) %>%
+  filter(rang %in% c(1,2 )) %>%
+  mutate(parti_politique = 
+           case_when(
+             abreviation_du_parti_politique == "C.A.Q.-E.F.L." ~ "CAQ",
+             abreviation_du_parti_politique == "P.C.Q-E.E.D." ~ "PCQ",
+               abreviation_du_parti_politique == "P.L.Q./Q.L.P." ~ "PLQ",
+               abreviation_du_parti_politique == "P.Q." ~ "PQ",
+               abreviation_du_parti_politique == "Q.S." ~ "QS",
+             TRUE ~ "WTF"
+           )) %>% 
+  mutate(deuxieme = lead(parti_politique),
+         avance = (taux_de_vote - lead(taux_de_vote) ) / 100 
+         )%>%
+  filter(rang ==1) %>%
+  ungroup() %>% 
+  left_join(circonscriptions %>% select(numero_de_la_circonscription, taux_de_participation, nom_de_la_circonscription)) %>% 
+  select(numero_de_la_circonscription, nom_de_la_circonscription,  gagnant = parti_politique, deuxieme, avance, taux_de_participation) %>%
+  mutate(taux_de_participation = taux_de_participation/ 100)
+
+```
+```{r}
+
+p1 <- matable %>%
+  mutate(text = paste0(nom_de_la_circonscription, " gagnant: ", gagnant, " deuxième:", deuxieme)) %>% 
+  ggplot(aes(x= avance, y = taux_de_participation, text = text )) +
+  geom_point(aes(fill = gagnant, color = deuxieme), shape = 21, size =3 ) +
+  
+  #geom_line(stat="smooth", method="gam", size=1, linetype="solid", alpha=0.5, show.legend=FALSE)  %>% 
+  geom_smooth( show.legend= FALSE, se = FALSE, alpha = 0.5, color = "grey50") +  # aes(color= gagnant)
+  scale_colour_manual(values = couleurs)+ 
+  scale_fill_manual(values = couleurs) +
+    labs(
+    title = "Pas vraiment de relation entre les élections 'serrées' et le taux de participation",
+    subtitle = "Élections Québec 2022",
+    fill = "Gagnant",
+    color = "Deuxième",
+    x = "Avance du gagnant sur le deuxième",
+    y = "Taux de participation"
+  ) + 
+  
+  scale_x_percent(expand =  expansion(mult = 0.1), limits = c(0, NA)) + 
+  scale_y_percent(expand = expansion(mult = 0.1), limits = c(0, NA))
+ 
+p1
+```
+
+
+Le même graphique mais interactif pour pouvoir identifier les circonscriptions (mettez votre curseur vis à vis un point pour identifier la circonscription).
+
+```{r}
+temp <- ggplotly(p1 + theme(legend.position ="none"), tooltip="text") 
+widgetframe::frameWidget(temp)
+```
+
