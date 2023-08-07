@@ -38,16 +38,16 @@ options(scipen=999)
 library(insuranceData)
 library(tidyverse)
 library(tidymodels)
-library(bonsai)
 library(xgboost)
 library(mgcv)
 library(lightgbm)
 library(doMC)
 library(gt)
 library(vip)
-library(broom)
+library(broom) # pour tidy()
 library(statmod) #pour glm(family = tweedie)
-library(bonsai)
+library(bonsai) # pour lightgbm
+library(embed) # pour step_lencode_glm
 tidymodels::tidymodels_prefer()
 ```
 
@@ -57,13 +57,23 @@ I built my first tweedie regression model [three years ago](https://www.simoncou
 
 Today I want to revisit this data, but this time I want to do everything using the {tidymodels} approach.  
 
-Things I would like to do:   
+Things I did today:   
+
 
 * use {rsample}   do a "grouped" train/test data split.  This is often required when using insurance data because a given policy will have multiple "rows" and I want all rows for a given policy to be either in train or test rather than spread all over the place.  
-* use {recipes} to replace high-cardinality variables with embedded values.  
-* create `poisson`, `gamma` and `tweedie` regressions.  
-* create models using `GLM`, `GAM`, `xgboost` and `lightgbm`.    
-* evaluate multiple model types (glm, boosted trees) and multiple feature engineering "sets"  easily using workflow sets.     
+* use case weights for all models ,
+* use `embed::step_lencode_glm()` to replace high-cardinality variables with embedded values,  
+* create `logistic` and  `tweedie` regressions using tidymodels and check that they fit what I would get by fitting the models outside of tidymodels .  
+* create models using `GLM`, `GAM`, `xgboost` and `lightgbm`.   Turns out GLM and xgboost are easy.  GAM are harder (you need to pass a formula.. but how do you do it when you don't know what dummies step_other() will generate).  lightgbm 
+* use workflow sets to apply the same recipe/formula to a bunch of model specifications and pick the best one using cross validation.   bonus: tune some hyperparameters at the same time.  
+
+Things I would like to do later:   
+
+  * create `poisson` and `gamma` regressions.     
+  * figure out a way to add GAMs to workflow_set() when using a recipe that creates new variables (like a step_dummy() after a step_other())).  
+  
+  
+
 
 Let's get started!    
 
@@ -247,7 +257,8 @@ we are going to run a lot of models when fitting models on multiples resamples a
 doMC::registerDoMC(cores = 6)
 ```
 
-# Logistic Regression  
+# Logistic Regression with formula  
+
 
 
 Let's just pretend everyone has the same exposure and create a simple logistic regression on whether or not a record has a claim.  we'll look at more complicated stuff (poisson, gamma, tweedie) later.  
@@ -259,7 +270,7 @@ my_has_claim_formula <- as.formula("has_claim_fct ~ veh_value + veh_body + veh_a
 ```
 
 
-## Single models  
+## comparing tidymodels model output to fitting the models outside tidymodels  
 
 
 
@@ -493,8 +504,13 @@ try(
 
 we are going to define all the models at once using a single preprocessor (a formula, could have been a recipe) and a list of model specifications.  Then we apply fit_resamples() to fit all workflows to all resamples.  
 
-note:  update_workflow_model() **exists** https://github.com/tidymodels/workflowsets/issues/64
+
+
+note 1 :  update_workflow_model() **exists** https://github.com/tidymodels/workflowsets/issues/64
 it is used to add the formula to the GAM model inside a workflow_set.  
+
+note2 : we're could have used multiple different formulas to test different model specifications.   
+
 
 ```{r}
 all_workflows <- 
@@ -634,6 +650,102 @@ mean(test_with_preds$.pred_1)
 
 anyway, enough for today.
 
+
+# TODO: Logistic Regression with recipe  
+
+ok, let's use the option to pass a recipe instead of a formula  to the workflow_set.  This will allow us to do some feature engineering,  like:
+  * imputing missing values (this doesnt happen in this dataset),  
+  * create an "other" categorical values for factors levels that dont happen often (we'll do that with `area`), 
+  * replace high cardinality variables using using step_lencode_glm()  (we'll pretend that's the case of veh_body, even though it only has 13 unique values.  
+  
+
+```{r}
+
+my_recipe_with_imputation <- recipe(my_train ) %>%
+  update_role(all_of(labels(terms(my_has_claim_formula))), new_role = "predictor") %>% # assign the role of predictor to right-side terms of my formula
+  update_role(has_claim_fct, new_role= "outcome") %>%  ## was has_claim  in "my_recipe", but needs to be a factor for tidymodels
+  update_role(exposure, new_role = "weight") %>%
+  
+  step_impute_median(all_numeric_predictors()) %>%  # impute median to missing numerical values
+  step_impute_mode(all_nominal_predictors()) %>%  # impute mode to missing nominal values  
+  embed::step_lencode_glm(veh_body, outcome = vars(has_claim_fct)) %>% #  encode veh_body   
+  step_other(area, threshold = 0.10) %>% 
+  step_dummy(all_nominal_predictors())# %>%
+  #step_select(has_role(c("predictor", "outcome", "weight", "case_weights"))) # don't forger case_weights
+
+
+```
+we don't actually need to prep/bake the recipe, but it's interesting to check what is the output data.
+```{r}
+prepped_recipe <- prep(my_recipe_with_imputation)
+baked_train <- bake(prepped_recipe, my_train)
+baked_train %>% glimpse()
+```
+as we can see, the dummies have been created and there are only 3 areas left (area_B, area_C, area_D), the other being bundled inside "area_other".    Also, the veh_body nominal variable has been replaced with a numeric variable with the following possible values.
+
+```{r}
+baked_train %>% count(veh_body)
+```
+Looking at the original counds in the data, we understand that 0.9653894	 (with n=32) is for "BUS" and 2.3842100	 (with n=14203) is for UTE, the riskiest body type.
+
+```{r}
+my_train %>% count(veh_body)
+```
+
+anyway, let's create a workflow set with this recipe.  
+
+NOTE: I'M NOT SURE IF I CAN HAVE GAMs HERE BECAUSE THE FORMULA DEPENDS ON WHAT DUMMY THE RECIPE CREATED AND THIS MIGHT CHANGE FOR ALL RESAMPLES (given the use of step_other)
+
+```{r}
+all_workflows5 <- 
+  workflow_set(
+    preproc = list("recipe_with_imputation" = my_recipe_with_imputation ), # "recipe_with_feature_engineering"= my_recipe_with_imputation, 
+    models = list(
+      logistic_glm = logistic_glm_spec,
+      #logistic_gam = logistic_gam_spec#,
+      logistic_xgboost = logistic_xgb_spec,
+      logistic_tuneable_xgb = logistic_tuneable_xgb_spec
+    ),
+     case_weights = exposure_weight
+  )
+# 
+# all_workflows5 <- update_workflow_model(all_workflows5,
+#                       i =  "recipe_with_imputation_logistic_gam",
+#                       spec = logistic_gam_spec,
+#                       formula = my_has_claim_formula)
+
+# Workflows can take special arguments for the recipe (e.g. a blueprint) or a model (e.g. a special formula). However, when creating a workflow set, there is no way to specify these extra components. update_workflow_model() and update_workflow_recipe() allow users to set these values after the workflow set is initially created. They are analogous to workflows::add_model() or workflows::add_recipe().
+      
+all_workflows6 <- 
+  all_workflows5 %>%
+  workflow_map(resamples = train_resamples,
+               fn = "tune_grid",
+               verbose = TRUE)
+```
+
+```{r}
+autoplot(all_workflows6, metric="roc_auc")
+```
+
+```{r}
+rank_results(all_workflows6, rank_metric = "roc_auc")
+```
+let's fit the best model:
+
+```{r}
+
+best_workflow_fit <- all_workflows6 %>%
+  extract_workflow("recipe_with_imputation_logistic_tuneable_xgb") %>%
+  finalize_workflow(select_best(all_workflows6 %>%
+  extract_workflow_set_result("recipe_with_imputation_logistic_tuneable_xgb"), metric = "roc_auc")) %>%
+  last_fit(split= my_split)
+
+best_workflow_fit %>% 
+  extract_fit_engine() %>% 
+  vip(num_features=20)
+
+```
+
 # Tweedie regression  
 
 alright that was fun, let's try tweedie.   
@@ -643,7 +755,7 @@ alright that was fun, let's try tweedie.
 my_annual_loss_formula <- as.formula("annual_loss ~ veh_value + veh_body + veh_age +  gender +  area +  agecat")
 ```
 
-## Single models   
+## comparing tidymodels model output to fitting the models outside tidymodels  
 
 
 ### GLM weighted   
@@ -766,14 +878,14 @@ tweedie_xgb_wf_fit %>% extract_fit_engine() %>% vip::vip()
 
 # TODO: Poisson regression  
 
-## Single models   
+## comparing tidymodels model output to fitting the models outside tidymodels  
 
 ### GLM weighted   
 ### GAM (with splines) weighted     
 ### xgboost  weighted     
 
 # TODO: Gamma regression   
-## Single models   
+## comparing tidymodels model output to fitting the models outside tidymodels  
 ### GLM weighted   
 ### GAM (with splines) weighted     
 ### xgboost  weighted     
