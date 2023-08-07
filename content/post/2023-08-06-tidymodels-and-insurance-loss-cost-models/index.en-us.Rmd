@@ -16,7 +16,7 @@ keywords:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
-  echo = FALSE,
+  echo = TRUE,
   message = FALSE,
   warning = FALSE,
   #dpi = 150,
@@ -627,15 +627,15 @@ tweedie_xgb_wf %>% extract_fit_engine() %>% vip::vip()
 ### xgboost  weighted     
 
 
-# Adding cross validation      
+# TODO: Adding cross validation      
 
 ok let's use CV to check which tweedie model has the best results   
 
 
 
-# Adding hyperparameter tuning    
+# TODO:  Adding hyperparameter tuning    
 
-# Adding workflow sets   
+# TODO:  Adding workflow sets   
 
 
 
