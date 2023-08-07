@@ -44,6 +44,7 @@ library(mgcv)
 library(lightgbm)
 library(doMC)
 library(gt)
+library(vip)
 library(broom)
 tidymodels::tidymodels_prefer()
 ```
@@ -321,7 +322,7 @@ tidy(my_wf1_fit) %>% select(term, estimate_my_wf1_fit = estimate) %>%
 ```
 yes!! 
 
-## GAM weighted (with splines)    
+### GAM (with splines) weighted     
 
 here's how I define a logistic regression in mgcv::gam().  
 
@@ -375,46 +376,93 @@ mgcv::gam(
 ```
 
 
-### xgboost  weighted     
+### XGBoost  weighted     
 
-### lightgbm  weighted     
+
+```{r}
+boost_tree_xgboost_spec <-
+  boost_tree(
+    tree_depth = 3,
+    trees= 100,
+    learn_rate = 0.1,
+    min_n = 50,
+    loss_reduction = 0,
+    sample_size = 1.0,
+    stop_iter = 50
+  ) %>%
+  set_engine('xgboost', nthread = 1) %>%
+  set_mode('classification')
+
+xgb_wf <- workflow() %>%
+  add_model(boost_tree_xgboost_spec) %>%
+  add_formula(my_formula) %>%
+  add_case_weights(exposure_weight)
+
+set.seed(345)
+xgb_wf <-  xgb_wf%>% 
+  fit(data = my_train )
+
+
+xgb_wf %>% extract_fit_engine() %>% vip::vip()
+```
+is the variable importance similar to what I get directly?  
+
+naaah.. ah well.
+xgboost is hard to reproduce...
+```{r}
+my_recipe <- recipe(my_train ) %>%
+  update_role(all_of(labels(terms(my_formula))), new_role = "predictor") %>%
+  update_role(has_claim, new_role= "outcome") %>% 
+  update_role(exposure, new_role = "weight") %>%
+  step_dummy(all_nominal_predictors()) %>%
+  step_select(has_role(c("predictor", "outcome", "weight")))
+
+prepped_recipe <- prep(my_recipe) 
+baked_train <- bake(prepped_recipe, my_train)
+
+my_params <- list(min_child_weight = 50,
+                  max_depth = 3,
+                  eta = 0.1, 
+                  gamma = 0, 
+                  subsample = 1.0, 
+                  nthread = 1)
+xgtrain <- xgboost::xgb.DMatrix(
+              data = as.matrix(baked_train %>% select(-has_claim, -exposure)),
+              label = baked_train$has_claim,
+              weight = baked_train$exposure
+            )
+
+set.seed(345)
+direct_xgb_fit <- xgboost::xgb.train(
+          data = xgtrain,
+          params = my_params,
+          nrounds = 100
+        )
+vip::vip(direct_xgb_fit)
+```
 
 
 
 
 ## Tweedie regression  
 
-### GLM unweighted  
 ### GLM weighted   
-### GAM unweighted
-### GAM weighted     
-### xgboost unweighted
+### GAM (with splines) weighted     
 ### xgboost  weighted     
-### lightgbm unweighted
-### lightgbm  weighted     
 
 
 ## Poisson regression  
 
-### GLM unweighted  
 ### GLM weighted   
-### GAM unweighted
-### GAM weighted     
-### xgboost unweighted
+### GAM (with splines) weighted     
 ### xgboost  weighted     
-### lightgbm unweighted
-### lightgbm  weighted     
 
 ## Gamma regression  
 
-### GLM unweighted  
 ### GLM weighted   
-### GAM unweighted
-### GAM weighted     
-### xgboost unweighted
+### GAM (with splines) weighted     
 ### xgboost  weighted     
-### lightgbm unweighted
-### lightgbm  weighted     
+  
 
 # Adding cross validation   
 
