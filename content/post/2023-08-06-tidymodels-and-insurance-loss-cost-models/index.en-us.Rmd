@@ -1,0 +1,488 @@
+---
+title: tidymodels and insurance loss cost models
+author: simon
+date: '2023-08-06'
+slug: index.en-us
+categories:
+  - category
+  - subcategory
+tags:
+  - tag1
+  - tag2
+keywords:
+  - tech
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE,
+  #dpi = 150,
+  #fig.width = 5,
+  #fig.height = 5,
+  cache = FALSE # cache= TRUE leads to Error: path for html_dependency not found: error
+)
+
+ggplot2::theme_set(ggplot2::theme_minimal()) # this ggplot2 theme uses roboto condensed font, which works well with the font used for the whole document.
+options(ggplot2.discrete.fill  = function() scale_fill_viridis_d() )
+options(ggplot2.continuous.fill  = function() scale_fill_viridis_c())
+options(ggplot2.discrete.colour = function() scale_color_viridis_d())
+options(ggplot2.continuous.colour = function() scale_color_viridis_c())
+ggplot2::update_geom_defaults("point", ggplot2::aes(color = "midnightblue"))
+ggplot2::update_geom_defaults("line", ggplot2::aes(color = "midnightblue"))
+ggplot2::update_geom_defaults("rect", ggplot2::aes(color = "midnightblue"))
+options(scipen=999)
+
+library(insuranceData)
+library(tidyverse)
+library(tidymodels)
+library(bonsai)
+library(xgboost)
+library(mgcv)
+library(lightgbm)
+library(doMC)
+library(gt)
+library(broom)
+tidymodels::tidymodels_prefer()
+```
+
+# Objective   
+
+I built my first tweedie regression model [three years ago](https://www.simoncoulombe.com/2020/03/tweedie-vs-poisson-gamma/).  At that time I used the {recipes} and {rsample} packages from {tidymodels}, but I did the actual modelling outside of the {tidymodels} universe.  
+
+Today I want to revisit this data, but this time I want to do everything using the {tidymodels} approach.  
+
+Things I would like to do:   
+
+* use {rsample}   do a "grouped" train/test data split.  This is often required when using insurance data because a given policy will have multiple "rows" and I want all rows for a given policy to be either in train or test rather than spread all over the place.  
+* use {recipes} to replace high-cardinality variables with embedded values.  
+* create `poisson`, `gamma` and `tweedie` regressions.  
+* create models using `GLM`, `GAM`, `xgboost` and `lightgbm`.    
+* evaluate multiple model types (glm, boosted trees) and multiple feature engineering "sets"  easily using workflow sets.     
+
+Let's get started!    
+
+# The data   
+
+Copying from my 2020 post, here is the description of the data:   
+
+
+#  Data  
+
+The dataCar data from the `insuranceData` package.  It contains 67 856 one-year vehicle insurance policies taken out in 2004 or 2005.   It originally came with the book [Generalized Linear Models for Insurance Data (2008)](http://www.businessandeconomics.mq.edu.au/our_departments/Applied_Finance_and_Actuarial_Studies/research/books/GLMsforInsuranceData).
+
+The `exposure` variable  represents the "number of year of exposure" and is used as the offset variable.  It is bound between 0 and 1.   
+
+Finally, the independent variables are as follow:  
+
+* `veh_value`, the vehicle value in tens of thousand of dollars,  
+* `veh_body`, y vehicle body, coded as BUS CONVT COUPE HBACK HDTOP MCARA MIBUS PANVN RDSTR SEDAN STNWG TRUCK UTE,  
+* `veh_age`, 1 (youngest), 2, 3, 4,   
+* `gender`, a factor with levels F M,   
+* `area` a factor with levels A B C D E F,   
+* `agecat` 1 (youngest), 2, 3, 4, 5, 6  
+
+The presence of a claim is indicated by the `clm` (0 or 1) , which indicates that there is at least one claim.  We will rename the variable to `has_claim`.
+
+The dollar amount of the claims is  `claimcst0`, which we will rename to `dollar_loss`.  We will divide it by the exposure to obtain `annual_loss`.
+
+The `annual_loss` variable is what we actually want to model.  In insurance, it is typically modelled directly using a `tweedie`regression, or indirectly by multiplying the output of two models, one predicting  the frequency of claims  (poisson regression)  and the other predicting the severity of claims (gamma regression).
+
+Note: when using the frequency*severity approach, we will use the `has_claim` variable in the Poisson (frequency) model instead of `numclaims` (actual number of claims) because we don't have the breakdown of value of claims when there is more than one.  In practice, this means modelling "a lower frequency and a higher severity" than reality, but the overall predicted annual loss will be the same.
+
+
+
+FUN:  I am going to create a fake policy_id column, which has a 10% chance of being the same as the row above it.  This is to represent that a policy_id can have multiple records.  I will want all records for a given policy to be in the same resample.   
+
+
+FUN#2:  I am also going to create a factor `has_claim_fct` because parsnip want classification models to work on factors, not integers.   
+
+Fun#3: I am also going to create `exposure_weight`, which is the result of hardhat::importance_weights(exposure).   I *think* this will often allow us to pass weights to the tidymodels use use_case_weights.  
+
+```{r}
+set.seed(42)
+
+data(dataCar)
+
+# claimcst0 = claim amount in dollars (0 if no claim)
+# clm = 0 or 1 = has a claim yes/ no  
+#  numclaims = number of claims  0 , 1 ,2 ,3 or 4).       
+# we use clm because the corresponding dollar amount is for all claims combined.  
+mydb <- dataCar %>%
+  select(has_claim = clm, dollar_loss= claimcst0, exposure, veh_value, veh_body,
+         veh_age, gender, area, agecat) %>% 
+  mutate(
+    annual_loss = dollar_loss / exposure,
+    policy_id =1,
+    random = runif(nrow(.)),
+    has_claim_fct = factor(has_claim),
+    exposure_weight = hardhat::importance_weights(exposure) 
+  )
+
+
+# ugly and slow, but this is what I could come up with quickly
+for (i in seq(from =2, to =nrow(mydb))){
+  if (mydb[i,"random"]< 0.2 ){
+    mydb[i,"policy_id"] <-  mydb[i-1,"policy_id"] 
+  } else{
+    mydb[i,"policy_id"] <-  mydb[i-1,"policy_id"] +1
+  }
+}
+
+mydb %>% count(policy_id) %>% count(n) %>% gt(caption="most policy_id have only 1 record in the dataset, but a few have 2,3 and even 7")
+```
+
+
+# grouped and stratified  train/test split and rsamples     
+
+We are going to use recipes::group_initial_split() to make sure that a given policy_id always ends up in the same resample.
+I am also going to use the `strata` parameter to ensure that distribution of annual_loss in all resamples in the same:
+
+```{r}
+set.seed(123)
+
+try(my_split <- group_initial_split( mydb, group = policy_id, prop= 3/4, strata = annual_loss))
+```
+oooh !   our first error.:  "`strata` must be constant across all members of each `group`.".  I'm going to calculate an average annual_loss over all records for a given policy_id.  I would love to be able to weight records by exposure (to have the same total exposure  and average annual_loss in all resamples), but I don't think that's possible.   
+
+here we go.
+
+```{r}
+mydb <- mydb %>%
+  group_by(policy_id) %>%
+  mutate(policy_annual_loss = sum( dollar_loss) / sum(exposure)) %>%
+  ungroup()
+
+set.seed(123)
+my_split <- group_initial_split( mydb, group = policy_id, prop= 3/4, strata = policy_annual_loss) # this works!  
+
+my_train <- training(my_split)
+my_test  <- testing(my_split)
+
+```
+
+are any policy_id split between train and test?    No, and this is great:   
+
+```{r}
+both <- bind_rows(
+  my_train %>% mutate(type = "train"),
+  my_test %>% mutate(type = "test"),
+)
+
+
+both %>%
+  distinct(policy_id, type) %>% 
+  count(policy_id) %>%
+  count(n) %>%
+  gt(caption = "all policy_id are seen in only 1 type (either train or test), never both")
+
+
+
+```
+Is the proportion of records 3/4 train and 1/4 test?  
+
+
+```{r}
+both %>% 
+  count(type) %>%
+  mutate(pct = n/sum(n)) %>% 
+  gt(caption="proportion of records in train/test is exactly  75% vs 25%, as expected")
+```
+however, we would actually would have like thge exposure to have been spread 75%/25%. This is not the case since we couldnt weight records in the group_initial_split() function:   
+
+```{r}
+both %>% 
+  group_by(type) %>% 
+  summarise(exposure = sum(exposure)) %>%
+  mutate(pct = exposure/sum(exposure)) %>%
+  gt(caption="exposure is NOT split exactly  75-25 because we couldnt weight records when splitting")
+```
+We tried to stratify our groups using the policy_annual_loss variable. However, some policies have more exposure than other.  This means that the average annual loss for the train/test won't be identical.  How different are they? Quite a bit, actually:  
+
+```{r}
+both %>% 
+  group_by(type) %>% 
+  summarise(overall_annual_loss = sum(dollar_loss)/ sum(exposure)) %>%
+  ungroup() %>% 
+  gt(caption="overall annuall loss (dollar loss per year ) isnt the same in both train and test")
+```
+The overall  frequency should also be different between train and test.  It shouldnt be as different as the overall annual loss because the number of claims (0 or 1) is less volatile than the dollar amount of the claim.   
+
+
+```{r}
+both %>% 
+  group_by(type) %>% 
+  summarise(overall_frequency = sum(has_claim)/ sum(exposure)) %>%
+  ungroup() %>% 
+  gt(caption="overall frequency (claims per year) is less different  between train and test  than the overall annual loss")
+```
+
+to create folds ( I think they are called resamples in tidymodels), we use the group_vfold_cv, again stratified over policy_annual_loss   
+
+```{r}
+set.seed(234)
+train_resamples <- group_vfold_cv(my_train,
+                                  group="policy_id",
+                                  strata = policy_annual_loss,
+                                  v= 5)
+```
+
+I won't check the overall annual loss and overall frequency for each resamples, but the volatility here would be interesting to look at.   
+
+
+edit: this blog post by Max Kuhhn indicates they are looking into weighting stuff.. https://www.tidyverse.org/blog/2022/05/case-weights/
+
+
+
+# set up parallel processing    
+
+we are going to run a lot of models when fitting models on multiples resamples and multiple hyperparameter sets.  tune_grid()  can use multiple cores if we tell it to:    
+
+```{r}
+doMC::registerDoMC(cores = 6)
+```
+
+# Modelling hello world   
+
+I'm just going to try to make the models run.. we'll figure out about cross validation and hyper parameter later.   
+
+
+## Logistic regression  
+Let's just pretend everyone has the same exposure and create a simple logistic regression on whether or not a record has a claim.  we'll look at more complicated stuff (poisson, gamma, tweedie) later.  
+
+
+
+### GLM unweighted    
+The code below to generate the specification for a  GLM logistic regression was generated automatically  by running `parsnip::parsnip_addin()`, selecting `classification`,  `logistic_reg (glm)` and unchecking `tag parameters for tuning (if any)` then clicking the gren `write specification code` button.   
+
+
+
+```{r}
+logistic_reg_glm_spec <- 
+  parsnip::logistic_reg() %>%
+  parsnip::set_engine("glm")
+```
+
+Awesome, let fit these model specs to a formula we are going to create and pass to 
+
+```{r}
+
+my_formula <- as.formula("has_claim_fct ~ veh_value + veh_body + veh_age +  gender +  area +  agecat")
+
+logistic_reg_glm_spec_fit <-logistic_reg_glm_spec %>%
+  parsnip::fit(
+    formula = my_formula,
+    data = my_train)
+
+logistic_reg_glm_spec_fit %>%
+  extract_fit_engine() %>% 
+  summary()
+```
+
+
+is this the same output as a normal glm?  
+yes!
+```{r}
+glm1_direct_fit <- glm(my_formula,    family = "binomial", data = my_train) 
+
+tidy(logistic_reg_glm_spec_fit) %>%  select(term, estimate_logistic_reg_glm_spec_fit = estimate) %>%
+  left_join(tidy(glm1_direct_fit) %>% select(term, estimate_glm1_direct_fit = estimate)) 
+
+
+```
+
+
+### GLM weighted   
+what if we want weights?   apparently we can use add_case_weights(), but this only work for workflows: 
+```{r}
+
+my_wf1 <-   workflow() %>% 
+  add_case_weights(exposure_weight) %>% 
+  add_formula(my_formula) %>%
+  add_model(logistic_reg_glm_spec)
+
+my_wf1_fit <-  my_wf1%>% 
+  fit(data = my_train)
+
+my_wf1_fit
+```
+is it the same a directly modelling outside tidymodels?   
+```{r}
+glm1_weight_direct_fit <- glm(my_formula,    family = "binomial", data = my_train, weights = exposure)
+
+```
+
+let's compare estimates for tidymodels/direct  for  unweighted logistic regression
+```{r}
+tidy(my_wf1_fit) %>% select(term, estimate_my_wf1_fit = estimate) %>%
+  left_join(tidy(glm1_weight_direct_fit) %>% select(term, estimate_glm1_weight_direct_fit = estimate)) 
+```
+yes!! 
+
+### GAM unweighted  (no spline)
+
+
+here's how I define a logistic regression in mgcv::gam().  note the REML method is passed to set_engine because this option is specific to the mgcv package.  
+
+the result should be identical to the GLM..
+
+
+```{r}
+
+# parsnip_addin()
+
+gen_additive_mod_mgcv_spec <-
+  gen_additive_mod() %>%
+  set_engine('mgcv', method= "REML") %>%
+  set_mode('classification')
+```
+
+let's go stratight to workflows since one day we'll want to use workflow sets anyway...
+
+note1: for some reason, GAMs  need us  to specify the formula twice, once in add_model() and another time in add_formula.
+
+note2:  I need to add `parametric=TRUE` to broom::tidy()  to get the mgcv parameters (https://broom.tidymodels.org/reference/tidy.gam.html)
+```{r}
+
+gam_wf <- workflow() %>%
+  add_model(gen_additive_mod_mgcv_spec, formula = my_formula) %>%  # need to add formula twice, and  in add_formula
+  add_formula(my_formula)
+
+
+gam_wf_fit <-  gam_wf%>% 
+  fit(data = my_train )
+
+
+gam_wf_fit %>% tidy(parametric = TRUE)
+```
+
+let's model this outside tidymodels to make sure it works... 
+
+```{r}
+mgcv::gam(formula = my_formula, data = my_train, family = stats::binomial(link = "logit"), method="REML") %>% 
+  broom::tidy(parametric= TRUE)
+```
+YES!! 
+
+
+
+### GAM weighted     
+
+let's add weights:
+
+```{r}
+
+gam_wf_weighted_fit <-  gam_wf%>% 
+  add_case_weights(exposure_weight) %>% 
+  fit(data = my_train )
+
+
+gam_wf_weighted_fit %>% tidy(parametric = TRUE)
+```
+same as the weight GLM.. assume this worked.   
+
+## GAM unweighted (with splines)    
+
+
+
+here's how I define a logistic regression in mgcv::gam().  note the REML method is passed to set_engine because this option is specific to the mgcv package.  
+
+ok this one is interesting I need to add the spline in the formula in add_model(my_spline_formula), but not in add_formula(my_formula).
+more here : https://community.rstudio.com/t/how-to-define-smoothed-models-for-a-gam-using-tidymodels-and-recipe/144772/2
+
+
+
+```{r}
+
+# parsnip_addin()
+
+gen_additive_mod_mgcv_spec <-
+  gen_additive_mod() %>%
+  set_engine('mgcv', method= "REML") %>%
+  set_mode('classification')
+```
+
+let's go stratight to workflows since one day we'll want to use workflow sets anyway...
+
+note1: for some reason, GAMs  need us  to specify the formula twice, once in add_model() and another time in add_formula.
+
+note2:  I need to add `parametric=TRUE` to broom::tidy()  to get the mgcv parameters (https://broom.tidymodels.org/reference/tidy.gam.html)
+
+```{r}
+my_spline_formula <- as.formula('has_claim_fct ~ s(veh_value, bs= "cr") + veh_body + veh_age +  gender +  area +  agecat')
+
+
+gam_spline_wf <- workflow() %>%
+  add_model(gen_additive_mod_mgcv_spec, formula = my_spline_formula) %>%  # need to add formula twice, and  in add_formula
+  add_formula(my_formula)
+
+
+gam_spline_wf <-  gam_spline_wf%>% 
+  fit(data = my_train )
+
+
+gam_spline_wf %>% tidy(parametric = TRUE)
+#gam_spline_wf %>% tidy(parametric = FALSE)
+```
+same result if I do it directly.
+
+```{r}
+mgcv::gam(formula = my_spline_formula, data = my_train, family = stats::binomial(link = "logit"), method="REML") %>% 
+  broom::tidy(parametric= TRUE)
+```
+
+### xgboost unweighted
+### xgboost  weighted     
+### lightgbm unweighted
+### lightgbm  weighted     
+
+
+
+
+## Tweedie regression  
+
+### GLM unweighted  
+### GLM weighted   
+### GAM unweighted
+### GAM weighted     
+### xgboost unweighted
+### xgboost  weighted     
+### lightgbm unweighted
+### lightgbm  weighted     
+
+
+## Poisson regression  
+
+### GLM unweighted  
+### GLM weighted   
+### GAM unweighted
+### GAM weighted     
+### xgboost unweighted
+### xgboost  weighted     
+### lightgbm unweighted
+### lightgbm  weighted     
+
+## Gamma regression  
+
+### GLM unweighted  
+### GLM weighted   
+### GAM unweighted
+### GAM weighted     
+### xgboost unweighted
+### xgboost  weighted     
+### lightgbm unweighted
+### lightgbm  weighted     
+
+# Adding cross validation   
+
+# Adding hyperparameter tuning    
+
+# Adding workflow sets   
+
+
+
+
+
+
