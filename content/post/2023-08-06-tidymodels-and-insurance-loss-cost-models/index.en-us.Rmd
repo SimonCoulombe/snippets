@@ -321,76 +321,19 @@ tidy(my_wf1_fit) %>% select(term, estimate_my_wf1_fit = estimate) %>%
 ```
 yes!! 
 
-### GAM unweighted  (no spline)
+## GAM weighted (with splines)    
 
-
-here's how I define a logistic regression in mgcv::gam().  note the REML method is passed to set_engine because this option is specific to the mgcv package.  
-
-the result should be identical to the GLM..
-
-
-```{r}
-
-# parsnip_addin()
-
-gen_additive_mod_mgcv_spec <-
-  gen_additive_mod() %>%
-  set_engine('mgcv', method= "REML") %>%
-  set_mode('classification')
-```
+here's how I define a logistic regression in mgcv::gam().  
 
 let's go stratight to workflows since one day we'll want to use workflow sets anyway...
 
-note1: for some reason, GAMs  need us  to specify the formula twice, once in add_model() and another time in add_formula.
 
-note2:  I need to add `parametric=TRUE` to broom::tidy()  to get the mgcv parameters (https://broom.tidymodels.org/reference/tidy.gam.html)
-```{r}
-
-gam_wf <- workflow() %>%
-  add_model(gen_additive_mod_mgcv_spec, formula = my_formula) %>%  # need to add formula twice, and  in add_formula
-  add_formula(my_formula)
-
-
-gam_wf_fit <-  gam_wf%>% 
-  fit(data = my_train )
-
-
-gam_wf_fit %>% tidy(parametric = TRUE)
-```
-
-let's model this outside tidymodels to make sure it works... 
-
-```{r}
-mgcv::gam(formula = my_formula, data = my_train, family = stats::binomial(link = "logit"), method="REML") %>% 
-  broom::tidy(parametric= TRUE)
-```
-YES!! 
-
-
-
-### GAM weighted     
-
-let's add weights:
-
-```{r}
-
-gam_wf_weighted_fit <-  gam_wf%>% 
-  add_case_weights(exposure_weight) %>% 
-  fit(data = my_train )
-
-
-gam_wf_weighted_fit %>% tidy(parametric = TRUE)
-```
-same as the weight GLM.. assume this worked.   
-
-## GAM unweighted (with splines)    
-
-
-
-here's how I define a logistic regression in mgcv::gam().  note the REML method is passed to set_engine because this option is specific to the mgcv package.  
-
-ok this one is interesting I need to add the spline in the formula in add_model(my_spline_formula), but not in add_formula(my_formula).
+  * Note 1:  the REML method is passed to set_engine because this option is specific to the mgcv package.    
+  * Note 2: for some reason, GAMs  need us  to specify the formula twice, once in add_model() and another time in add_formula.  Interesting:   I need to add the spline in the formula in add_model(my_spline_formula), but not in add_formula(my_formula).
 more here : https://community.rstudio.com/t/how-to-define-smoothed-models-for-a-gam-using-tidymodels-and-recipe/144772/2
+  * Note 3:  I need to add `parametric=TRUE` to broom::tidy()  to get the mgcv parameters (https://broom.tidymodels.org/reference/tidy.gam.html). parametric=FALSE will return the fitted spline.    
+  
+  
 
 
 
@@ -402,21 +345,14 @@ gen_additive_mod_mgcv_spec <-
   gen_additive_mod() %>%
   set_engine('mgcv', method= "REML") %>%
   set_mode('classification')
-```
 
-let's go stratight to workflows since one day we'll want to use workflow sets anyway...
-
-note1: for some reason, GAMs  need us  to specify the formula twice, once in add_model() and another time in add_formula.
-
-note2:  I need to add `parametric=TRUE` to broom::tidy()  to get the mgcv parameters (https://broom.tidymodels.org/reference/tidy.gam.html)
-
-```{r}
 my_spline_formula <- as.formula('has_claim_fct ~ s(veh_value, bs= "cr") + veh_body + veh_age +  gender +  area +  agecat')
 
 
 gam_spline_wf <- workflow() %>%
   add_model(gen_additive_mod_mgcv_spec, formula = my_spline_formula) %>%  # need to add formula twice, and  in add_formula
-  add_formula(my_formula)
+  add_formula(my_formula) %>%
+  add_case_weights(exposure_weight)
 
 
 gam_spline_wf <-  gam_spline_wf%>% 
@@ -424,18 +360,23 @@ gam_spline_wf <-  gam_spline_wf%>%
 
 
 gam_spline_wf %>% tidy(parametric = TRUE)
-#gam_spline_wf %>% tidy(parametric = FALSE)
+
 ```
-same result if I do it directly.
+same result if I do it directly using mgcv::gam:
 
 ```{r}
-mgcv::gam(formula = my_spline_formula, data = my_train, family = stats::binomial(link = "logit"), method="REML") %>% 
+mgcv::gam(
+  formula = my_spline_formula, 
+  data = my_train, 
+  weights = exposure,
+  family = stats::binomial(link = "logit"),
+  method="REML") %>% 
   broom::tidy(parametric= TRUE)
 ```
 
-### xgboost unweighted
+
 ### xgboost  weighted     
-### lightgbm unweighted
+
 ### lightgbm  weighted     
 
 
