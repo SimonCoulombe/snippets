@@ -46,6 +46,8 @@ library(doMC)
 library(gt)
 library(vip)
 library(broom)
+library(statmod) #pour glm(family = tweedie)
+library(bonsai)
 tidymodels::tidymodels_prefer()
 ```
 
@@ -270,11 +272,11 @@ Awesome, let fit these model specs to a formula we are going to create and pass 
 
 ```{r}
 
-my_formula <- as.formula("has_claim_fct ~ veh_value + veh_body + veh_age +  gender +  area +  agecat")
+my_has_claim_formula <- as.formula("has_claim_fct ~ veh_value + veh_body + veh_age +  gender +  area +  agecat")
 
 logistic_reg_glm_spec_fit <-logistic_reg_glm_spec %>%
   parsnip::fit(
-    formula = my_formula,
+    formula = my_has_claim_formula,
     data = my_train)
 
 logistic_reg_glm_spec_fit %>%
@@ -286,7 +288,7 @@ logistic_reg_glm_spec_fit %>%
 is this the same output as a normal glm?  
 yes!
 ```{r}
-glm1_direct_fit <- glm(my_formula,    family = "binomial", data = my_train) 
+glm1_direct_fit <- glm(my_has_claim_formula,    family = "binomial", data = my_train) 
 
 tidy(logistic_reg_glm_spec_fit) %>%  select(term, estimate_logistic_reg_glm_spec_fit = estimate) %>%
   left_join(tidy(glm1_direct_fit) %>% select(term, estimate_glm1_direct_fit = estimate)) 
@@ -301,7 +303,7 @@ what if we want weights?   apparently we can use add_case_weights(), but this on
 
 my_wf1 <-   workflow() %>% 
   add_case_weights(exposure_weight) %>% 
-  add_formula(my_formula) %>%
+  add_formula(my_has_claim_formula) %>%
   add_model(logistic_reg_glm_spec)
 
 my_wf1_fit <-  my_wf1%>% 
@@ -311,7 +313,7 @@ my_wf1_fit
 ```
 is it the same a directly modelling outside tidymodels?   
 ```{r}
-glm1_weight_direct_fit <- glm(my_formula,    family = "binomial", data = my_train, weights = exposure)
+glm1_weight_direct_fit <- glm(my_has_claim_formula,    family = "binomial", data = my_train, weights = exposure)
 
 ```
 
@@ -329,12 +331,12 @@ here's how I define a logistic regression in mgcv::gam().
 let's go stratight to workflows since one day we'll want to use workflow sets anyway...
 
 
-  * Note 1:  the REML method is passed to set_engine because this option is specific to the mgcv package.    
-  * Note 2: for some reason, GAMs  need us  to specify the formula twice, once in add_model() and another time in add_formula.  Interesting:   I need to add the spline in the formula in add_model(my_spline_formula), but not in add_formula(my_formula).
+* Note 1:  the REML method is passed to set_engine because this option is specific to the mgcv package.    
+* Note 2: for some reason, GAMs  need us  to specify the formula twice, once in add_model() and another time in add_formula.  Interesting:   I need to add the spline in the formula in add_model(my_has_claim_spline_formula), but not in add_formula(my_has_claim_formula).
 more here : https://community.rstudio.com/t/how-to-define-smoothed-models-for-a-gam-using-tidymodels-and-recipe/144772/2
-  * Note 3:  I need to add `parametric=TRUE` to broom::tidy()  to get the mgcv parameters (https://broom.tidymodels.org/reference/tidy.gam.html). parametric=FALSE will return the fitted spline.    
-  
-  
+* Note 3:  I need to add `parametric=TRUE` to broom::tidy()  to get the mgcv parameters (https://broom.tidymodels.org/reference/tidy.gam.html). parametric=FALSE will return the fitted spline.    
+
+
 
 
 
@@ -347,12 +349,12 @@ gen_additive_mod_mgcv_spec <-
   set_engine('mgcv', method= "REML") %>%
   set_mode('classification')
 
-my_spline_formula <- as.formula('has_claim_fct ~ s(veh_value, bs= "cr") + veh_body + veh_age +  gender +  area +  agecat')
+my_has_claim_spline_formula <- as.formula('has_claim_fct ~ s(veh_value, bs= "tp") + veh_body + veh_age +  gender +  area +  agecat')
 
 
 gam_spline_wf <- workflow() %>%
-  add_model(gen_additive_mod_mgcv_spec, formula = my_spline_formula) %>%  # need to add formula twice, and  in add_formula
-  add_formula(my_formula) %>%
+  add_model(gen_additive_mod_mgcv_spec, formula = my_has_claim_spline_formula) %>%  # need to add formula twice, and  in add_formula
+  add_formula(my_has_claim_formula) %>%
   add_case_weights(exposure_weight)
 
 
@@ -367,7 +369,7 @@ same result if I do it directly using mgcv::gam:
 
 ```{r}
 mgcv::gam(
-  formula = my_spline_formula, 
+  formula = my_has_claim_spline_formula, 
   data = my_train, 
   weights = exposure,
   family = stats::binomial(link = "logit"),
@@ -395,7 +397,7 @@ boost_tree_xgboost_spec <-
 
 xgb_wf <- workflow() %>%
   add_model(boost_tree_xgboost_spec) %>%
-  add_formula(my_formula) %>%
+  add_formula(my_has_claim_formula) %>%
   add_case_weights(exposure_weight)
 
 set.seed(345)
@@ -411,7 +413,7 @@ naaah.. ah well.
 xgboost is hard to reproduce...
 ```{r}
 my_recipe <- recipe(my_train ) %>%
-  update_role(all_of(labels(terms(my_formula))), new_role = "predictor") %>%
+  update_role(all_of(labels(terms(my_has_claim_formula))), new_role = "predictor") %>%
   update_role(has_claim, new_role= "outcome") %>% 
   update_role(exposure, new_role = "weight") %>%
   step_dummy(all_nominal_predictors()) %>%
@@ -427,44 +429,209 @@ my_params <- list(min_child_weight = 50,
                   subsample = 1.0, 
                   nthread = 1)
 xgtrain <- xgboost::xgb.DMatrix(
-              data = as.matrix(baked_train %>% select(-has_claim, -exposure)),
-              label = baked_train$has_claim,
-              weight = baked_train$exposure
-            )
+  data = as.matrix(baked_train %>% select(-has_claim, -exposure)),
+  label = baked_train$has_claim,
+  weight = baked_train$exposure
+)
 
 set.seed(345)
 direct_xgb_fit <- xgboost::xgb.train(
-          data = xgtrain,
-          params = my_params,
-          nrounds = 100
-        )
+  data = xgtrain,
+  params = my_params,
+  nrounds = 100
+)
 vip::vip(direct_xgb_fit)
 ```
 
 
+### lightgbm unweighted   
+
+```{r}
+logistic_lightgbm_spec <-
+  boost_tree(
+    trees= 100
+  ) %>%
+  set_engine('lightgbm') %>%  # num_leaves = tune()
+  set_mode('classification')
+
+logistic_lightgbm_wf <- workflow() %>%
+  add_model(logistic_lightgbm_spec) %>%
+  add_formula(my_has_claim_formula) 
+
+
+set.seed(345)
+logistic_lightgbm_wf_fit <-  logistic_lightgbm_wf%>% 
+  fit(data = my_train ) # Case weights are not enabled by the underlying model implementation.
+
+
+logistic_lightgbm_wf_fit %>% extract_fit_engine() %>% vip::vip()
+```
+
+### lightgbm weighted   (not implemented in tidymodels)
+
+
+
+
+TL;DR: `Case weights are not enabled by the underlying model implementation.`
+
+```{r}
+try(
+  workflow() %>%
+    add_model(logistic_lightgbm_spec) %>%
+    add_formula(my_has_claim_formula)  %>% 
+    add_case_weights(exposure_weight) %>% 
+    fit(data = my_train ) 
+)
+
+```
 
 
 ## Tweedie regression  
 
+alright that was fun, let's try tweedie.   
+
+
+```{r}
+my_annual_loss_formula <- as.formula("annual_loss ~ veh_value + veh_body + veh_age +  gender +  area +  agecat")
+```
+
+
+### GLM weighted   
+
+
+glm  tweedie model in tidymodels:
+
+
+stackoverflow adding gamma to glm regression: https://stackoverflow.com/questions/66024469/glm-family-using-tidymodels
+
+
+
+
+```{r}
+tweedie_reg_glm_spec <- 
+  parsnip::linear_reg(mode = "regression") %>%
+  parsnip::set_engine("glm", family=tweedie(var.power=1.1, link.power=0))
+
+
+my_tweedie_glm_wf <-   workflow() %>% 
+  add_case_weights(exposure_weight) %>% 
+  add_formula(my_annual_loss_formula) %>%
+  add_model(tweedie_reg_glm_spec)
+
+my_tweedie_glm_wf_fit <-  my_tweedie_glm_wf %>% 
+  fit(data = my_train)
+
+my_tweedie_glm_wf_fit %>%  tidy()
+```
+
+
+
+tweedie model when calling glm directly. identique. yes!!
+```{r}
+tweedie_fit <- 
+  glm(formula =  my_annual_loss_formula,
+      family=tweedie(var.power=1.1, link.power=0),
+      weights = exposure,
+      data = my_train)
+
+tweedie_fit %>% tidy()
+```
+
+
+### GAM (with splines) weighted     
+
+
+```{r}
+my_annual_loss_spline_formula <- as.formula('annual_loss ~ s(veh_value, bs= "tp") + veh_body + veh_age +  gender +  area +  agecat')
+```
+
+
+```{r}
+
+tweedie_gam_spec <-
+  gen_additive_mod() %>%
+  set_engine('mgcv', method= "REML", family = Tweedie(p = 1.1, link = "log")) %>%
+  set_mode('regression')
+
+tweedie_gam_wf <- workflow() %>%
+  add_model(tweedie_gam_spec, formula = my_annual_loss_spline_formula) %>%  # need to add formula twice, and  in add_formula
+  add_formula(my_annual_loss_formula) %>%
+  add_case_weights(exposure_weight)
+
+
+tweedie_gam_wf <-  tweedie_gam_wf%>% 
+  fit(data = my_train )
+
+
+tweedie_gam_wf %>% tidy(parametric = TRUE)
+
+```
+same result if I do it directly using mgcv::gam?
+
+```{r}
+mgcv::gam(
+  formula = my_annual_loss_spline_formula, 
+  data = my_train, 
+  weights = exposure,
+  family = Tweedie(p = 1.1, link = "log"),
+  method="REML") %>% 
+  broom::tidy(parametric= TRUE)
+```
+
+YES!! ESTI QUE JE SUIS BON AHAH!
+
+
+
+
+
+### XGBoost  weighted     
+
+```{r}
+tweedie_xgb_spec <-
+  boost_tree(
+    tree_depth = 3,
+    trees= 100,
+    learn_rate = 0.1,
+    min_n = 50,
+    loss_reduction = 0,
+    sample_size = 1.0,
+    stop_iter = 50
+  ) %>%
+  set_engine('xgboost', nthread = 1, objective = "reg:tweedie",eval_metric="tweedie-nloglik@1.1", tweedie_variance_power = 1.1) %>% ##https://www.kaggle.com/code/olehmezhenskyi/tweedie-xgboost
+  set_mode('regression') 
+
+
+tweedie_xgb_wf <- workflow() %>%
+  add_model(tweedie_xgb_spec) %>%
+  add_formula(my_annual_loss_formula) %>%
+  add_case_weights(exposure_weight)
+
+set.seed(456)
+tweedie_xgb_wf <-  tweedie_xgb_wf%>% 
+  fit(data = my_train )
+
+
+tweedie_xgb_wf %>% extract_fit_engine() %>% vip::vip()
+```
+
+## TODO: Poisson regression  
+
+### GLM weighted   
+### GAM (with splines) weighted     
+### xgboost  weighted     
+
+## TODO: Gamma regression   
+
 ### GLM weighted   
 ### GAM (with splines) weighted     
 ### xgboost  weighted     
 
 
-## Poisson regression  
+# Adding cross validation      
 
-### GLM weighted   
-### GAM (with splines) weighted     
-### xgboost  weighted     
+ok let's use CV to check which tweedie model has the best results   
 
-## Gamma regression  
 
-### GLM weighted   
-### GAM (with splines) weighted     
-### xgboost  weighted     
-  
-
-# Adding cross validation   
 
 # Adding hyperparameter tuning    
 
