@@ -247,13 +247,19 @@ we are going to run a lot of models when fitting models on multiples resamples a
 doMC::registerDoMC(cores = 6)
 ```
 
-# Modelling hello world   
-
-I'm just going to try to make the models run.. we'll figure out about cross validation and hyper parameter later.   
+# Logistic Regression  
 
 
-## Logistic regression  
 Let's just pretend everyone has the same exposure and create a simple logistic regression on whether or not a record has a claim.  we'll look at more complicated stuff (poisson, gamma, tweedie) later.  
+
+Here's the formula:  
+
+```{r}
+my_has_claim_formula <- as.formula("has_claim_fct ~ veh_value + veh_body + veh_age +  gender +  area +  agecat")
+```
+
+
+## Single models  
 
 
 
@@ -263,35 +269,29 @@ The code below to generate the specification for a  GLM logistic regression was 
 
 
 ```{r}
-logistic_reg_glm_spec <- 
+logistic_glm_spec <- 
   parsnip::logistic_reg() %>%
   parsnip::set_engine("glm")
-```
 
-Awesome, let fit these model specs to a formula we are going to create and pass to 
 
-```{r}
-
-my_has_claim_formula <- as.formula("has_claim_fct ~ veh_value + veh_body + veh_age +  gender +  area +  agecat")
-
-logistic_reg_glm_spec_fit <-logistic_reg_glm_spec %>%
+logistic_glm_fit <-logistic_glm_spec %>%
   parsnip::fit(
     formula = my_has_claim_formula,
     data = my_train)
 
-logistic_reg_glm_spec_fit %>%
+logistic_glm_fit %>%
   extract_fit_engine() %>% 
   summary()
 ```
 
 
-is this the same output as a normal glm?  
+is this the same output as directly running the normal glm?  
 yes!
 ```{r}
-glm1_direct_fit <- glm(my_has_claim_formula,    family = "binomial", data = my_train) 
+logistic_glm_direct_fit <- glm(my_has_claim_formula,    family = "binomial", data = my_train) 
 
-tidy(logistic_reg_glm_spec_fit) %>%  select(term, estimate_logistic_reg_glm_spec_fit = estimate) %>%
-  left_join(tidy(glm1_direct_fit) %>% select(term, estimate_glm1_direct_fit = estimate)) 
+tidy(logistic_glm_fit) %>%  select(term, estimate_logistic_glm_fit = estimate) %>%
+  left_join(tidy(logistic_glm_direct_fit) %>% select(term, estimate_logistic_glm_direct_fit = estimate)) 
 
 
 ```
@@ -301,26 +301,26 @@ tidy(logistic_reg_glm_spec_fit) %>%  select(term, estimate_logistic_reg_glm_spec
 what if we want weights?   apparently we can use add_case_weights(), but this only work for workflows: 
 ```{r}
 
-my_wf1 <-   workflow() %>% 
+weighted_logistic_glm_wf <-   workflow() %>% 
   add_case_weights(exposure_weight) %>% 
   add_formula(my_has_claim_formula) %>%
-  add_model(logistic_reg_glm_spec)
+  add_model(logistic_glm_spec)
 
-my_wf1_fit <-  my_wf1%>% 
+weighted_logistic_glm_wf_fit <-  weighted_logistic_glm_wf%>% 
   fit(data = my_train)
 
-my_wf1_fit
+weighted_logistic_glm_wf_fit
 ```
 is it the same a directly modelling outside tidymodels?   
 ```{r}
-glm1_weight_direct_fit <- glm(my_has_claim_formula,    family = "binomial", data = my_train, weights = exposure)
+weighted_logistic_glm_direct_fit <- glm(my_has_claim_formula,    family = "binomial", data = my_train, weights = exposure)
 
 ```
 
 let's compare estimates for tidymodels/direct  for  unweighted logistic regression
 ```{r}
-tidy(my_wf1_fit) %>% select(term, estimate_my_wf1_fit = estimate) %>%
-  left_join(tidy(glm1_weight_direct_fit) %>% select(term, estimate_glm1_weight_direct_fit = estimate)) 
+tidy(weighted_logistic_glm_wf_fit) %>% select(term, estimate_weighted_logistic_glm_wf_fit = estimate) %>%
+  left_join(tidy(weighted_logistic_glm_direct_fit) %>% select(term, estimate_weighted_logistic_glm_direct_fit = estimate)) 
 ```
 yes!! 
 
@@ -344,7 +344,7 @@ more here : https://community.rstudio.com/t/how-to-define-smoothed-models-for-a-
 
 # parsnip_addin()
 
-gen_additive_mod_mgcv_spec <-
+logistic_gam_spec <-
   gen_additive_mod() %>%
   set_engine('mgcv', method= "REML") %>%
   set_mode('classification')
@@ -352,17 +352,17 @@ gen_additive_mod_mgcv_spec <-
 my_has_claim_spline_formula <- as.formula('has_claim_fct ~ s(veh_value, bs= "tp") + veh_body + veh_age +  gender +  area +  agecat')
 
 
-gam_spline_wf <- workflow() %>%
-  add_model(gen_additive_mod_mgcv_spec, formula = my_has_claim_spline_formula) %>%  # need to add formula twice, and  in add_formula
+logistic_gam_wf <- workflow() %>%
+  add_model(logistic_gam_spec, formula = my_has_claim_spline_formula) %>%  # need to add formula twice, and  in add_formula
   add_formula(my_has_claim_formula) %>%
   add_case_weights(exposure_weight)
 
 
-gam_spline_wf <-  gam_spline_wf%>% 
+logistic_gam_wf_fit <-  logistic_gam_wf%>% 
   fit(data = my_train )
 
 
-gam_spline_wf %>% tidy(parametric = TRUE)
+logistic_gam_wf_fit %>% tidy(parametric = TRUE)
 
 ```
 same result if I do it directly using mgcv::gam:
@@ -382,7 +382,7 @@ mgcv::gam(
 
 
 ```{r}
-boost_tree_xgboost_spec <-
+logistic_xgb_spec <-
   boost_tree(
     tree_depth = 3,
     trees= 100,
@@ -395,17 +395,17 @@ boost_tree_xgboost_spec <-
   set_engine('xgboost', nthread = 1) %>%
   set_mode('classification')
 
-xgb_wf <- workflow() %>%
-  add_model(boost_tree_xgboost_spec) %>%
+logistic_xgb_wf <- workflow() %>%
+  add_model(logistic_xgb_spec) %>%
   add_formula(my_has_claim_formula) %>%
   add_case_weights(exposure_weight)
 
 set.seed(345)
-xgb_wf <-  xgb_wf%>% 
+logistic_xgb_wf_fit <-  logistic_xgb_wf%>% 
   fit(data = my_train )
 
 
-xgb_wf %>% extract_fit_engine() %>% vip::vip()
+logistic_xgb_wf_fit %>% extract_fit_engine() %>% vip::vip()
 ```
 is the variable importance similar to what I get directly?  
 
@@ -486,7 +486,155 @@ try(
 ```
 
 
-## Tweedie regression  
+
+
+## Use workflow_set to fit models  on all resamples   
+
+
+we are going to define all the models at once using a single preprocessor (a formula, could have been a recipe) and a list of model specifications.  Then we apply fit_resamples() to fit all workflows to all resamples.  
+
+note:  update_workflow_model() **exists** https://github.com/tidymodels/workflowsets/issues/64
+it is used to add the formula to the GAM model inside a workflow_set.  
+
+```{r}
+all_workflows <- 
+  workflow_set(
+    preproc = list("formula"= my_has_claim_formula ),
+    models = list(
+      logistic_glm = logistic_glm_spec,
+      logistic_gam = logistic_gam_spec,
+      logistic_xgboost = logistic_xgb_spec
+    ),
+     case_weights = exposure_weight
+  )
+
+all_workflows <- update_workflow_model(all_workflows,
+                      i =  "formula_logistic_gam",
+                      spec = logistic_gam_spec,
+                      formula = my_has_claim_formula)
+
+# Workflows can take special arguments for the recipe (e.g. a blueprint) or a model (e.g. a special formula). However, when creating a workflow set, there is no way to specify these extra components. update_workflow_model() and update_workflow_recipe() allow users to set these values after the workflow set is initially created. They are analogous to workflows::add_model() or workflows::add_recipe().
+      
+all_workflows2 <- 
+  all_workflows %>%
+  workflow_map(resamples = train_resamples,
+               fn = "fit_resamples",
+               verbose = TRUE)
+```
+
+
+
+```{r}
+rank_results(all_workflows2, rank_metric = "roc_auc")
+```
+
+
+```{r}
+autoplot(all_workflows2, metric="roc_auc")
+```
+
+
+## Adding hyperparameter tuning to the workflow_set   
+
+
+
+```{r}
+logistic_tuneable_xgb_spec <-
+  boost_tree(
+    trees= 100,
+    learn_rate = 0.1,
+    tree_depth = tune(),
+    min_n = tune(),
+    loss_reduction = tune(),
+    sample_size = tune(),
+    mtry= tune(),
+    stop_iter = 50
+  ) %>%
+  set_engine('xgboost', nthread = 1) %>%
+  set_mode('classification')
+
+```
+
+
+
+```{r}
+all_workflows3 <- 
+  workflow_set(
+    preproc = list("formula"= my_has_claim_formula ),
+    models = list(
+      logistic_glm = logistic_glm_spec,
+      logistic_gam = logistic_gam_spec,
+      logistic_xgboost = logistic_xgb_spec,
+      logistic_tuneable_xgb = logistic_tuneable_xgb_spec
+    ),
+     case_weights = exposure_weight
+  )
+
+all_workflows3 <- update_workflow_model(all_workflows3,
+                      i =  "formula_logistic_gam",
+                      spec = logistic_gam_spec,
+                      formula = my_has_claim_formula)
+
+# Workflows can take special arguments for the recipe (e.g. a blueprint) or a model (e.g. a special formula). However, when creating a workflow set, there is no way to specify these extra components. update_workflow_model() and update_workflow_recipe() allow users to set these values after the workflow set is initially created. They are analogous to workflows::add_model() or workflows::add_recipe().
+      
+all_workflows4 <- 
+  all_workflows3 %>%
+  workflow_map(resamples = train_resamples,
+               fn = "tune_grid",
+               verbose = TRUE)
+```
+
+this time we have a lot more of boosted trees because `logistic_tuneable_xgb` goes through a grid of 10 sets of hyperparameters. 
+
+```{r}
+autoplot(all_workflows4, metric="roc_auc")
+```
+
+```{r}
+rank_results(all_workflows4, rank_metric = "roc_auc")
+```
+
+Here the best model is the "logistic_xgboost", the one where I hand-picked hyperparameters.  Let's pretend that the best model was one of the 10 sets of hyperparameters from "logistic_tuneable_xgb".  We could extract that workflow, then show the best 5 results and finally select_best() hyperparameters and finalise the `logistic_tuneable_xgb` by running the model on the whole training set with the best hyperparameters.    
+```{r}
+logistic_tuneable_xgb_wf_result <- 
+  all_workflows4 %>%
+  extract_workflow_set_result("formula_logistic_tuneable_xgb")
+
+logistic_tuneable_xgb_wf_result %>% show_best(metric = "roc_auc")
+```
+
+```{r}
+logistic_tuneable_xgb_wf_fit <- all_workflows4 %>%
+  extract_workflow("formula_logistic_tuneable_xgb") %>%
+  finalize_workflow(select_best(logistic_tuneable_xgb_wf_result, metric = "roc_auc")) %>%
+  last_fit(split= my_split)
+
+logistic_tuneable_xgb_wf_fit
+```
+```{r}
+preds <- collect_predictions(logistic_tuneable_xgb_wf_fit)
+test_with_preds <- augment(logistic_tuneable_xgb_wf_fit)
+```
+
+
+```{r}
+test_with_preds %>%
+  ggplot(aes(x=.pred_1)) +
+  geom_histogram()
+```
+
+the mean of test_with_preds$has_claim is not the same as  test_with_preds$.pred_1.. shoot. maybe it wasnt done learning?
+
+```{r}
+mean(test_with_preds$has_claim)
+```
+```{r}
+mean(test_with_preds$.pred_1)
+```
+
+anyway, enough for today.
+
+# Tweedie regression  
 
 alright that was fun, let's try tweedie.   
 
@@ -494,6 +642,8 @@ alright that was fun, let's try tweedie.
 ```{r}
 my_annual_loss_formula <- as.formula("annual_loss ~ veh_value + veh_body + veh_age +  gender +  area +  agecat")
 ```
+
+## Single models   
 
 
 ### GLM weighted   
@@ -508,20 +658,20 @@ stackoverflow adding gamma to glm regression: https://stackoverflow.com/question
 
 
 ```{r}
-tweedie_reg_glm_spec <- 
+tweedie_glm_spec <- 
   parsnip::linear_reg(mode = "regression") %>%
   parsnip::set_engine("glm", family=tweedie(var.power=1.1, link.power=0))
 
 
-my_tweedie_glm_wf <-   workflow() %>% 
+tweedie_glm_wf <-   workflow() %>% 
   add_case_weights(exposure_weight) %>% 
   add_formula(my_annual_loss_formula) %>%
-  add_model(tweedie_reg_glm_spec)
+  add_model(tweedie_glm_spec)
 
-my_tweedie_glm_wf_fit <-  my_tweedie_glm_wf %>% 
+tweedie_glm_wf_fit <-  tweedie_glm_wf %>% 
   fit(data = my_train)
 
-my_tweedie_glm_wf_fit %>%  tidy()
+tweedie_glm_wf_fit %>%  tidy()
 ```
 
 
@@ -559,11 +709,11 @@ tweedie_gam_wf <- workflow() %>%
   add_case_weights(exposure_weight)
 
 
-tweedie_gam_wf <-  tweedie_gam_wf%>% 
+tweedie_gam_wf_fit <-  tweedie_gam_wf%>% 
   fit(data = my_train )
 
 
-tweedie_gam_wf %>% tidy(parametric = TRUE)
+tweedie_gam_wf_fit %>% tidy(parametric = TRUE)
 
 ```
 same result if I do it directly using mgcv::gam?
@@ -607,41 +757,26 @@ tweedie_xgb_wf <- workflow() %>%
   add_case_weights(exposure_weight)
 
 set.seed(456)
-tweedie_xgb_wf <-  tweedie_xgb_wf%>% 
+tweedie_xgb_wf_fit <-  tweedie_xgb_wf%>% 
   fit(data = my_train )
 
 
-tweedie_xgb_wf %>% extract_fit_engine() %>% vip::vip()
+tweedie_xgb_wf_fit %>% extract_fit_engine() %>% vip::vip()
 ```
 
-## TODO: Poisson regression  
+# TODO: Poisson regression  
+
+## Single models   
 
 ### GLM weighted   
 ### GAM (with splines) weighted     
 ### xgboost  weighted     
 
-## TODO: Gamma regression   
-
+# TODO: Gamma regression   
+## Single models   
 ### GLM weighted   
 ### GAM (with splines) weighted     
 ### xgboost  weighted     
 
-
-# TODO: Adding cross validation      
-
-ok let's use CV to check which tweedie model has the best results   
-
-
-
-# TODO:  Adding hyperparameter tuning    
-
-# TODO:  Adding workflow sets   
-
-
-update_workflow_model() **exists** https://github.com/tidymodels/workflowsets/issues/64
-
-```{r}
-
-```
 
 
