@@ -638,7 +638,10 @@ ok let's use CV to check which tweedie model has the best results
 # TODO:  Adding workflow sets   
 
 
+update_workflow_model() **exists** https://github.com/tidymodels/workflowsets/issues/64
 
+```{r}
 
+```
 
 
