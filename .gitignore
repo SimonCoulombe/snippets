@@ -4,7 +4,7 @@
 .Rhistory
 .RData
 .Ruserdata
-public
+/public
 content/post/*.fst
 content/post/*.rds
 content/post/data/*
@@ -13,3 +13,6 @@ content/post/data/*
 /blogdown
 .httr-oauth
 *.fst
+.DS_Store
+Thumbs.db
+.hugo_build.lock
