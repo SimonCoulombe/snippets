@@ -13,39 +13,56 @@ keywords:
   - tech
 ---
 
+<script src="/rmarkdown-libs/htmlwidgets/htmlwidgets.js"></script>
+<script src="/rmarkdown-libs/viz/viz.js"></script>
+<link href="/rmarkdown-libs/DiagrammeR-styles/styles.css" rel="stylesheet" />
+<script src="/rmarkdown-libs/grViz-binding/grViz.js"></script>
 
 
 <div id="objective" class="section level1">
 <h1>Objective</h1>
-<p>I built my first tweedie regression model <a href="https://www.simoncoulombe.com/2020/03/tweedie-vs-poisson-gamma/">three years ago</a>. At that time I used the {recipes} and {rsample} packages from {tidymodels}, but I did the actual modelling outside of the {tidymodels} universe.</p>
-<p>Today I want to revisit this data, but this time I want to do everything using the {tidymodels} approach.</p>
-<p>Things I would like to do:</p>
+<p>I want to implement a tweedie regression similar to what one would face in the insurance industry using the {tidymodels} ecosystem.</p>
+<p>Some context: I built my first tweedie regression model <a href="https://www.simoncoulombe.com/2020/03/tweedie-vs-poisson-gamma/">three years ago</a>. That blog post was also the first time I used the <code>recipes</code> and <code>rsample</code> packages and I have been a huge fan since then. However, I delayed trying <code>parsnip</code> and <code>workflows</code> packages until today because I felt that many of the specifics of my models were hard to implement using these packages.</p>
+<p>Here’s a list of “new to me” stuff I do in the code below that work:</p>
 <ul>
-<li>use {rsample} do a “grouped” train/test data split. This is often required when using insurance data because a given policy will have multiple “rows” and I want all rows for a given policy to be either in train or test rather than spread all over the place.<br />
+<li>use <code>rsample</code>functions <code>group_initial_split()</code> and <code>group_vfold_cv()</code> to do a “grouped” train/test data split. This is often required when using insurance data because a given <code>policy_id</code> will have multiple rows and I want all rows for a given policy to be either in train or test rather than spread all over the place,<br />
 </li>
-<li>use {recipes} to replace high-cardinality variables with embedded values.<br />
+<li>use case weights (in my case, <code>exposure</code>),<br />
 </li>
-<li>create <code>poisson</code>, <code>gamma</code> and <code>tweedie</code> regressions.<br />
+<li>use <code>embed::step_lencode_glm()</code> to replace high-cardinality variables with embedded values,<br />
 </li>
-<li>create models using <code>GLM</code>, <code>GAM</code>, <code>xgboost</code> and <code>lightgbm</code>.<br />
+<li>use <code>GLM</code>, <code>GAM</code>, <code>xgboost</code> and <code>lightgbm</code> model specifications and check that the output is the same as fitting the models outside of tidymodels. Spoiler : for GAMs you need to pass a formula with the <code>add_model()</code> or the <code>update_workflow_model()</code> functions,<br />
 </li>
-<li>evaluate multiple model types (glm, boosted trees) and multiple feature engineering “sets” easily using workflow sets.</li>
+<li>create <code>logistic</code> regression and <code>tweedie</code> regressions and check that the output is the same as what I would get by fitting the models outside of tidymodels .<br />
+</li>
+<li>use workflow sets to apply the same pre-processors (recipe or formula) to a bunch of model specifications and pick the best one using cross validation. bonus: tune some hyperparameters at the same time.</li>
+</ul>
+<p>Things I would like to figure out eventually:</p>
+<ul>
+<li>figure out a way to use GAMs with splines when using a recipe pre-processor (how can I craft a formula when I dont know the variable names created by the recipe step_dummy and step_other functions and these variables could change for each resample?,</li>
+<li>how to weight records using <code>exposure</code> when creating the train/test split and the resamples so that all resamples have the same total exposure rather than the same number of records,<br />
+</li>
+<li>figure out a way to use case weights in <code>lightgbm</code>,<br />
+</li>
+<li>create <code>poisson</code> and <code>gamma</code> regressions (should be easy, but I’m out of time).<br />
+</li>
+<li>figure out why my average prediction for the logistic xgboost is so off. maybe it wasnt done learning?</li>
+<li>figure out a way to give a maximum/minimum value to the tune_grid for variables. I don’t want it to test a learning rate of 0.000000000000001.</li>
 </ul>
 <p>Let’s get started!</p>
 </div>
 <div id="the-data" class="section level1">
 <h1>The data</h1>
 <p>Copying from my 2020 post, here is the description of the data:</p>
-</div>
-<div id="data" class="section level1">
-<h1>Data</h1>
 <p>The dataCar data from the <code>insuranceData</code> package. It contains 67 856 one-year vehicle insurance policies taken out in 2004 or 2005. It originally came with the book <a href="http://www.businessandeconomics.mq.edu.au/our_departments/Applied_Finance_and_Actuarial_Studies/research/books/GLMsforInsuranceData">Generalized Linear Models for Insurance Data (2008)</a>.</p>
-<p>The <code>exposure</code> variable represents the “number of year of exposure” and is used as the offset variable. It is bound between 0 and 1.</p>
-<p>Finally, the independent variables are as follow:</p>
+<p>The presence of a claim is indicated by the <code>clm</code> (0 or 1) , which indicates that there is at least one claim. We will rename the variable to <code>has_claim</code>.</p>
+<p>The total dollar value of claims is <code>claimcst0</code>, which we will rename to <code>dollar_loss</code>. We will divide it by the exposure to obtain <code>annual_loss</code>.</p>
+<p>The <code>exposure</code> variable represents the “number of years of exposure” and is used as the case weight variable. It is bound between 0 and 1.</p>
+<p>The independent variables are as follow:</p>
 <ul>
 <li><code>veh_value</code>, the vehicle value in tens of thousand of dollars,<br />
 </li>
-<li><code>veh_body</code>, y vehicle body, coded as BUS CONVT COUPE HBACK HDTOP MCARA MIBUS PANVN RDSTR SEDAN STNWG TRUCK UTE,<br />
+<li><code>veh_body</code>, vehicle body, coded as 13 different values: BUS CONVT COUPE HBACK HDTOP MCARA MIBUS PANVN RDSTR SEDAN STNWG TRUCK UTE,<br />
 </li>
 <li><code>veh_age</code>, 1 (youngest), 2, 3, 4,<br />
 </li>
@@ -55,13 +72,11 @@ keywords:
 </li>
 <li><code>agecat</code> 1 (youngest), 2, 3, 4, 5, 6</li>
 </ul>
-<p>The presence of a claim is indicated by the <code>clm</code> (0 or 1) , which indicates that there is at least one claim. We will rename the variable to <code>has_claim</code>.</p>
-<p>The dollar amount of the claims is <code>claimcst0</code>, which we will rename to <code>dollar_loss</code>. We will divide it by the exposure to obtain <code>annual_loss</code>.</p>
-<p>The <code>annual_loss</code> variable is what we actually want to model. In insurance, it is typically modelled directly using a <code>tweedie</code>regression, or indirectly by multiplying the output of two models, one predicting the frequency of claims (poisson regression) and the other predicting the severity of claims (gamma regression).</p>
+<p>The <code>annual_loss</code> variable is what we want to model. In insurance, it is typically modelled directly using a <code>tweedie</code>regression, or indirectly by multiplying the output of two models, one predicting the frequency of claims (poisson regression) and the other predicting the severity of claims (gamma regression).</p>
 <p>Note: when using the frequency*severity approach, we will use the <code>has_claim</code> variable in the Poisson (frequency) model instead of <code>numclaims</code> (actual number of claims) because we don’t have the breakdown of value of claims when there is more than one. In practice, this means modelling “a lower frequency and a higher severity” than reality, but the overall predicted annual loss will be the same.</p>
-<p>FUN: I am going to create a fake policy_id column, which has a 10% chance of being the same as the row above it. This is to represent that a policy_id can have multiple records. I will want all records for a given policy to be in the same resample.</p>
-<p>FUN#2: I am also going to create a factor <code>has_claim_fct</code> because parsnip want classification models to work on factors, not integers.</p>
-<p>Fun#3: I am also going to create <code>exposure_weight</code>, which is the result of hardhat::importance_weights(exposure). I <em>think</em> this will often allow us to pass weights to the tidymodels use use_case_weights.</p>
+<p>FUN #1: I am going to create a fake policy_id column, which has a 10% chance of being the same as the row above it. This is to represent that a policy_id can have multiple records. I will want all records for a given policy to be in the same resample.</p>
+<p>FUN #2: I am also going to create a factor <code>has_claim_fct</code> because parsnip want classification models to work on factors, not integers.</p>
+<p>FUN #3: I am also going to create <code>exposure_weight</code>, which is the result of hardhat::importance_weights(exposure). I <em>think</em> this will often allow us to pass weights to the tidymodels use use_case_weights.</p>
 <pre class="r"><code>set.seed(42)
 
 data(dataCar)
@@ -91,7 +106,7 @@ for (i in seq(from =2, to =nrow(mydb))){
   }
 }
 
-mydb %&gt;% count(policy_id) %&gt;% count(n) %&gt;% gt(caption=&quot;most policy_id have only 1 record in the dataset, but a few have 2,3 and even 7&quot;)</code></pre>
+mydb %&gt;% count(policy_id) %&gt;% count(n) %&gt;% gt(caption=&quot;most (fake) policy_id have only 1 record in the dataset, but many have more&quot;)</code></pre>
 <div id="zbgwxzhnkk" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
 <style>#zbgwxzhnkk table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
@@ -533,7 +548,7 @@ mydb %&gt;% count(policy_id) %&gt;% count(n) %&gt;% gt(caption=&quot;most policy
 }
 </style>
 <table class="gt_table" data-quarto-disable-processing="false" data-quarto-bootstrap="false">
-  <caption><span id="tab:unnamed-chunk-1">Table 1: </span>most policy_id have only 1 record in the dataset, but a few have 2,3 and even 7</caption>
+  <caption><span id="tab:unnamed-chunk-1">Table 1: </span>most (fake) policy_id have only 1 record in the dataset, but many have more</caption>
   <thead>
     
     <tr class="gt_col_headings">
@@ -564,15 +579,15 @@ mydb %&gt;% count(policy_id) %&gt;% count(n) %&gt;% gt(caption=&quot;most policy
 </div>
 <div id="grouped-and-stratified-traintest-split-and-rsamples" class="section level1">
 <h1>grouped and stratified train/test split and rsamples</h1>
-<p>We are going to use recipes::group_initial_split() to make sure that a given policy_id always ends up in the same resample.
-I am also going to use the <code>strata</code> parameter to ensure that distribution of annual_loss in all resamples in the same:</p>
+<p>We want all the records for a given <code>policy_id</code> to end up in either train or test.<br />
+We also want to try to have roughly the same annual loss in the train and test.</p>
+<p>To do this, we use <code>recipes::group_initial_split()</code>:</p>
 <pre class="r"><code>set.seed(123)
-
 try(my_split &lt;- group_initial_split( mydb, group = policy_id, prop= 3/4, strata = annual_loss))</code></pre>
 <pre><code>## Error in check_grouped_strata({ : 
 ##   `strata` must be constant across all members of each `group`.</code></pre>
-<p>oooh ! our first error.: “<code>strata</code> must be constant across all members of each <code>group</code>.”. I’m going to calculate an average annual_loss over all records for a given policy_id. I would love to be able to weight records by exposure (to have the same total exposure and average annual_loss in all resamples), but I don’t think that’s possible.</p>
-<p>here we go.</p>
+<p>oooh ! our first error.: “<code>strata</code> must be constant across all members of each <code>group</code>.”. This happens because some records for a given policy will have a claim and other won’t. I’m going to calculate an average annual_loss over all records for a given policy_id. I would love to be able to weight records by exposure (to have the same total exposure and average annual_loss in all resamples), but I don’t think that’s possible.</p>
+<p>here we go:</p>
 <pre class="r"><code>mydb &lt;- mydb %&gt;%
   group_by(policy_id) %&gt;%
   mutate(policy_annual_loss = sum( dollar_loss) / sum(exposure)) %&gt;%
@@ -583,7 +598,7 @@ my_split &lt;- group_initial_split( mydb, group = policy_id, prop= 3/4, strata =
 
 my_train &lt;- training(my_split)
 my_test  &lt;- testing(my_split)</code></pre>
-<p>are any policy_id split between train and test? No, and this is great:</p>
+<p>are any policy_id split between train and test? No. (this is what we wanted)</p>
 <pre class="r"><code>both &lt;- bind_rows(
   my_train %&gt;% mutate(type = &quot;train&quot;),
   my_test %&gt;% mutate(type = &quot;test&quot;),
@@ -1052,7 +1067,7 @@ both %&gt;%
   
 </table>
 </div>
-<p>Is the proportion of records 3/4 train and 1/4 test?</p>
+<p>Is the proportion of records 3/4 train and 1/4 test? Yes!</p>
 <pre class="r"><code>both %&gt;% 
   count(type) %&gt;%
   mutate(pct = n/sum(n)) %&gt;% 
@@ -1519,7 +1534,7 @@ both %&gt;%
   
 </table>
 </div>
-<p>however, we would actually would have like thge exposure to have been spread 75%/25%. This is not the case since we couldnt weight records in the group_initial_split() function:</p>
+<p>however, exposure isnt spread 75%/25%. This is normal because we couldnt weight records in the group_initial_split() function, but this would have been nice:</p>
 <pre class="r"><code>both %&gt;% 
   group_by(type) %&gt;% 
   summarise(exposure = sum(exposure)) %&gt;%
@@ -1987,7 +2002,7 @@ both %&gt;%
   
 </table>
 </div>
-<p>We tried to stratify our groups using the policy_annual_loss variable. However, some policies have more exposure than other. This means that the average annual loss for the train/test won’t be identical. How different are they? Quite a bit, actually:</p>
+<p>We tried to stratify our groups using the policy_annual_loss variable. However, some policies have more exposure than other. This means that the average annual loss for the train/test won’t be identical. How different are they? It appears we got lucky and outliers didnt mess too much with our averages:</p>
 <pre class="r"><code>both %&gt;% 
   group_by(type) %&gt;% 
   summarise(overall_annual_loss = sum(dollar_loss)/ sum(exposure)) %&gt;%
@@ -2452,7 +2467,7 @@ both %&gt;%
   
 </table>
 </div>
-<p>The overall frequency should also be different between train and test. It shouldnt be as different as the overall annual loss because the number of claims (0 or 1) is less volatile than the dollar amount of the claim.</p>
+<p>The overall frequency should also be different between train and test. It shouldnt be as volatile because frequency depends only on frequency (duh), while annual loss depends on frequency and severity.</p>
 <pre class="r"><code>both %&gt;% 
   group_by(type) %&gt;% 
   summarise(overall_frequency = sum(has_claim)/ sum(exposure)) %&gt;%
@@ -2917,41 +2932,42 @@ both %&gt;%
   
 </table>
 </div>
-<p>to create folds ( I think they are called resamples in tidymodels), we use the group_vfold_cv, again stratified over policy_annual_loss</p>
+<p>to create folds , we use the <code>group_vfold_cv</code>, again stratified over policy_annual_loss</p>
 <pre class="r"><code>set.seed(234)
 train_resamples &lt;- group_vfold_cv(my_train,
                                   group=&quot;policy_id&quot;,
                                   strata = policy_annual_loss,
                                   v= 5)</code></pre>
 <p>I won’t check the overall annual loss and overall frequency for each resamples, but the volatility here would be interesting to look at.</p>
-<p>edit: this blog post by Max Kuhhn indicates they are looking into weighting stuff.. <a href="https://www.tidyverse.org/blog/2022/05/case-weights/" class="uri">https://www.tidyverse.org/blog/2022/05/case-weights/</a></p>
 </div>
 <div id="set-up-parallel-processing" class="section level1">
-<h1>set up parallel processing</h1>
+<h1>Set up parallel processing</h1>
 <p>we are going to run a lot of models when fitting models on multiples resamples and multiple hyperparameter sets. tune_grid() can use multiple cores if we tell it to:</p>
 <pre class="r"><code>doMC::registerDoMC(cores = 6)</code></pre>
 </div>
-<div id="modelling-hello-world" class="section level1">
-<h1>Modelling hello world</h1>
-<p>I’m just going to try to make the models run.. we’ll figure out about cross validation and hyper parameter later.</p>
-<div id="logistic-regression" class="section level2">
-<h2>Logistic regression</h2>
-<p>Let’s just pretend everyone has the same exposure and create a simple logistic regression on whether or not a record has a claim. we’ll look at more complicated stuff (poisson, gamma, tweedie) later.</p>
+<div id="logistic-regression-with-formula-pre-processor" class="section level1">
+<h1>Logistic Regression with formula pre-processor</h1>
+<p>We need to learn to walk before we learn to run. So I’m going to try building a logistic regression before diving into the “complicated” models like tweedie, poisson and gamma.</p>
+<p>Let’s just pretend everyone has the same exposure and create a simple logistic regression on whether or not a record has a claim.</p>
+<p>Here’s the formula for my logistic regression:</p>
+<pre class="r"><code>my_logistic_reg_formula &lt;- as.formula(&quot;has_claim_fct ~ veh_value + veh_body + veh_age +  gender +  area +  agecat&quot;)</code></pre>
+<div id="comparing-tidymodels-model-output-to-fitting-the-models-outside-tidymodels" class="section level2">
+<h2>comparing tidymodels model output to fitting the models outside tidymodels</h2>
+<p>before diving into the cool stuff like evaluating the model on multiple resamples and tuning parameters, I’ll just make sure I can reproduce the training inside and outside <code>tidymodels</code></p>
 <div id="glm-unweighted" class="section level3">
 <h3>GLM unweighted</h3>
-<p>The code below to generate the specification for a GLM logistic regression was generated automatically by running <code>parsnip::parsnip_addin()</code>, selecting <code>classification</code>, <code>logistic_reg (glm)</code> and unchecking <code>tag parameters for tuning (if any)</code> then clicking the gren <code>write specification code</code> button.</p>
-<pre class="r"><code>logistic_reg_glm_spec &lt;- 
+<p>The code below to generate the specification for a GLM logistic regression was initially generated by running <code>parsnip::parsnip_addin()</code>, selecting <code>classification</code>, <code>logistic_reg (glm)</code> and unchecking <code>tag parameters for tuning (if any)</code> then clicking the gren <code>write specification code</code> button.</p>
+<p><strong>Tidymodels output</strong></p>
+<pre class="r"><code>logistic_glm_spec &lt;- 
   parsnip::logistic_reg() %&gt;%
-  parsnip::set_engine(&quot;glm&quot;)</code></pre>
-<p>Awesome, let fit these model specs to a formula we are going to create and pass to</p>
-<pre class="r"><code>my_has_claim_formula &lt;- as.formula(&quot;has_claim_fct ~ veh_value + veh_body + veh_age +  gender +  area +  agecat&quot;)
+  parsnip::set_engine(&quot;glm&quot;)
 
-logistic_reg_glm_spec_fit &lt;-logistic_reg_glm_spec %&gt;%
+logistic_glm_fit &lt;-logistic_glm_spec %&gt;%
   parsnip::fit(
-    formula = my_has_claim_formula,
+    formula = my_logistic_reg_formula,
     data = my_train)
 
-logistic_reg_glm_spec_fit %&gt;%
+logistic_glm_fit %&gt;%
   extract_fit_engine() %&gt;% 
   summary()</code></pre>
 <pre><code>## 
@@ -2993,39 +3009,41 @@ logistic_reg_glm_spec_fit %&gt;%
 ## AIC: 25264
 ## 
 ## Number of Fisher Scoring iterations: 5</code></pre>
-<p>is this the same output as a normal glm?<br />
+<p><strong>Non-tidymodels output</strong>
+is this the same output as directly running the normal glm?<br />
 yes!</p>
-<pre class="r"><code>glm1_direct_fit &lt;- glm(my_has_claim_formula,    family = &quot;binomial&quot;, data = my_train) 
+<pre class="r"><code>logistic_glm_direct_fit &lt;- glm(my_logistic_reg_formula,    family = &quot;binomial&quot;, data = my_train) 
 
-tidy(logistic_reg_glm_spec_fit) %&gt;%  select(term, estimate_logistic_reg_glm_spec_fit = estimate) %&gt;%
-  left_join(tidy(glm1_direct_fit) %&gt;% select(term, estimate_glm1_direct_fit = estimate)) </code></pre>
+tidy(logistic_glm_fit) %&gt;%  select(term, estimate_logistic_glm_fit = estimate) %&gt;%
+  left_join(tidy(logistic_glm_direct_fit) %&gt;% select(term, estimate_logistic_glm_direct_fit = estimate)) </code></pre>
 <pre><code>## # A tibble: 22 × 3
-##    term          estimate_logistic_reg_glm_spec_fit estimate_glm1_direct_fit
-##    &lt;chr&gt;                                      &lt;dbl&gt;                    &lt;dbl&gt;
-##  1 (Intercept)                              -1.20                    -1.20  
-##  2 veh_value                                 0.0543                   0.0543
-##  3 veh_bodyCONVT                            -2.25                    -2.25  
-##  4 veh_bodyCOUPE                            -0.963                   -0.963 
-##  5 veh_bodyHBACK                            -1.28                    -1.28  
-##  6 veh_bodyHDTOP                            -1.12                    -1.12  
-##  7 veh_bodyMCARA                            -0.532                   -0.532 
-##  8 veh_bodyMIBUS                            -1.44                    -1.44  
-##  9 veh_bodyPANVN                            -1.05                    -1.05  
-## 10 veh_bodyRDSTR                            -1.25                    -1.25  
+##    term          estimate_logistic_glm_fit estimate_logistic_glm_direct_fit
+##    &lt;chr&gt;                             &lt;dbl&gt;                            &lt;dbl&gt;
+##  1 (Intercept)                     -1.20                            -1.20  
+##  2 veh_value                        0.0543                           0.0543
+##  3 veh_bodyCONVT                   -2.25                            -2.25  
+##  4 veh_bodyCOUPE                   -0.963                           -0.963 
+##  5 veh_bodyHBACK                   -1.28                            -1.28  
+##  6 veh_bodyHDTOP                   -1.12                            -1.12  
+##  7 veh_bodyMCARA                   -0.532                           -0.532 
+##  8 veh_bodyMIBUS                   -1.44                            -1.44  
+##  9 veh_bodyPANVN                   -1.05                            -1.05  
+## 10 veh_bodyRDSTR                   -1.25                            -1.25  
 ## # ℹ 12 more rows</code></pre>
 </div>
 <div id="glm-weighted" class="section level3">
-<h3>GLM weighted</h3>
-<p>what if we want weights? apparently we can use add_case_weights(), but this only work for workflows:</p>
-<pre class="r"><code>my_wf1 &lt;-   workflow() %&gt;% 
+<h3>GLM (weighted)</h3>
+<p>what if we want weights? apparently we can use <code>add_case_weights()</code> and refer to the <code>exposure_weight</code> column of type <code>importance_weight</code> we created earlier:</p>
+<p><strong>Tidymodels output</strong></p>
+<pre class="r"><code>weighted_logistic_glm_wf &lt;-   workflow() %&gt;% 
   add_case_weights(exposure_weight) %&gt;% 
-  add_formula(my_has_claim_formula) %&gt;%
-  add_model(logistic_reg_glm_spec)
+  add_formula(my_logistic_reg_formula) %&gt;%
+  add_model(logistic_glm_spec)
 
-my_wf1_fit &lt;-  my_wf1%&gt;% 
+weighted_logistic_glm_wf_fit &lt;-  weighted_logistic_glm_wf%&gt;% 
   fit(data = my_train)
 
-my_wf1_fit</code></pre>
+weighted_logistic_glm_wf_fit</code></pre>
 <pre><code>## ══ Workflow [trained] ══════════════════════════════════════════════════════════
 ## Preprocessor: Formula
 ## Model: logistic_reg()
@@ -3057,59 +3075,59 @@ my_wf1_fit</code></pre>
 ## Degrees of Freedom: 50892 Total (i.e. Null);  50871 Residual
 ## Null Deviance:	    14300 
 ## Residual Deviance: 14220 	AIC: 14940</code></pre>
-<p>is it the same a directly modelling outside tidymodels?</p>
-<pre class="r"><code>glm1_weight_direct_fit &lt;- glm(my_has_claim_formula,    family = &quot;binomial&quot;, data = my_train, weights = exposure)</code></pre>
-<p>let’s compare estimates for tidymodels/direct for unweighted logistic regression</p>
-<pre class="r"><code>tidy(my_wf1_fit) %&gt;% select(term, estimate_my_wf1_fit = estimate) %&gt;%
-  left_join(tidy(glm1_weight_direct_fit) %&gt;% select(term, estimate_glm1_weight_direct_fit = estimate)) </code></pre>
+<p><strong>Non-tidymodels output</strong></p>
+<p>is it the same a directly modelling outside tidymodels? Yes!</p>
+<pre class="r"><code>weighted_logistic_glm_direct_fit &lt;- glm(my_logistic_reg_formula,    family = &quot;binomial&quot;, data = my_train, weights = exposure)
+
+
+tidy(weighted_logistic_glm_wf_fit) %&gt;% select(term, estimate_weighted_logistic_glm_wf_fit = estimate) %&gt;%
+  left_join(tidy(weighted_logistic_glm_direct_fit) %&gt;% select(term, estimate_weighted_logistic_glm_direct_fit = estimate)) </code></pre>
 <pre><code>## # A tibble: 22 × 3
-##    term          estimate_my_wf1_fit estimate_glm1_weight_direct_fit
-##    &lt;chr&gt;                       &lt;dbl&gt;                           &lt;dbl&gt;
-##  1 (Intercept)               -0.634                          -0.634 
-##  2 veh_value                  0.0461                          0.0461
-##  3 veh_bodyCONVT             -1.99                           -1.99  
-##  4 veh_bodyCOUPE             -1.03                           -1.03  
-##  5 veh_bodyHBACK             -1.41                           -1.41  
-##  6 veh_bodyHDTOP             -1.20                           -1.20  
-##  7 veh_bodyMCARA             -0.625                          -0.625 
-##  8 veh_bodyMIBUS             -1.42                           -1.42  
-##  9 veh_bodyPANVN             -1.13                           -1.13  
-## 10 veh_bodyRDSTR             -0.934                          -0.934 
-## # ℹ 12 more rows</code></pre>
-<p>yes!!</p>
+##    term          estimate_weighted_logistic_glm_wf_fit estimate_weighted_logis…¹
+##    &lt;chr&gt;                                         &lt;dbl&gt;                     &lt;dbl&gt;
+##  1 (Intercept)                                 -0.634                    -0.634 
+##  2 veh_value                                    0.0461                    0.0461
+##  3 veh_bodyCONVT                               -1.99                     -1.99  
+##  4 veh_bodyCOUPE                               -1.03                     -1.03  
+##  5 veh_bodyHBACK                               -1.41                     -1.41  
+##  6 veh_bodyHDTOP                               -1.20                     -1.20  
+##  7 veh_bodyMCARA                               -0.625                    -0.625 
+##  8 veh_bodyMIBUS                               -1.42                     -1.42  
+##  9 veh_bodyPANVN                               -1.13                     -1.13  
+## 10 veh_bodyRDSTR                               -0.934                    -0.934 
+## # ℹ 12 more rows
+## # ℹ abbreviated name: ¹​estimate_weighted_logistic_glm_direct_fit</code></pre>
 </div>
 <div id="gam-with-splines-weighted" class="section level3">
-<h3>GAM (with splines) weighted</h3>
-<p>here’s how I define a logistic regression in mgcv::gam().</p>
-<p>let’s go stratight to workflows since one day we’ll want to use workflow sets anyway…</p>
+<h3>GAM (with splines) (weighted)</h3>
 <ul>
-<li>Note 1: the REML method is passed to set_engine because this option is specific to the mgcv package.<br />
+<li>Note 1: the REML method is passed to set_engine() rather than gen_additive_mod() because this option is specific to the mgcv package.<br />
 </li>
-<li>Note 2: for some reason, GAMs need us to specify the formula twice, once in add_model() and another time in add_formula. Interesting: I need to add the spline in the formula in add_model(my_has_claim_spline_formula), but not in add_formula(my_has_claim_formula).
+<li>Note 2: for some reason, GAMs need us to specify the formula twice, once in add_model() and another time in add_formula. Interesting: I need to add the spline in the formula in add_model(my_logistic_reg_formula_with_splines), but not in add_formula(my_logistic_reg_formula).
 more here : <a href="https://community.rstudio.com/t/how-to-define-smoothed-models-for-a-gam-using-tidymodels-and-recipe/144772/2" class="uri">https://community.rstudio.com/t/how-to-define-smoothed-models-for-a-gam-using-tidymodels-and-recipe/144772/2</a></li>
-<li>Note 3: I need to add <code>parametric=TRUE</code> to broom::tidy() to get the mgcv parameters (<a href="https://broom.tidymodels.org/reference/tidy.gam.html" class="uri">https://broom.tidymodels.org/reference/tidy.gam.html</a>). parametric=FALSE will return the fitted spline.</li>
+<li>Note 3: I need to add <code>parametric=TRUE</code> to broom::tidy() to get the mgcv parameters (<a href="https://broom.tidymodels.org/reference/tidy.gam.html" class="uri">https://broom.tidymodels.org/reference/tidy.gam.html</a>). Te default (parametric=FALSE) returns the fitted spline.</li>
 </ul>
 <pre class="r"><code># parsnip_addin()
 
-gen_additive_mod_mgcv_spec &lt;-
+logistic_gam_spec &lt;-
   gen_additive_mod() %&gt;%
   set_engine(&#39;mgcv&#39;, method= &quot;REML&quot;) %&gt;%
   set_mode(&#39;classification&#39;)
 
-my_has_claim_spline_formula &lt;- as.formula(&#39;has_claim_fct ~ s(veh_value, bs= &quot;tp&quot;) + veh_body + veh_age +  gender +  area +  agecat&#39;)
+my_logistic_reg_formula_with_splines &lt;- as.formula(&#39;has_claim_fct ~ s(veh_value, bs= &quot;tp&quot;) + veh_body + veh_age +  gender +  area +  agecat&#39;)
 
 
-gam_spline_wf &lt;- workflow() %&gt;%
-  add_model(gen_additive_mod_mgcv_spec, formula = my_has_claim_spline_formula) %&gt;%  # need to add formula twice, and  in add_formula
-  add_formula(my_has_claim_formula) %&gt;%
+logistic_gam_wf &lt;- workflow() %&gt;%
+  add_model(logistic_gam_spec, formula = my_logistic_reg_formula_with_splines) %&gt;%  # need to add formula twice, and  in add_formula
+  add_formula(my_logistic_reg_formula) %&gt;%
   add_case_weights(exposure_weight)
 
 
-gam_spline_wf &lt;-  gam_spline_wf%&gt;% 
+logistic_gam_wf_fit &lt;-  logistic_gam_wf%&gt;% 
   fit(data = my_train )
 
 
-gam_spline_wf %&gt;% tidy(parametric = TRUE)</code></pre>
+logistic_gam_wf_fit %&gt;% tidy(parametric = TRUE)</code></pre>
 <pre><code>## # A tibble: 21 × 5
 ##    term          estimate std.error statistic p.value
 ##    &lt;chr&gt;            &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;   &lt;dbl&gt;
@@ -3124,9 +3142,9 @@ gam_spline_wf %&gt;% tidy(parametric = TRUE)</code></pre>
 ##  9 veh_bodyRDSTR   -0.872     1.02     -0.853 0.394  
 ## 10 veh_bodySEDAN   -1.30      0.530    -2.46  0.0138 
 ## # ℹ 11 more rows</code></pre>
-<p>same result if I do it directly using mgcv::gam:</p>
+<p>same result if I do it directly using mgcv::gam? Yes!</p>
 <pre class="r"><code>mgcv::gam(
-  formula = my_has_claim_spline_formula, 
+  formula = my_logistic_reg_formula_with_splines, 
   data = my_train, 
   weights = exposure,
   family = stats::binomial(link = &quot;logit&quot;),
@@ -3148,11 +3166,12 @@ gam_spline_wf %&gt;% tidy(parametric = TRUE)</code></pre>
 ## # ℹ 11 more rows</code></pre>
 </div>
 <div id="xgboost-weighted" class="section level3">
-<h3>XGBoost weighted</h3>
-<pre class="r"><code>boost_tree_xgboost_spec &lt;-
+<h3>XGBoost (weighted)</h3>
+<p>Let’s start with specifying the hyperparameters. Tuning will have to wait for now.</p>
+<pre class="r"><code>logistic_xgb_spec &lt;-
   boost_tree(
     tree_depth = 3,
-    trees= 100,
+    trees= 200,
     learn_rate = 0.1,
     min_n = 50,
     loss_reduction = 0,
@@ -3162,64 +3181,141 @@ gam_spline_wf %&gt;% tidy(parametric = TRUE)</code></pre>
   set_engine(&#39;xgboost&#39;, nthread = 1) %&gt;%
   set_mode(&#39;classification&#39;)
 
-xgb_wf &lt;- workflow() %&gt;%
-  add_model(boost_tree_xgboost_spec) %&gt;%
-  add_formula(my_has_claim_formula) %&gt;%
+logistic_xgb_wf &lt;- workflow() %&gt;%
+  add_model(logistic_xgb_spec) %&gt;%
+  add_formula(my_logistic_reg_formula) %&gt;%
   add_case_weights(exposure_weight)
 
 set.seed(345)
-xgb_wf &lt;-  xgb_wf%&gt;% 
+logistic_xgb_wf_fit &lt;-  logistic_xgb_wf%&gt;% 
   fit(data = my_train )
 
 
-xgb_wf %&gt;% extract_fit_engine() %&gt;% vip::vip()</code></pre>
-<p><img src="/post/2023-08-06-tidymodels-and-insurance-loss-cost-models/index.en-us_files/figure-html/unnamed-chunk-19-1.png" width="672" />
-is the variable importance similar to what I get directly?</p>
-<p>naaah.. ah well.
-xgboost is hard to reproduce…</p>
+logistic_xgb_wf_fit %&gt;% extract_fit_engine() %&gt;% vip::vip(num_features= 30L)</code></pre>
+<p><img src="/post/2023-08-06-tidymodels-and-insurance-loss-cost-models/index.en-us_files/figure-html/unnamed-chunk-18-1.png" width="672" /></p>
+<p>Can I train the exact same thing using xgboost?</p>
 <pre class="r"><code>my_recipe &lt;- recipe(my_train ) %&gt;%
-  update_role(all_of(labels(terms(my_has_claim_formula))), new_role = &quot;predictor&quot;) %&gt;%
+  update_role(all_of(labels(terms(my_logistic_reg_formula))), new_role = &quot;predictor&quot;) %&gt;%
   update_role(has_claim, new_role= &quot;outcome&quot;) %&gt;% 
   update_role(exposure, new_role = &quot;weight&quot;) %&gt;%
-  step_dummy(all_nominal_predictors()) %&gt;%
+  step_dummy(all_nominal_predictors(), one_hot = TRUE) %&gt;% ## APPARENTLY tidymodels use one_hot = TRUE because their model has 24 features. when I dont set one_hot  I only have 21 features.  
   step_select(has_role(c(&quot;predictor&quot;, &quot;outcome&quot;, &quot;weight&quot;)))
 
 prepped_recipe &lt;- prep(my_recipe) 
 baked_train &lt;- bake(prepped_recipe, my_train)
+baked_test &lt;- bake(prepped_recipe, my_test)
 
-my_params &lt;- list(min_child_weight = 50,
-                  max_depth = 3,
-                  eta = 0.1, 
-                  gamma = 0, 
-                  subsample = 1.0, 
-                  nthread = 1)
+my_params &lt;- list(
+  eta = 0.1, 
+  max_depth = 3,
+  gamma = 0, 
+  colsample_bytree = 1,
+  colsample_bynode = 1,
+  min_child_weight = 50,
+  subsample = 1,
+  nthread = 1)
 xgtrain &lt;- xgboost::xgb.DMatrix(
   data = as.matrix(baked_train %&gt;% select(-has_claim, -exposure)),
   label = baked_train$has_claim,
   weight = baked_train$exposure
 )
 
+xgtest &lt;- xgboost::xgb.DMatrix(
+  data = as.matrix(baked_test %&gt;% select(-has_claim, -exposure)),
+  label = baked_test$has_claim,
+  weight = baked_test$exposure
+)
+
 set.seed(345)
 direct_xgb_fit &lt;- xgboost::xgb.train(
   data = xgtrain,
   params = my_params,
-  nrounds = 100
+  nrounds = 200,
+   objective = &quot;binary:logistic&quot;
 )
-vip::vip(direct_xgb_fit)</code></pre>
+vip::vip(direct_xgb_fit, num_features = 30L)</code></pre>
+<p><img src="/post/2023-08-06-tidymodels-and-insurance-loss-cost-models/index.en-us_files/figure-html/unnamed-chunk-19-1.png" width="672" />
+Same predictions for the first.. 6 digits?</p>
+<pre class="r"><code>pred_tidy &lt;- predict(logistic_xgb_wf_fit, new_data = my_test, type = &quot;prob&quot;)   %&gt;% select(.pred_1)
+pred_direct &lt;- predict(direct_xgb_fit, newdata = xgtest)
+z &lt;- pred_tidy %&gt;% rename(pred_tidy = .pred_1) %&gt;%  add_column(pred_direct)
+z %&gt;% ggplot(aes(x= pred_tidy, y = pred_direct)) +
+  geom_point(alpha = 0.05) +
+  geom_smooth() +
+  coord_equal()</code></pre>
 <p><img src="/post/2023-08-06-tidymodels-and-insurance-loss-cost-models/index.en-us_files/figure-html/unnamed-chunk-20-1.png" width="672" /></p>
+<p>Identical first tree:<br />
+tidymodels xgboost model tree #1:</p>
+<pre class="r"><code>xgb.plot.tree(model = logistic_xgb_wf_fit %&gt;% extract_fit_engine(), trees = 1)</code></pre>
+<div class="grViz html-widget html-fill-item-overflow-hidden html-fill-item" id="htmlwidget-1" style="width:672px;height:480px;"></div>
+<script type="application/json" data-for="htmlwidget-1">{"x":{"diagram":"digraph {\n\ngraph [layout = \"dot\",\n       rankdir = \"LR\"]\n\nnode [color = \"DimGray\",\n      style = \"filled\",\n      fontname = \"Helvetica\"]\n\nedge [color = \"DimGray\",\n     arrowsize = \"1.5\",\n     arrowhead = \"vee\",\n     fontname = \"Helvetica\"]\n\n  \"1\" [label = \"Tree 1\nveh_value\nCover: 5919.604\nGain: 7.85546875\", shape = \"rectangle\", fontcolor = \"black\", fillcolor = \"Beige\"] \n  \"2\" [label = \"agecat\nCover: 2104.6853\nGain: 0.131835938\", shape = \"rectangle\", fontcolor = \"black\", fillcolor = \"Beige\"] \n  \"3\" [label = \"agecat\nCover: 3814.9187\nGain: 2.02490234\", shape = \"rectangle\", fontcolor = \"black\", fillcolor = \"Beige\"] \n  \"4\" [label = \"Leaf\nCover: 1511.03198\nValue: 0.152327865\", shape = \"oval\", fontcolor = \"black\", fillcolor = \"Khaki\"] \n  \"5\" [label = \"Leaf\nCover: 593.653259\nValue: 0.160011396\", shape = \"oval\", fontcolor = \"black\", fillcolor = \"Khaki\"] \n  \"6\" [label = \"Leaf\nCover: 1062.20764\nValue: 0.140604839\", shape = \"oval\", fontcolor = \"black\", fillcolor = \"Khaki\"] \n  \"7\" [label = \"areaF\nCover: 2752.71094\nGain: 0.435058594\", shape = \"rectangle\", fontcolor = \"black\", fillcolor = \"Beige\"] \n  \"8\" [label = \"Leaf\nCover: 2604.31567\nValue: 0.148649737\", shape = \"oval\", fontcolor = \"black\", fillcolor = \"Khaki\"] \n  \"9\" [label = \"Leaf\nCover: 148.395248\nValue: 0.135023504\", shape = \"oval\", fontcolor = \"black\", fillcolor = \"Khaki\"] \n\"1\"->\"2\" [label = \"< 1.255\", style = \"bold\"] \n\"2\"->\"4\" [label = \"< 4.5\", style = \"bold\"] \n\"3\"->\"6\" [label = \"< 2.5\", style = \"bold\"] \n\"7\"->\"8\" [label = \"< 0.5\", style = \"bold\"] \n\"1\"->\"3\" [style = \"bold\", style = \"solid\"] \n\"2\"->\"5\" [style = \"solid\", style = \"solid\"] \n\"3\"->\"7\" [style = \"solid\", style = \"solid\"] \n\"7\"->\"9\" [style = \"solid\", style = \"solid\"] \n}","config":{"engine":"dot","options":null}},"evals":[],"jsHooks":[]}</script>
+<p>direct xgboost model tree #1:</p>
+<pre class="r"><code>xgb.plot.tree(model = direct_xgb_fit, trees = 1)</code></pre>
+<div class="grViz html-widget html-fill-item-overflow-hidden html-fill-item" id="htmlwidget-2" style="width:672px;height:480px;"></div>
+<script type="application/json" data-for="htmlwidget-2">{"x":{"diagram":"digraph {\n\ngraph [layout = \"dot\",\n       rankdir = \"LR\"]\n\nnode [color = \"DimGray\",\n      style = \"filled\",\n      fontname = \"Helvetica\"]\n\nedge [color = \"DimGray\",\n     arrowsize = \"1.5\",\n     arrowhead = \"vee\",\n     fontname = \"Helvetica\"]\n\n  \"1\" [label = \"Tree 1\nveh_value\nCover: 5919.604\nGain: 7.85644531\", shape = \"rectangle\", fontcolor = \"black\", fillcolor = \"Beige\"] \n  \"2\" [label = \"agecat\nCover: 2104.68506\nGain: 0.131347656\", shape = \"rectangle\", fontcolor = \"black\", fillcolor = \"Beige\"] \n  \"3\" [label = \"agecat\nCover: 3814.9187\nGain: 2.02490234\", shape = \"rectangle\", fontcolor = \"black\", fillcolor = \"Beige\"] \n  \"4\" [label = \"Leaf\nCover: 1511.03198\nValue: -0.152327865\", shape = \"oval\", fontcolor = \"black\", fillcolor = \"Khaki\"] \n  \"5\" [label = \"Leaf\nCover: 593.653198\nValue: -0.160011396\", shape = \"oval\", fontcolor = \"black\", fillcolor = \"Khaki\"] \n  \"6\" [label = \"Leaf\nCover: 1062.20764\nValue: -0.140604839\", shape = \"oval\", fontcolor = \"black\", fillcolor = \"Khaki\"] \n  \"7\" [label = \"area_F\nCover: 2752.71094\nGain: 0.434570312\", shape = \"rectangle\", fontcolor = \"black\", fillcolor = \"Beige\"] \n  \"8\" [label = \"Leaf\nCover: 2604.31567\nValue: -0.148649722\", shape = \"oval\", fontcolor = \"black\", fillcolor = \"Khaki\"] \n  \"9\" [label = \"Leaf\nCover: 148.395248\nValue: -0.135023504\", shape = \"oval\", fontcolor = \"black\", fillcolor = \"Khaki\"] \n\"1\"->\"2\" [label = \"< 1.255\", style = \"bold\"] \n\"2\"->\"4\" [label = \"< 4.5\", style = \"bold\"] \n\"3\"->\"6\" [label = \"< 2.5\", style = \"bold\"] \n\"7\"->\"8\" [label = \"< 0.5\", style = \"bold\"] \n\"1\"->\"3\" [style = \"bold\", style = \"solid\"] \n\"2\"->\"5\" [style = \"solid\", style = \"solid\"] \n\"3\"->\"7\" [style = \"solid\", style = \"solid\"] \n\"7\"->\"9\" [style = \"solid\", style = \"solid\"] \n}","config":{"engine":"dot","options":null}},"evals":[],"jsHooks":[]}</script>
+<p>same parameters:</p>
+<p>tidymodels parameters:</p>
+<pre class="r"><code>logistic_xgb_wf_fit %&gt;% extract_fit_engine()</code></pre>
+<pre><code>## ##### xgb.Booster
+## raw: 202.8 Kb 
+## call:
+##   xgboost::xgb.train(params = list(eta = 0.1, max_depth = 3, gamma = 0, 
+##     colsample_bytree = 1, colsample_bynode = 1, min_child_weight = 50, 
+##     subsample = 1), data = x$data, nrounds = 200, watchlist = x$watchlist, 
+##     verbose = 0, early_stopping_rounds = 50, nthread = 1, objective = &quot;binary:logistic&quot;)
+## params (as set within xgb.train):
+##   eta = &quot;0.1&quot;, max_depth = &quot;3&quot;, gamma = &quot;0&quot;, colsample_bytree = &quot;1&quot;, colsample_bynode = &quot;1&quot;, min_child_weight = &quot;50&quot;, subsample = &quot;1&quot;, nthread = &quot;1&quot;, objective = &quot;binary:logistic&quot;, validate_parameters = &quot;TRUE&quot;
+## xgb.attributes:
+##   best_iteration, best_msg, best_ntreelimit, best_score, niter
+## callbacks:
+##   cb.evaluation.log()
+##   cb.early.stop(stopping_rounds = early_stopping_rounds, maximize = maximize, 
+##     verbose = verbose)
+## # of features: 24 
+## niter: 200
+## best_iteration : 200 
+## best_ntreelimit : 200 
+## best_score : 0.2954026 
+## best_msg : [200]	training-logloss:0.295403 
+## nfeatures : 24 
+## evaluation_log:
+##     iter training_logloss
+##        1        0.6288662
+##        2        0.5763974
+## ---                      
+##      199        0.2954106
+##      200        0.2954026</code></pre>
+<p>direct fit parameters:</p>
+<pre class="r"><code>direct_xgb_fit</code></pre>
+<pre><code>## ##### xgb.Booster
+## raw: 202.6 Kb 
+## call:
+##   xgboost::xgb.train(params = my_params, data = xgtrain, nrounds = 200, 
+##     objective = &quot;binary:logistic&quot;)
+## params (as set within xgb.train):
+##   eta = &quot;0.1&quot;, max_depth = &quot;3&quot;, gamma = &quot;0&quot;, colsample_bytree = &quot;1&quot;, colsample_bynode = &quot;1&quot;, min_child_weight = &quot;50&quot;, subsample = &quot;1&quot;, nthread = &quot;1&quot;, objective = &quot;binary:logistic&quot;, validate_parameters = &quot;TRUE&quot;
+## xgb.attributes:
+##   niter
+## callbacks:
+##   cb.print.evaluation(period = print_every_n)
+## # of features: 24 
+## niter: 200
+## nfeatures : 24</code></pre>
+<p>looks likes I managed to get the same thing</p>
 </div>
 <div id="lightgbm-unweighted" class="section level3">
 <h3>lightgbm unweighted</h3>
+<p>Here’s how to create a lightgbm model in tidymodels. TODO :try to reproduce it by fitting it directly (outside tidymodels)</p>
 <pre class="r"><code>logistic_lightgbm_spec &lt;-
   boost_tree(
-    trees= 100
+    trees= 200
   ) %&gt;%
   set_engine(&#39;lightgbm&#39;) %&gt;%  # num_leaves = tune()
   set_mode(&#39;classification&#39;)
 
 logistic_lightgbm_wf &lt;- workflow() %&gt;%
   add_model(logistic_lightgbm_spec) %&gt;%
-  add_formula(my_has_claim_formula) 
+  add_formula(my_logistic_reg_formula) 
 
 
 set.seed(345)
@@ -3228,15 +3324,16 @@ logistic_lightgbm_wf_fit &lt;-  logistic_lightgbm_wf%&gt;%
 
 
 logistic_lightgbm_wf_fit %&gt;% extract_fit_engine() %&gt;% vip::vip()</code></pre>
-<p><img src="/post/2023-08-06-tidymodels-and-insurance-loss-cost-models/index.en-us_files/figure-html/unnamed-chunk-21-1.png" width="672" /></p>
+<p><img src="/post/2023-08-06-tidymodels-and-insurance-loss-cost-models/index.en-us_files/figure-html/unnamed-chunk-25-1.png" width="672" /></p>
 </div>
 <div id="lightgbm-weighted-not-implemented-in-tidymodels" class="section level3">
 <h3>lightgbm weighted (not implemented in tidymodels)</h3>
-<p>TL;DR: <code>Case weights are not enabled by the underlying model implementation.</code></p>
+<p>appears not possible at the moment:<br />
+TL;DR: <code>Case weights are not enabled by the underlying model implementation.</code></p>
 <pre class="r"><code>try(
   workflow() %&gt;%
     add_model(logistic_lightgbm_spec) %&gt;%
-    add_formula(my_has_claim_formula)  %&gt;% 
+    add_formula(my_logistic_reg_formula)  %&gt;% 
     add_case_weights(exposure_weight) %&gt;% 
     fit(data = my_train ) 
 )</code></pre>
@@ -3244,28 +3341,351 @@ logistic_lightgbm_wf_fit %&gt;% extract_fit_engine() %&gt;% vip::vip()</code></p
 ##   Case weights are not enabled by the underlying model implementation.</code></pre>
 </div>
 </div>
-<div id="tweedie-regression" class="section level2">
-<h2>Tweedie regression</h2>
+<div id="use-workflow_set-to-fit-models-on-all-resamples" class="section level2">
+<h2>Use workflow_set to fit models on all resamples</h2>
+<p>Alright, that was fun! Now that I feel I know how to train a model in tidymodels, let’s try to define all the models at once using a preprocessor, a formula in this case, and a list of model specifications. Then we apply fit_resamples() to fit all workflows to all resamples.</p>
+<p>We could have used a recipe as the preprocessor. We’ll try that in another part later. fit_resamples() is used when we don’t do any tuning. Tuning will be in the next part.</p>
+<p>note 1 : update_workflow_model() <strong>exists</strong> <a href="https://github.com/tidymodels/workflowsets/issues/64" class="uri">https://github.com/tidymodels/workflowsets/issues/64</a>
+is used to add the formula to the GAM model inside a workflow_set.</p>
+<p>note2 : we’re could have used multiple different formulas to test different model specifications. we’ll try that in a part later.</p>
+<pre class="r"><code>all_workflows &lt;- 
+  workflow_set(
+    preproc = list(&quot;formula&quot;= my_logistic_reg_formula ),
+    models = list(
+      logistic_glm = logistic_glm_spec,
+      logistic_gam = logistic_gam_spec,
+      logistic_xgboost = logistic_xgb_spec
+    ),
+     case_weights = exposure_weight
+  )
+
+all_workflows &lt;- update_workflow_model(all_workflows,
+                      i =  &quot;formula_logistic_gam&quot;,
+                      spec = logistic_gam_spec,
+                      formula = my_logistic_reg_formula)
+
+# Workflows can take special arguments for the recipe (e.g. a blueprint) or a model (e.g. a special formula). However, when creating a workflow set, there is no way to specify these extra components. update_workflow_model() and update_workflow_recipe() allow users to set these values after the workflow set is initially created. They are analogous to workflows::add_model() or workflows::add_recipe().
+      
+all_workflows2 &lt;- 
+  all_workflows %&gt;%
+  workflow_map(resamples = train_resamples,
+               fn = &quot;fit_resamples&quot;,
+               verbose = TRUE)</code></pre>
+<pre class="r"><code>rank_results(all_workflows2, rank_metric = &quot;roc_auc&quot;)</code></pre>
+<pre><code>## # A tibble: 6 × 9
+##   wflow_id          .config .metric  mean std_err     n preprocessor model  rank
+##   &lt;chr&gt;             &lt;chr&gt;   &lt;chr&gt;   &lt;dbl&gt;   &lt;dbl&gt; &lt;int&gt; &lt;chr&gt;        &lt;chr&gt; &lt;int&gt;
+## 1 formula_logistic… Prepro… accura… 0.932 0.00133     5 formula      logi…     1
+## 2 formula_logistic… Prepro… roc_auc 0.540 0.00112     5 formula      logi…     1
+## 3 formula_logistic… Prepro… accura… 0.932 0.00133     5 formula      gen_…     2
+## 4 formula_logistic… Prepro… roc_auc 0.540 0.00112     5 formula      gen_…     2
+## 5 formula_logistic… Prepro… accura… 0.932 0.00133     5 formula      boos…     3
+## 6 formula_logistic… Prepro… roc_auc 0.539 0.00273     5 formula      boos…     3</code></pre>
+<pre class="r"><code>autoplot(all_workflows2, metric=&quot;roc_auc&quot;)</code></pre>
+<p><img src="/post/2023-08-06-tidymodels-and-insurance-loss-cost-models/index.en-us_files/figure-html/unnamed-chunk-29-1.png" width="672" /></p>
+</div>
+<div id="adding-hyperparameter-tuning-to-the-workflow_set" class="section level2">
+<h2>Adding hyperparameter tuning to the workflow_set</h2>
+<p>ok, that was fun. Here’s how to do try with a grid of hyperparameters</p>
+<pre class="r"><code>logistic_tuneable_xgb_spec &lt;-
+  boost_tree(
+    trees= 200,
+    learn_rate = 0.1,
+    tree_depth = tune(),
+    min_n = tune(),
+    loss_reduction = 0,
+    sample_size = 1,
+    mtry= tune(),
+    stop_iter = 50
+  ) %&gt;%
+  set_engine(&#39;xgboost&#39;, nthread = 1) %&gt;%
+  set_mode(&#39;classification&#39;)</code></pre>
+<pre class="r"><code>all_workflows3 &lt;- 
+  workflow_set(
+    preproc = list(&quot;formula&quot;= my_logistic_reg_formula ),
+    models = list(
+      logistic_glm = logistic_glm_spec,
+      logistic_gam = logistic_gam_spec,
+      logistic_xgboost = logistic_xgb_spec,
+      logistic_tuneable_xgb = logistic_tuneable_xgb_spec
+    ),
+     case_weights = exposure_weight
+  )
+
+all_workflows3 &lt;- update_workflow_model(all_workflows3,
+                      i =  &quot;formula_logistic_gam&quot;,
+                      spec = logistic_gam_spec,
+                      formula = my_logistic_reg_formula)
+
+# Workflows can take special arguments for the recipe (e.g. a blueprint) or a model (e.g. a special formula). However, when creating a workflow set, there is no way to specify these extra components. update_workflow_model() and update_workflow_recipe() allow users to set these values after the workflow set is initially created. They are analogous to workflows::add_model() or workflows::add_recipe().
+ 
+all_workflows4 &lt;- 
+  all_workflows3 %&gt;%
+  option_add(control = control_grid(save_pred = TRUE), grid = 12) %&gt;% 
+  workflow_map(resamples = train_resamples,
+               fn = &quot;tune_grid&quot;,
+               verbose = TRUE,
+               seed = 567) </code></pre>
+<p>this time we have a lot more of boosted trees because <code>logistic_tuneable_xgb</code> goes through a grid of 12 sets of hyperparameters. (most of which are shitty..)</p>
+<pre class="r"><code>autoplot(all_workflows4, metric=&quot;roc_auc&quot;)</code></pre>
+<p><img src="/post/2023-08-06-tidymodels-and-insurance-loss-cost-models/index.en-us_files/figure-html/unnamed-chunk-32-1.png" width="672" /></p>
+<pre class="r"><code>rank_results(all_workflows4, rank_metric = &quot;roc_auc&quot;) %&gt;% filter(.metric == &quot;roc_auc&quot;)</code></pre>
+<pre><code>## # A tibble: 15 × 9
+##    wflow_id         .config .metric  mean std_err     n preprocessor model  rank
+##    &lt;chr&gt;            &lt;chr&gt;   &lt;chr&gt;   &lt;dbl&gt;   &lt;dbl&gt; &lt;int&gt; &lt;chr&gt;        &lt;chr&gt; &lt;int&gt;
+##  1 formula_logisti… Prepro… roc_auc 0.541 0.00202     5 formula      boos…     1
+##  2 formula_logisti… Prepro… roc_auc 0.540 0.00262     5 formula      boos…     2
+##  3 formula_logisti… Prepro… roc_auc 0.540 0.00112     5 formula      logi…     3
+##  4 formula_logisti… Prepro… roc_auc 0.540 0.00112     5 formula      gen_…     4
+##  5 formula_logisti… Prepro… roc_auc 0.539 0.00273     5 formula      boos…     5
+##  6 formula_logisti… Prepro… roc_auc 0.539 0.00193     5 formula      boos…     6
+##  7 formula_logisti… Prepro… roc_auc 0.537 0.00133     5 formula      boos…     7
+##  8 formula_logisti… Prepro… roc_auc 0.536 0.00197     5 formula      boos…     8
+##  9 formula_logisti… Prepro… roc_auc 0.535 0.00229     5 formula      boos…     9
+## 10 formula_logisti… Prepro… roc_auc 0.535 0.00145     5 formula      boos…    10
+## 11 formula_logisti… Prepro… roc_auc 0.529 0.00397     5 formula      boos…    11
+## 12 formula_logisti… Prepro… roc_auc 0.529 0.00420     5 formula      boos…    12
+## 13 formula_logisti… Prepro… roc_auc 0.529 0.00275     5 formula      boos…    13
+## 14 formula_logisti… Prepro… roc_auc 0.527 0.00232     5 formula      boos…    14
+## 15 formula_logisti… Prepro… roc_auc 0.524 0.00354     5 formula      boos…    15</code></pre>
+<p>note: we can compare the out-of-sample predictions of all models using collect_predictions(all_workflows4). Here are the predictions of all 15 models for the first row in test:</p>
+<pre class="r"><code>out_of_sample_preds &lt;- collect_predictions(all_workflows4)
+out_of_sample_preds %&gt;% filter(.row ==1) %&gt;% arrange(desc(.pred_1))</code></pre>
+<pre><code>## # A tibble: 15 × 9
+##    wflow_id            .config preproc model  .row has_claim_fct .pred_0 .pred_1
+##    &lt;chr&gt;               &lt;chr&gt;   &lt;chr&gt;   &lt;chr&gt; &lt;int&gt; &lt;fct&gt;           &lt;dbl&gt;   &lt;dbl&gt;
+##  1 formula_logistic_t… Prepro… formula boos…     1 0               0.911  0.0894
+##  2 formula_logistic_t… Prepro… formula boos…     1 0               0.917  0.0827
+##  3 formula_logistic_g… Prepro… formula logi…     1 0               0.919  0.0811
+##  4 formula_logistic_g… Prepro… formula gen_…     1 0               0.919  0.0811
+##  5 formula_logistic_t… Prepro… formula boos…     1 0               0.923  0.0767
+##  6 formula_logistic_x… Prepro… formula boos…     1 0               0.926  0.0744
+##  7 formula_logistic_t… Prepro… formula boos…     1 0               0.928  0.0723
+##  8 formula_logistic_t… Prepro… formula boos…     1 0               0.930  0.0696
+##  9 formula_logistic_t… Prepro… formula boos…     1 0               0.932  0.0680
+## 10 formula_logistic_t… Prepro… formula boos…     1 0               0.933  0.0675
+## 11 formula_logistic_t… Prepro… formula boos…     1 0               0.934  0.0663
+## 12 formula_logistic_t… Prepro… formula boos…     1 0               0.935  0.0647
+## 13 formula_logistic_t… Prepro… formula boos…     1 0               0.939  0.0609
+## 14 formula_logistic_t… Prepro… formula boos…     1 0               0.940  0.0600
+## 15 formula_logistic_t… Prepro… formula boos…     1 0               0.942  0.0575
+## # ℹ 1 more variable: .pred_class &lt;fct&gt;</code></pre>
+<p>Here the best model is the 7th set of hyperparameters from “formula_logistic_tuneable_xgb” workflow. Let’s extract that workflow, then show the best 5 results and finally select_best() hyperparameters and finalise the <code>logistic_tuneable_xgb</code> by running the model on the whole training set with the best hyperparameters.</p>
+<pre class="r"><code>logistic_tuneable_xgb_wf_result &lt;- 
+  all_workflows4 %&gt;%
+  extract_workflow_set_result(&quot;formula_logistic_tuneable_xgb&quot;)
+
+logistic_tuneable_xgb_wf_result %&gt;% show_best(metric = &quot;roc_auc&quot;)</code></pre>
+<pre><code>## # A tibble: 5 × 9
+##    mtry min_n tree_depth .metric .estimator  mean     n std_err .config         
+##   &lt;int&gt; &lt;int&gt;      &lt;int&gt; &lt;chr&gt;   &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;           
+## 1     1    12          3 roc_auc binary     0.541     5 0.00202 Preprocessor1_M…
+## 2    24    27          2 roc_auc binary     0.540     5 0.00262 Preprocessor1_M…
+## 3    11    18          4 roc_auc binary     0.539     5 0.00193 Preprocessor1_M…
+## 4    14    37          5 roc_auc binary     0.537     5 0.00133 Preprocessor1_M…
+## 5     7    26          7 roc_auc binary     0.536     5 0.00197 Preprocessor1_M…</code></pre>
+<pre class="r"><code>logistic_tuneable_xgb_wf_fit &lt;- all_workflows4 %&gt;%
+  extract_workflow(&quot;formula_logistic_tuneable_xgb&quot;) %&gt;%
+  finalize_workflow(select_best(logistic_tuneable_xgb_wf_result, metric = &quot;roc_auc&quot;)) %&gt;%
+  last_fit(split= my_split)
+
+logistic_tuneable_xgb_wf_fit</code></pre>
+<pre><code>## # Resampling results
+## # Manual resampling 
+## # A tibble: 1 × 6
+##   splits                id             .metrics .notes   .predictions .workflow 
+##   &lt;list&gt;                &lt;chr&gt;          &lt;list&gt;   &lt;list&gt;   &lt;list&gt;       &lt;list&gt;    
+## 1 &lt;split [50893/16963]&gt; train/test sp… &lt;tibble&gt; &lt;tibble&gt; &lt;tibble&gt;     &lt;workflow&gt;</code></pre>
+<pre class="r"><code>preds &lt;- collect_predictions(logistic_tuneable_xgb_wf_fit)
+test_with_preds &lt;- augment(logistic_tuneable_xgb_wf_fit)</code></pre>
+<pre class="r"><code>test_with_preds %&gt;%
+  ggplot(aes(x=.pred_1)) +
+  geom_histogram()</code></pre>
+<p><img src="/post/2023-08-06-tidymodels-and-insurance-loss-cost-models/index.en-us_files/figure-html/unnamed-chunk-38-1.png" width="672" /></p>
+<p>the mean of test_with_preds<span class="math inline">\(has_claim is not the same as test_with_preds\)</span>.pred_1.. shoot. maybe it wasnt done learning?</p>
+<pre class="r"><code>mean(test_with_preds$has_claim)</code></pre>
+<pre><code>## [1] 0.06814832</code></pre>
+<pre class="r"><code>mean(test_with_preds$.pred_1)</code></pre>
+<pre><code>## [1] 0.0889384</code></pre>
+<p>we’ll figure that out later…</p>
+<p>here’s how to check the metrics: () <a href="https://juliasilge.com/blog/nber-papers/" class="uri">https://juliasilge.com/blog/nber-papers/</a>)</p>
+<pre class="r"><code>collect_metrics(logistic_tuneable_xgb_wf_fit)</code></pre>
+<pre><code>## # A tibble: 2 × 4
+##   .metric  .estimator .estimate .config             
+##   &lt;chr&gt;    &lt;chr&gt;          &lt;dbl&gt; &lt;chr&gt;               
+## 1 accuracy binary         0.932 Preprocessor1_Model1
+## 2 roc_auc  binary         0.543 Preprocessor1_Model1</code></pre>
+<pre class="r"><code>collect_predictions(logistic_tuneable_xgb_wf_fit) %&gt;%
+  conf_mat(has_claim_fct, .pred_class) %&gt;%
+  autoplot()</code></pre>
+<p><img src="/post/2023-08-06-tidymodels-and-insurance-loss-cost-models/index.en-us_files/figure-html/unnamed-chunk-42-1.png" width="672" />
+ROC curve is upside down when using .pred_1. … guess I’d need to replace the reference level somewhere.. for today I’ll just use .pred_0:</p>
+<pre class="r"><code>collect_predictions(logistic_tuneable_xgb_wf_fit) %&gt;%
+  roc_curve(truth = has_claim_fct, .pred_0) %&gt;%
+  ggplot(aes(1 - specificity, sensitivity)) +
+  geom_abline(slope = 1, color = &quot;gray50&quot;, lty = 2, alpha = 0.8) +
+  geom_path(size = 1.5, alpha = 0.7) +
+  labs(color = NULL) +
+  coord_fixed()</code></pre>
+<p><img src="/post/2023-08-06-tidymodels-and-insurance-loss-cost-models/index.en-us_files/figure-html/unnamed-chunk-43-1.png" width="672" /></p>
+</div>
+</div>
+<div id="logistic-regression-with-recipe-pre-processor" class="section level1">
+<h1>Logistic Regression with recipe pre-processor</h1>
+<p>ok, let’s use the option to pass a recipe instead of a formula to the workflow_set. This will allow us to do some feature engineering, like:
+* imputing missing values (this doesnt happen in this dataset),<br />
+* create an “other” categorical values for factors levels that dont happen often (we’ll do that with <code>area</code>),
+* replace high cardinality variables using using step_lencode_glm() (we’ll pretend that’s the case of veh_body, even though it only has 13 unique values.</p>
+<pre class="r"><code>my_recipe_with_imputation &lt;- recipe(my_train ) %&gt;%
+  update_role(all_of(labels(terms(my_logistic_reg_formula))), new_role = &quot;predictor&quot;) %&gt;% # assign the role of predictor to right-side terms of my formula
+  update_role(has_claim_fct, new_role= &quot;outcome&quot;) %&gt;%  ## was has_claim  in &quot;my_recipe&quot;, but needs to be a factor for tidymodels
+  update_role(exposure, new_role = &quot;weight&quot;) %&gt;%
+  
+  step_impute_median(all_numeric_predictors()) %&gt;%  # impute median to missing numerical values
+  step_impute_mode(all_nominal_predictors()) %&gt;%  # impute mode to missing nominal values  
+  embed::step_lencode_glm(veh_body, outcome = vars(has_claim_fct)) %&gt;% #  encode veh_body   
+  step_other(area, threshold = 0.10) %&gt;% 
+  step_dummy(all_nominal_predictors())# %&gt;%
+  #step_select(has_role(c(&quot;predictor&quot;, &quot;outcome&quot;, &quot;weight&quot;, &quot;case_weights&quot;))) # don&#39;t forger case_weights</code></pre>
+<p>we don’t actually need to prep/bake the recipe, but it’s interesting to check what is the output data.</p>
+<pre class="r"><code>prepped_recipe &lt;- prep(my_recipe_with_imputation)
+baked_train &lt;- bake(prepped_recipe, my_train)
+baked_train %&gt;% glimpse()</code></pre>
+<pre><code>## Rows: 50,893
+## Columns: 18
+## $ has_claim          &lt;int&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, …
+## $ dollar_loss        &lt;dbl&gt; 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0…
+## $ exposure           &lt;dbl&gt; 0.64887064, 0.56947296, 0.85420945, 0.85420945, 0.5…
+## $ veh_value          &lt;dbl&gt; 1.03, 3.26, 2.01, 1.60, 1.47, 0.52, 1.38, 1.22, 1.0…
+## $ veh_body           &lt;dbl&gt; 2.384210, 2.480687, 2.156805, 2.114655, 2.384210, 2…
+## $ veh_age            &lt;int&gt; 2, 2, 3, 3, 2, 4, 2, 3, 2, 3, 3, 4, 3, 1, 4, 1, 2, …
+## $ agecat             &lt;int&gt; 4, 2, 4, 4, 6, 3, 2, 4, 4, 4, 4, 2, 3, 1, 5, 1, 2, …
+## $ annual_loss        &lt;dbl&gt; 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0…
+## $ policy_id          &lt;dbl&gt; 2, 3, 6, 7, 7, 8, 10, 11, 12, 16, 16, 17, 18, 19, 1…
+## $ random             &lt;dbl&gt; 0.937075413, 0.286139535, 0.519095949, 0.736588315,…
+## $ has_claim_fct      &lt;fct&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, …
+## $ exposure_weight    &lt;imp_wts&gt; 0.64887064, 0.56947296, 0.85420945, 0.85420945,…
+## $ policy_annual_loss &lt;dbl&gt; 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0…
+## $ gender_M           &lt;dbl&gt; 0, 0, 1, 1, 1, 0, 1, 1, 0, 0, 1, 0, 0, 1, 1, 0, 0, …
+## $ area_B             &lt;dbl&gt; 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, …
+## $ area_C             &lt;dbl&gt; 0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, …
+## $ area_D             &lt;dbl&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, …
+## $ area_other         &lt;dbl&gt; 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, …</code></pre>
+<p>as we can see, the dummies have been created and there are only 3 areas left (area_B, area_C, area_D), the other being bundled inside “area_other”. Also, the veh_body nominal variable has been replaced with a numeric variable with the following possible values.</p>
+<pre class="r"><code>baked_train %&gt;% count(veh_body)</code></pre>
+<pre><code>## # A tibble: 13 × 2
+##    veh_body     n
+##       &lt;dbl&gt; &lt;int&gt;
+##  1    0.965    32
+##  2    1.66     24
+##  3    1.66     93
+##  4    2.00    557
+##  5    2.11    568
+##  6    2.16   1181
+##  7    2.26  12146
+##  8    2.32   1339
+##  9    2.35  16702
+## 10    2.38  14203
+## 11    2.42    546
+## 12    2.48   3448
+## 13    2.64     54</code></pre>
+<p>Looking at the original counds in the data, we understand that 0.9653894 (with n=32) is for “BUS” and 2.3842100 (with n=14203) is for UTE, the riskiest body type.</p>
+<pre class="r"><code>my_train %&gt;% count(veh_body)</code></pre>
+<pre><code>## # A tibble: 13 × 2
+##    veh_body     n
+##    &lt;fct&gt;    &lt;int&gt;
+##  1 BUS         32
+##  2 CONVT       54
+##  3 COUPE      557
+##  4 HBACK    14203
+##  5 HDTOP     1181
+##  6 MCARA       93
+##  7 MIBUS      546
+##  8 PANVN      568
+##  9 RDSTR       24
+## 10 SEDAN    16702
+## 11 STNWG    12146
+## 12 TRUCK     1339
+## 13 UTE       3448</code></pre>
+<p>anyway, let’s create a workflow set with this recipe.</p>
+<p>NOTE: I’M NOT SURE IF I CAN HAVE GAMs HERE BECAUSE THE FORMULA DEPENDS ON WHAT DUMMY THE RECIPE CREATED AND THIS MIGHT CHANGE FOR ALL RESAMPLES (given the use of step_other)</p>
+<pre class="r"><code>all_workflows5 &lt;- 
+  workflow_set(
+    preproc = list(&quot;recipe_with_imputation&quot; = my_recipe_with_imputation ), # &quot;recipe_with_feature_engineering&quot;= my_recipe_with_imputation, 
+    models = list(
+      logistic_glm = logistic_glm_spec,
+      #logistic_gam = logistic_gam_spec#,
+      logistic_xgboost = logistic_xgb_spec,
+      logistic_tuneable_xgb = logistic_tuneable_xgb_spec
+    ),
+     case_weights = exposure_weight
+  )
+# 
+# all_workflows5 &lt;- update_workflow_model(all_workflows5,
+#                       i =  &quot;recipe_with_imputation_logistic_gam&quot;,
+#                       spec = logistic_gam_spec,
+#                       formula = my_logistic_reg_formula)
+
+# Workflows can take special arguments for the recipe (e.g. a blueprint) or a model (e.g. a special formula). However, when creating a workflow set, there is no way to specify these extra components. update_workflow_model() and update_workflow_recipe() allow users to set these values after the workflow set is initially created. They are analogous to workflows::add_model() or workflows::add_recipe().
+      
+all_workflows6 &lt;- 
+  all_workflows5 %&gt;%
+  workflow_map(resamples = train_resamples,
+               fn = &quot;tune_grid&quot;,
+               verbose = TRUE)</code></pre>
+<pre class="r"><code>autoplot(all_workflows6, metric=&quot;roc_auc&quot;)</code></pre>
+<p><img src="/post/2023-08-06-tidymodels-and-insurance-loss-cost-models/index.en-us_files/figure-html/unnamed-chunk-49-1.png" width="672" /></p>
+<pre class="r"><code>rank_results(all_workflows6, rank_metric = &quot;roc_auc&quot;)</code></pre>
+<pre><code>## # A tibble: 24 × 9
+##    wflow_id         .config .metric  mean std_err     n preprocessor model  rank
+##    &lt;chr&gt;            &lt;chr&gt;   &lt;chr&gt;   &lt;dbl&gt;   &lt;dbl&gt; &lt;int&gt; &lt;chr&gt;        &lt;chr&gt; &lt;int&gt;
+##  1 recipe_with_imp… Prepro… accura… 0.932 1.33e-3     5 recipe       boos…     1
+##  2 recipe_with_imp… Prepro… roc_auc 0.545 1.55e-3     5 recipe       boos…     1
+##  3 recipe_with_imp… Prepro… accura… 0.932 1.33e-3     5 recipe       boos…     2
+##  4 recipe_with_imp… Prepro… roc_auc 0.540 2.30e-3     5 recipe       boos…     2
+##  5 recipe_with_imp… Prepro… accura… 0.932 1.33e-3     5 recipe       logi…     3
+##  6 recipe_with_imp… Prepro… roc_auc 0.539 8.48e-4     5 recipe       logi…     3
+##  7 recipe_with_imp… Prepro… accura… 0.932 1.33e-3     5 recipe       boos…     4
+##  8 recipe_with_imp… Prepro… roc_auc 0.539 2.87e-3     5 recipe       boos…     4
+##  9 recipe_with_imp… Prepro… accura… 0.932 1.33e-3     5 recipe       boos…     5
+## 10 recipe_with_imp… Prepro… roc_auc 0.537 1.70e-3     5 recipe       boos…     5
+## # ℹ 14 more rows</code></pre>
+<p>let’s fit the best model:</p>
+<pre class="r"><code>best_workflow_fit &lt;- all_workflows6 %&gt;%
+  extract_workflow(&quot;recipe_with_imputation_logistic_tuneable_xgb&quot;) %&gt;%
+  finalize_workflow(select_best(all_workflows6 %&gt;%
+  extract_workflow_set_result(&quot;recipe_with_imputation_logistic_tuneable_xgb&quot;), metric = &quot;roc_auc&quot;)) %&gt;%
+  last_fit(split= my_split)
+
+best_workflow_fit %&gt;% 
+  extract_fit_engine() %&gt;% 
+  vip(num_features=20)</code></pre>
+<p><img src="/post/2023-08-06-tidymodels-and-insurance-loss-cost-models/index.en-us_files/figure-html/unnamed-chunk-51-1.png" width="672" /></p>
+</div>
+<div id="tweedie-regression" class="section level1">
+<h1>Tweedie regression</h1>
 <p>alright that was fun, let’s try tweedie.</p>
 <pre class="r"><code>my_annual_loss_formula &lt;- as.formula(&quot;annual_loss ~ veh_value + veh_body + veh_age +  gender +  area +  agecat&quot;)</code></pre>
+<div id="comparing-tidymodels-model-output-to-fitting-the-models-outside-tidymodels-1" class="section level2">
+<h2>comparing tidymodels model output to fitting the models outside tidymodels</h2>
 <div id="glm-weighted-1" class="section level3">
 <h3>GLM weighted</h3>
 <p>glm tweedie model in tidymodels:</p>
 <p>stackoverflow adding gamma to glm regression: <a href="https://stackoverflow.com/questions/66024469/glm-family-using-tidymodels" class="uri">https://stackoverflow.com/questions/66024469/glm-family-using-tidymodels</a></p>
-<pre class="r"><code>tweedie_reg_glm_spec &lt;- 
+<pre class="r"><code>tweedie_glm_spec &lt;- 
   parsnip::linear_reg(mode = &quot;regression&quot;) %&gt;%
   parsnip::set_engine(&quot;glm&quot;, family=tweedie(var.power=1.1, link.power=0))
 
 
-my_tweedie_glm_wf &lt;-   workflow() %&gt;% 
+tweedie_glm_wf &lt;-   workflow() %&gt;% 
   add_case_weights(exposure_weight) %&gt;% 
   add_formula(my_annual_loss_formula) %&gt;%
-  add_model(tweedie_reg_glm_spec)
+  add_model(tweedie_glm_spec)
 
-my_tweedie_glm_wf_fit &lt;-  my_tweedie_glm_wf %&gt;% 
+tweedie_glm_wf_fit &lt;-  tweedie_glm_wf %&gt;% 
   fit(data = my_train)
 
-my_tweedie_glm_wf_fit %&gt;%  tidy()</code></pre>
+tweedie_glm_wf_fit %&gt;%  tidy()</code></pre>
 <pre><code>## # A tibble: 22 × 5
 ##    term          estimate std.error statistic p.value
 ##    &lt;chr&gt;            &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;   &lt;dbl&gt;
@@ -3317,11 +3737,11 @@ tweedie_gam_wf &lt;- workflow() %&gt;%
   add_case_weights(exposure_weight)
 
 
-tweedie_gam_wf &lt;-  tweedie_gam_wf%&gt;% 
+tweedie_gam_wf_fit &lt;-  tweedie_gam_wf%&gt;% 
   fit(data = my_train )
 
 
-tweedie_gam_wf %&gt;% tidy(parametric = TRUE)</code></pre>
+tweedie_gam_wf_fit %&gt;% tidy(parametric = TRUE)</code></pre>
 <pre><code>## # A tibble: 21 × 5
 ##    term          estimate std.error statistic    p.value
 ##    &lt;chr&gt;            &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;      &lt;dbl&gt;
@@ -3365,7 +3785,7 @@ tweedie_gam_wf %&gt;% tidy(parametric = TRUE)</code></pre>
 <pre class="r"><code>tweedie_xgb_spec &lt;-
   boost_tree(
     tree_depth = 3,
-    trees= 100,
+    trees= 200,
     learn_rate = 0.1,
     min_n = 50,
     loss_reduction = 0,
@@ -3382,16 +3802,19 @@ tweedie_xgb_wf &lt;- workflow() %&gt;%
   add_case_weights(exposure_weight)
 
 set.seed(456)
-tweedie_xgb_wf &lt;-  tweedie_xgb_wf%&gt;% 
+tweedie_xgb_wf_fit &lt;-  tweedie_xgb_wf%&gt;% 
   fit(data = my_train )
 
 
-tweedie_xgb_wf %&gt;% extract_fit_engine() %&gt;% vip::vip()</code></pre>
-<p><img src="/post/2023-08-06-tidymodels-and-insurance-loss-cost-models/index.en-us_files/figure-html/unnamed-chunk-29-1.png" width="672" /></p>
+tweedie_xgb_wf_fit %&gt;% extract_fit_engine() %&gt;% vip::vip()</code></pre>
+<p><img src="/post/2023-08-06-tidymodels-and-insurance-loss-cost-models/index.en-us_files/figure-html/unnamed-chunk-58-1.png" width="672" /></p>
 </div>
 </div>
-<div id="todo-poisson-regression" class="section level2">
-<h2>TODO: Poisson regression</h2>
+</div>
+<div id="todo-poisson-regression" class="section level1">
+<h1>TODO: Poisson regression</h1>
+<div id="comparing-tidymodels-model-output-to-fitting-the-models-outside-tidymodels-2" class="section level2">
+<h2>comparing tidymodels model output to fitting the models outside tidymodels</h2>
 <div id="glm-weighted-2" class="section level3">
 <h3>GLM weighted</h3>
 </div>
@@ -3402,8 +3825,11 @@ tweedie_xgb_wf %&gt;% extract_fit_engine() %&gt;% vip::vip()</code></pre>
 <h3>xgboost weighted</h3>
 </div>
 </div>
-<div id="todo-gamma-regression" class="section level2">
-<h2>TODO: Gamma regression</h2>
+</div>
+<div id="todo-gamma-regression" class="section level1">
+<h1>TODO: Gamma regression</h1>
+<div id="comparing-tidymodels-model-output-to-fitting-the-models-outside-tidymodels-3" class="section level2">
+<h2>comparing tidymodels model output to fitting the models outside tidymodels</h2>
 <div id="glm-weighted-3" class="section level3">
 <h3>GLM weighted</h3>
 </div>
@@ -3415,13 +3841,13 @@ tweedie_xgb_wf %&gt;% extract_fit_engine() %&gt;% vip::vip()</code></pre>
 </div>
 </div>
 </div>
-<div id="todo-adding-cross-validation" class="section level1">
-<h1>TODO: Adding cross validation</h1>
-<p>ok let’s use CV to check which tweedie model has the best results</p>
-</div>
-<div id="todo-adding-hyperparameter-tuning" class="section level1">
-<h1>TODO: Adding hyperparameter tuning</h1>
-</div>
-<div id="todo-adding-workflow-sets" class="section level1">
-<h1>TODO: Adding workflow sets</h1>
+<div id="resources" class="section level1">
+<h1>resources</h1>
+<ul>
+<li>tidy modelling with r book <a href="https://www.tmwr.org/resampling" class="uri">https://www.tmwr.org/resampling</a><br />
+</li>
+<li>all of juliasilge’s blog posts juliasilge.com<br />
+</li>
+<li>just stumbled on this website by taylor dunn as I put the finishing touch to this post (damn <a href="https://bookdown.org/taylordunn/islr-tidy-1655226885741/moving-beyond-linearity.html" class="uri">https://bookdown.org/taylordunn/islr-tidy-1655226885741/moving-beyond-linearity.html</a>)</li>
+</ul>
 </div>

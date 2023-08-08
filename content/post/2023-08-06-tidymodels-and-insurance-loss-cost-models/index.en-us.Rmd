@@ -32,7 +32,7 @@ options(ggplot2.discrete.colour = function() scale_color_viridis_d())
 options(ggplot2.continuous.colour = function() scale_color_viridis_c())
 ggplot2::update_geom_defaults("point", ggplot2::aes(color = "midnightblue"))
 ggplot2::update_geom_defaults("line", ggplot2::aes(color = "midnightblue"))
-ggplot2::update_geom_defaults("rect", ggplot2::aes(color = "midnightblue"))
+ggplot2::update_geom_defaults("rect", ggplot2::aes(color = "midnightblue", fill = "midnightblue"))
 options(scipen=999)
 
 library(insuranceData)
@@ -48,33 +48,37 @@ library(broom) # pour tidy()
 library(statmod) #pour glm(family = tweedie)
 library(bonsai) # pour lightgbm
 library(embed) # pour step_lencode_glm
+library(DiagrammeR) # pour xgb.plot.tree()
 tidymodels::tidymodels_prefer()
 ```
 
 # Objective   
 
-I built my first tweedie regression model [three years ago](https://www.simoncoulombe.com/2020/03/tweedie-vs-poisson-gamma/).  At that time I used the {recipes} and {rsample} packages from {tidymodels}, but I did the actual modelling outside of the {tidymodels} universe.  
+I want to implement a tweedie regression similar to what one would face in the insurance industry using the {tidymodels} ecosystem.  
 
-Today I want to revisit this data, but this time I want to do everything using the {tidymodels} approach.  
-
-Things I did today:   
+Some context:  I built my first tweedie regression model [three years ago](https://www.simoncoulombe.com/2020/03/tweedie-vs-poisson-gamma/).  That blog post was also the first time I used the `recipes` and `rsample` packages and I have been a huge fan since then.  However, I delayed trying  `parsnip` and `workflows` packages until today because  I felt that many of the specifics of my models were hard to implement using these packages.  
 
 
-* use {rsample}   do a "grouped" train/test data split.  This is often required when using insurance data because a given policy will have multiple "rows" and I want all rows for a given policy to be either in train or test rather than spread all over the place.  
-* use case weights for all models ,
-* use `embed::step_lencode_glm()` to replace high-cardinality variables with embedded values,  
-* create `logistic` and  `tweedie` regressions using tidymodels and check that they fit what I would get by fitting the models outside of tidymodels .  
-* create models using `GLM`, `GAM`, `xgboost` and `lightgbm`.   Turns out GLM and xgboost are easy.  GAM are harder (you need to pass a formula.. but how do you do it when you don't know what dummies step_other() will generate).  lightgbm 
-* use workflow sets to apply the same recipe/formula to a bunch of model specifications and pick the best one using cross validation.   bonus: tune some hyperparameters at the same time.  
+Here's a list of "new to me" stuff I do in the code below that work:   
 
-Things I would like to do later:   
 
-  * create `poisson` and `gamma` regressions.     
-  * figure out a way to add GAMs to workflow_set() when using a recipe that creates new variables (like a step_dummy() after a step_other())).  
+* use `rsample`functions `group_initial_split()` and `group_vfold_cv()`  to do a "grouped" train/test data split. This is often required when using insurance data because a given `policy_id` will have multiple rows and I want all rows for a given policy to be either in train or test rather than spread all over the place,    
+* use case weights  (in my case, `exposure`),  
+* use `embed::step_lencode_glm()` to replace high-cardinality variables with embedded values,    
+* use  `GLM`, `GAM`, `xgboost` and `lightgbm`  model specifications and check that the output is the same as fitting the models outside of tidymodels.  Spoiler : for GAMs you need to pass a formula with the `add_model()`  or the `update_workflow_model()` functions,  
+* create `logistic` regression and  `tweedie` regressions and check that the output is the same as what I would get by fitting the models outside of tidymodels .  
+* use workflow sets to apply the same pre-processors (recipe or formula) to a bunch of model specifications and pick the best one using cross validation.   bonus: tune some hyperparameters at the same time.  
+
+Things I would like to figure out eventually:
+
+  * figure out a way to use GAMs with splines when using a recipe pre-processor (how can I craft a formula  when I dont know the variable names created by the recipe step_dummy and step_other functions  and these variables could change for each resample?,
+  * how to weight records using `exposure` when creating the train/test split and the resamples so that all resamples have the same total exposure rather than the same number of records,      
+  * figure out a way to use case weights in `lightgbm`,   
+  * create `poisson` and `gamma` regressions (should be easy, but I'm out of time).  
+  * figure out why my average prediction for the logistic xgboost is so off.  maybe it wasnt done learning? 
+  * figure out a way to give a maximum/minimum value to the tune_grid for variables.  I don't want it to test a learning rate of 0.000000000000001.
   
   
-
-
 Let's get started!    
 
 # The data   
@@ -82,37 +86,32 @@ Let's get started!
 Copying from my 2020 post, here is the description of the data:   
 
 
-#  Data  
-
 The dataCar data from the `insuranceData` package.  It contains 67 856 one-year vehicle insurance policies taken out in 2004 or 2005.   It originally came with the book [Generalized Linear Models for Insurance Data (2008)](http://www.businessandeconomics.mq.edu.au/our_departments/Applied_Finance_and_Actuarial_Studies/research/books/GLMsforInsuranceData).
 
-The `exposure` variable  represents the "number of year of exposure" and is used as the offset variable.  It is bound between 0 and 1.   
+The presence of a claim is indicated by the `clm` (0 or 1) , which indicates that there is at least one claim.  We will rename the variable to `has_claim`.
 
-Finally, the independent variables are as follow:  
+The total dollar value of claims is  `claimcst0`, which we will rename to `dollar_loss`.  We will divide it by the exposure to obtain `annual_loss`.
+
+The `exposure` variable  represents the "number of years of exposure" and is used as the case weight variable.  It is bound between 0 and 1.   
+
+The independent variables are as follow:  
 
 * `veh_value`, the vehicle value in tens of thousand of dollars,  
-* `veh_body`, y vehicle body, coded as BUS CONVT COUPE HBACK HDTOP MCARA MIBUS PANVN RDSTR SEDAN STNWG TRUCK UTE,  
+* `veh_body`, vehicle body, coded as 13 different values:  BUS CONVT COUPE HBACK HDTOP MCARA MIBUS PANVN RDSTR SEDAN STNWG TRUCK UTE,  
 * `veh_age`, 1 (youngest), 2, 3, 4,   
 * `gender`, a factor with levels F M,   
 * `area` a factor with levels A B C D E F,   
 * `agecat` 1 (youngest), 2, 3, 4, 5, 6  
 
-The presence of a claim is indicated by the `clm` (0 or 1) , which indicates that there is at least one claim.  We will rename the variable to `has_claim`.
-
-The dollar amount of the claims is  `claimcst0`, which we will rename to `dollar_loss`.  We will divide it by the exposure to obtain `annual_loss`.
-
-The `annual_loss` variable is what we actually want to model.  In insurance, it is typically modelled directly using a `tweedie`regression, or indirectly by multiplying the output of two models, one predicting  the frequency of claims  (poisson regression)  and the other predicting the severity of claims (gamma regression).
+The `annual_loss` variable is what we want to model.  In insurance, it is typically modelled directly using a `tweedie`regression, or indirectly by multiplying the output of two models, one predicting  the frequency of claims  (poisson regression)  and the other predicting the severity of claims (gamma regression).
 
 Note: when using the frequency*severity approach, we will use the `has_claim` variable in the Poisson (frequency) model instead of `numclaims` (actual number of claims) because we don't have the breakdown of value of claims when there is more than one.  In practice, this means modelling "a lower frequency and a higher severity" than reality, but the overall predicted annual loss will be the same.
 
+FUN #1:  I am going to create a fake policy_id column, which has a 10% chance of being the same as the row above it.  This is to represent that a policy_id can have multiple records.  I will want all records for a given policy to be in the same resample.   
 
+FUN #2:  I am also going to create a factor `has_claim_fct` because parsnip want classification models to work on factors, not integers.   
 
-FUN:  I am going to create a fake policy_id column, which has a 10% chance of being the same as the row above it.  This is to represent that a policy_id can have multiple records.  I will want all records for a given policy to be in the same resample.   
-
-
-FUN#2:  I am also going to create a factor `has_claim_fct` because parsnip want classification models to work on factors, not integers.   
-
-Fun#3: I am also going to create `exposure_weight`, which is the result of hardhat::importance_weights(exposure).   I *think* this will often allow us to pass weights to the tidymodels use use_case_weights.  
+FUN #3: I am also going to create `exposure_weight`, which is the result of hardhat::importance_weights(exposure).   I *think* this will often allow us to pass weights to the tidymodels use use_case_weights.    
 
 ```{r}
 set.seed(42)
@@ -144,23 +143,24 @@ for (i in seq(from =2, to =nrow(mydb))){
   }
 }
 
-mydb %>% count(policy_id) %>% count(n) %>% gt(caption="most policy_id have only 1 record in the dataset, but a few have 2,3 and even 7")
+mydb %>% count(policy_id) %>% count(n) %>% gt(caption="most (fake) policy_id have only 1 record in the dataset, but many have more")
 ```
 
 
 # grouped and stratified  train/test split and rsamples     
 
-We are going to use recipes::group_initial_split() to make sure that a given policy_id always ends up in the same resample.
-I am also going to use the `strata` parameter to ensure that distribution of annual_loss in all resamples in the same:
+We want all the records for a given `policy_id` to end up in either train or test.  
+We also want to try to have roughly the same annual loss in the train and test.  
+
+To do this, we use  `recipes::group_initial_split()`: 
 
 ```{r}
 set.seed(123)
-
 try(my_split <- group_initial_split( mydb, group = policy_id, prop= 3/4, strata = annual_loss))
 ```
-oooh !   our first error.:  "`strata` must be constant across all members of each `group`.".  I'm going to calculate an average annual_loss over all records for a given policy_id.  I would love to be able to weight records by exposure (to have the same total exposure  and average annual_loss in all resamples), but I don't think that's possible.   
+oooh !   our first error.:  "`strata` must be constant across all members of each `group`.".  This happens because some records for a given policy will have a claim and other won't.   I'm going to calculate an average annual_loss over all records for a given policy_id.  I would love to be able to weight records by exposure (to have the same total exposure  and average annual_loss in all resamples), but I don't think that's possible.   
 
-here we go.
+here we go:
 
 ```{r}
 mydb <- mydb %>%
@@ -176,7 +176,7 @@ my_test  <- testing(my_split)
 
 ```
 
-are any policy_id split between train and test?    No, and this is great:   
+are any policy_id split between train and test?    No.  (this is what we wanted)
 
 ```{r}
 both <- bind_rows(
@@ -194,7 +194,7 @@ both %>%
 
 
 ```
-Is the proportion of records 3/4 train and 1/4 test?  
+Is the proportion of records 3/4 train and 1/4 test?  Yes! 
 
 
 ```{r}
@@ -203,7 +203,7 @@ both %>%
   mutate(pct = n/sum(n)) %>% 
   gt(caption="proportion of records in train/test is exactly  75% vs 25%, as expected")
 ```
-however, we would actually would have like thge exposure to have been spread 75%/25%. This is not the case since we couldnt weight records in the group_initial_split() function:   
+however, exposure isnt  spread 75%/25%. This is normal because  we couldnt weight records in the group_initial_split() function, but this would have been nice:   
 
 ```{r}
 both %>% 
@@ -212,7 +212,7 @@ both %>%
   mutate(pct = exposure/sum(exposure)) %>%
   gt(caption="exposure is NOT split exactly  75-25 because we couldnt weight records when splitting")
 ```
-We tried to stratify our groups using the policy_annual_loss variable. However, some policies have more exposure than other.  This means that the average annual loss for the train/test won't be identical.  How different are they? Quite a bit, actually:  
+We tried to stratify our groups using the policy_annual_loss variable. However, some policies have more exposure than other.  This means that the average annual loss for the train/test won't be identical.  How different are they?  It appears we got lucky and outliers didnt mess too much with our averages:  
 
 ```{r}
 both %>% 
@@ -221,7 +221,7 @@ both %>%
   ungroup() %>% 
   gt(caption="overall annuall loss (dollar loss per year ) isnt the same in both train and test")
 ```
-The overall  frequency should also be different between train and test.  It shouldnt be as different as the overall annual loss because the number of claims (0 or 1) is less volatile than the dollar amount of the claim.   
+The overall  frequency should also be different between train and test.  It shouldnt be as volatile  because frequency depends only on frequency (duh), while annual loss depends on frequency and severity.  
 
 
 ```{r}
@@ -232,7 +232,7 @@ both %>%
   gt(caption="overall frequency (claims per year) is less different  between train and test  than the overall annual loss")
 ```
 
-to create folds ( I think they are called resamples in tidymodels), we use the group_vfold_cv, again stratified over policy_annual_loss   
+to create folds , we use the `group_vfold_cv`, again stratified over policy_annual_loss   
 
 ```{r}
 set.seed(234)
@@ -244,12 +244,7 @@ train_resamples <- group_vfold_cv(my_train,
 
 I won't check the overall annual loss and overall frequency for each resamples, but the volatility here would be interesting to look at.   
 
-
-edit: this blog post by Max Kuhhn indicates they are looking into weighting stuff.. https://www.tidyverse.org/blog/2022/05/case-weights/
-
-
-
-# set up parallel processing    
+# Set up parallel processing    
 
 we are going to run a lot of models when fitting models on multiples resamples and multiple hyperparameter sets.  tune_grid()  can use multiple cores if we tell it to:    
 
@@ -257,37 +252,38 @@ we are going to run a lot of models when fitting models on multiples resamples a
 doMC::registerDoMC(cores = 6)
 ```
 
-# Logistic Regression with formula  
+# Logistic Regression with formula pre-processor
 
+We need to learn to walk before we learn to run.  So I'm going to try building a logistic regression before diving into the "complicated" models like tweedie, poisson and gamma.  
 
+Let's just pretend everyone has the same exposure and create a simple logistic regression on whether or not a record has a claim. 
 
-Let's just pretend everyone has the same exposure and create a simple logistic regression on whether or not a record has a claim.  we'll look at more complicated stuff (poisson, gamma, tweedie) later.  
-
-Here's the formula:  
+Here's the formula for my logistic regression:  
 
 ```{r}
-my_has_claim_formula <- as.formula("has_claim_fct ~ veh_value + veh_body + veh_age +  gender +  area +  agecat")
+my_logistic_reg_formula <- as.formula("has_claim_fct ~ veh_value + veh_body + veh_age +  gender +  area +  agecat")
 ```
 
 
 ## comparing tidymodels model output to fitting the models outside tidymodels  
 
-
+before diving into the cool stuff like evaluating the model on multiple resamples and tuning parameters, I'll just make sure I can reproduce the training inside and outside `tidymodels`  
 
 ### GLM unweighted    
-The code below to generate the specification for a  GLM logistic regression was generated automatically  by running `parsnip::parsnip_addin()`, selecting `classification`,  `logistic_reg (glm)` and unchecking `tag parameters for tuning (if any)` then clicking the gren `write specification code` button.   
 
 
+The code below to generate the specification for a  GLM logistic regression was initially generated by running `parsnip::parsnip_addin()`, selecting `classification`,  `logistic_reg (glm)` and unchecking `tag parameters for tuning (if any)` then clicking the gren `write specification code` button.   
+
+**Tidymodels output**
 
 ```{r}
 logistic_glm_spec <- 
   parsnip::logistic_reg() %>%
   parsnip::set_engine("glm")
 
-
 logistic_glm_fit <-logistic_glm_spec %>%
   parsnip::fit(
-    formula = my_has_claim_formula,
+    formula = my_logistic_reg_formula,
     data = my_train)
 
 logistic_glm_fit %>%
@@ -295,26 +291,26 @@ logistic_glm_fit %>%
   summary()
 ```
 
-
+**Non-tidymodels output**
 is this the same output as directly running the normal glm?  
 yes!
 ```{r}
-logistic_glm_direct_fit <- glm(my_has_claim_formula,    family = "binomial", data = my_train) 
+logistic_glm_direct_fit <- glm(my_logistic_reg_formula,    family = "binomial", data = my_train) 
 
 tidy(logistic_glm_fit) %>%  select(term, estimate_logistic_glm_fit = estimate) %>%
   left_join(tidy(logistic_glm_direct_fit) %>% select(term, estimate_logistic_glm_direct_fit = estimate)) 
-
-
 ```
 
 
-### GLM weighted   
-what if we want weights?   apparently we can use add_case_weights(), but this only work for workflows: 
-```{r}
+### GLM (weighted)   
 
+what if we want weights?   apparently we can use `add_case_weights()` and refer to the `exposure_weight` column of type `importance_weight` we created earlier:
+
+**Tidymodels output**  
+```{r}
 weighted_logistic_glm_wf <-   workflow() %>% 
   add_case_weights(exposure_weight) %>% 
-  add_formula(my_has_claim_formula) %>%
+  add_formula(my_logistic_reg_formula) %>%
   add_model(logistic_glm_spec)
 
 weighted_logistic_glm_wf_fit <-  weighted_logistic_glm_wf%>% 
@@ -322,30 +318,24 @@ weighted_logistic_glm_wf_fit <-  weighted_logistic_glm_wf%>%
 
 weighted_logistic_glm_wf_fit
 ```
-is it the same a directly modelling outside tidymodels?   
-```{r}
-weighted_logistic_glm_direct_fit <- glm(my_has_claim_formula,    family = "binomial", data = my_train, weights = exposure)
 
-```
+**Non-tidymodels output**  
 
-let's compare estimates for tidymodels/direct  for  unweighted logistic regression
+is it the same a directly modelling outside tidymodels?   Yes!
 ```{r}
+weighted_logistic_glm_direct_fit <- glm(my_logistic_reg_formula,    family = "binomial", data = my_train, weights = exposure)
+
+
 tidy(weighted_logistic_glm_wf_fit) %>% select(term, estimate_weighted_logistic_glm_wf_fit = estimate) %>%
   left_join(tidy(weighted_logistic_glm_direct_fit) %>% select(term, estimate_weighted_logistic_glm_direct_fit = estimate)) 
 ```
-yes!! 
 
-### GAM (with splines) weighted     
+### GAM (with splines) (weighted)     
 
-here's how I define a logistic regression in mgcv::gam().  
-
-let's go stratight to workflows since one day we'll want to use workflow sets anyway...
-
-
-* Note 1:  the REML method is passed to set_engine because this option is specific to the mgcv package.    
-* Note 2: for some reason, GAMs  need us  to specify the formula twice, once in add_model() and another time in add_formula.  Interesting:   I need to add the spline in the formula in add_model(my_has_claim_spline_formula), but not in add_formula(my_has_claim_formula).
+* Note 1:  the REML method is passed to set_engine() rather than gen_additive_mod() because this option is specific to the mgcv package.    
+* Note 2: for some reason, GAMs  need us  to specify the formula twice, once in add_model() and another time in add_formula.  Interesting:   I need to add the spline in the formula in add_model(my_logistic_reg_formula_with_splines), but not in add_formula(my_logistic_reg_formula).
 more here : https://community.rstudio.com/t/how-to-define-smoothed-models-for-a-gam-using-tidymodels-and-recipe/144772/2
-* Note 3:  I need to add `parametric=TRUE` to broom::tidy()  to get the mgcv parameters (https://broom.tidymodels.org/reference/tidy.gam.html). parametric=FALSE will return the fitted spline.    
+* Note 3:  I need to add `parametric=TRUE` to broom::tidy()  to get the mgcv parameters (https://broom.tidymodels.org/reference/tidy.gam.html). Te default (parametric=FALSE) returns the fitted spline.    
 
 
 
@@ -360,12 +350,12 @@ logistic_gam_spec <-
   set_engine('mgcv', method= "REML") %>%
   set_mode('classification')
 
-my_has_claim_spline_formula <- as.formula('has_claim_fct ~ s(veh_value, bs= "tp") + veh_body + veh_age +  gender +  area +  agecat')
+my_logistic_reg_formula_with_splines <- as.formula('has_claim_fct ~ s(veh_value, bs= "tp") + veh_body + veh_age +  gender +  area +  agecat')
 
 
 logistic_gam_wf <- workflow() %>%
-  add_model(logistic_gam_spec, formula = my_has_claim_spline_formula) %>%  # need to add formula twice, and  in add_formula
-  add_formula(my_has_claim_formula) %>%
+  add_model(logistic_gam_spec, formula = my_logistic_reg_formula_with_splines) %>%  # need to add formula twice, and  in add_formula
+  add_formula(my_logistic_reg_formula) %>%
   add_case_weights(exposure_weight)
 
 
@@ -376,11 +366,11 @@ logistic_gam_wf_fit <-  logistic_gam_wf%>%
 logistic_gam_wf_fit %>% tidy(parametric = TRUE)
 
 ```
-same result if I do it directly using mgcv::gam:
+same result if I do it directly using mgcv::gam?  Yes! 
 
 ```{r}
 mgcv::gam(
-  formula = my_has_claim_spline_formula, 
+  formula = my_logistic_reg_formula_with_splines, 
   data = my_train, 
   weights = exposure,
   family = stats::binomial(link = "logit"),
@@ -389,14 +379,15 @@ mgcv::gam(
 ```
 
 
-### XGBoost  weighted     
+### XGBoost  (weighted)     
 
+Let's start with specifying the hyperparameters.  Tuning will have to wait for now.  
 
 ```{r}
 logistic_xgb_spec <-
   boost_tree(
     tree_depth = 3,
-    trees= 100,
+    trees= 200,
     learn_rate = 0.1,
     min_n = 50,
     loss_reduction = 0,
@@ -408,7 +399,7 @@ logistic_xgb_spec <-
 
 logistic_xgb_wf <- workflow() %>%
   add_model(logistic_xgb_spec) %>%
-  add_formula(my_has_claim_formula) %>%
+  add_formula(my_logistic_reg_formula) %>%
   add_case_weights(exposure_weight)
 
 set.seed(345)
@@ -416,58 +407,110 @@ logistic_xgb_wf_fit <-  logistic_xgb_wf%>%
   fit(data = my_train )
 
 
-logistic_xgb_wf_fit %>% extract_fit_engine() %>% vip::vip()
+logistic_xgb_wf_fit %>% extract_fit_engine() %>% vip::vip(num_features= 30L)
 ```
-is the variable importance similar to what I get directly?  
 
-naaah.. ah well.
-xgboost is hard to reproduce...
+Can I train the exact same thing using xgboost?
+
 ```{r}
 my_recipe <- recipe(my_train ) %>%
-  update_role(all_of(labels(terms(my_has_claim_formula))), new_role = "predictor") %>%
+  update_role(all_of(labels(terms(my_logistic_reg_formula))), new_role = "predictor") %>%
   update_role(has_claim, new_role= "outcome") %>% 
   update_role(exposure, new_role = "weight") %>%
-  step_dummy(all_nominal_predictors()) %>%
+  step_dummy(all_nominal_predictors(), one_hot = TRUE) %>% ## APPARENTLY tidymodels use one_hot = TRUE because their model has 24 features. when I dont set one_hot  I only have 21 features.  
   step_select(has_role(c("predictor", "outcome", "weight")))
 
 prepped_recipe <- prep(my_recipe) 
 baked_train <- bake(prepped_recipe, my_train)
+baked_test <- bake(prepped_recipe, my_test)
 
-my_params <- list(min_child_weight = 50,
-                  max_depth = 3,
-                  eta = 0.1, 
-                  gamma = 0, 
-                  subsample = 1.0, 
-                  nthread = 1)
+my_params <- list(
+  eta = 0.1, 
+  max_depth = 3,
+  gamma = 0, 
+  colsample_bytree = 1,
+  colsample_bynode = 1,
+  min_child_weight = 50,
+  subsample = 1,
+  nthread = 1)
 xgtrain <- xgboost::xgb.DMatrix(
   data = as.matrix(baked_train %>% select(-has_claim, -exposure)),
   label = baked_train$has_claim,
   weight = baked_train$exposure
 )
 
+xgtest <- xgboost::xgb.DMatrix(
+  data = as.matrix(baked_test %>% select(-has_claim, -exposure)),
+  label = baked_test$has_claim,
+  weight = baked_test$exposure
+)
+
 set.seed(345)
 direct_xgb_fit <- xgboost::xgb.train(
   data = xgtrain,
   params = my_params,
-  nrounds = 100
+  nrounds = 200,
+   objective = "binary:logistic"
 )
-vip::vip(direct_xgb_fit)
+vip::vip(direct_xgb_fit, num_features = 30L)
 ```
+Same predictions for the first.. 6 digits?
+
+```{r}
+
+pred_tidy <- predict(logistic_xgb_wf_fit, new_data = my_test, type = "prob")   %>% select(.pred_1)
+pred_direct <- predict(direct_xgb_fit, newdata = xgtest)
+z <- pred_tidy %>% rename(pred_tidy = .pred_1) %>%  add_column(pred_direct)
+z %>% ggplot(aes(x= pred_tidy, y = pred_direct)) +
+  geom_point(alpha = 0.05) +
+  geom_smooth() +
+  coord_equal()
+
+```
+
+Identical first tree:  
+tidymodels xgboost model tree #1:  
+```{r}
+
+xgb.plot.tree(model = logistic_xgb_wf_fit %>% extract_fit_engine(), trees = 1)
+```
+
+direct xgboost model tree #1:
+```{r}
+xgb.plot.tree(model = direct_xgb_fit, trees = 1)
+```
+
+
+same parameters:  
+
+tidymodels parameters:  
+```{r}
+
+logistic_xgb_wf_fit %>% extract_fit_engine()
+```
+direct fit parameters:  
+```{r}
+direct_xgb_fit
+```
+
+looks likes I managed to get the same thing  
 
 
 ### lightgbm unweighted   
 
+
+Here's how to create a lightgbm model in tidymodels. TODO :try to reproduce it by fitting it directly (outside tidymodels)
 ```{r}
 logistic_lightgbm_spec <-
   boost_tree(
-    trees= 100
+    trees= 200
   ) %>%
   set_engine('lightgbm') %>%  # num_leaves = tune()
   set_mode('classification')
 
 logistic_lightgbm_wf <- workflow() %>%
   add_model(logistic_lightgbm_spec) %>%
-  add_formula(my_has_claim_formula) 
+  add_formula(my_logistic_reg_formula) 
 
 
 set.seed(345)
@@ -480,16 +523,14 @@ logistic_lightgbm_wf_fit %>% extract_fit_engine() %>% vip::vip()
 
 ### lightgbm weighted   (not implemented in tidymodels)
 
-
-
-
+appears not possible at the moment:  
 TL;DR: `Case weights are not enabled by the underlying model implementation.`
 
 ```{r}
 try(
   workflow() %>%
     add_model(logistic_lightgbm_spec) %>%
-    add_formula(my_has_claim_formula)  %>% 
+    add_formula(my_logistic_reg_formula)  %>% 
     add_case_weights(exposure_weight) %>% 
     fit(data = my_train ) 
 )
@@ -501,21 +542,22 @@ try(
 
 ## Use workflow_set to fit models  on all resamples   
 
+Alright, that was fun!  Now that I feel I know how to train a model in tidymodels, let's try to define all the models at once using a preprocessor, a formula in this case, and a list of model specifications.  Then we apply fit_resamples() to fit all workflows to all resamples.  
 
-we are going to define all the models at once using a single preprocessor (a formula, could have been a recipe) and a list of model specifications.  Then we apply fit_resamples() to fit all workflows to all resamples.  
+We could have used a recipe as the preprocessor.  We'll try that in another part later.    fit_resamples() is used when we don't do any tuning.  Tuning will be in the next part.
 
 
 
 note 1 :  update_workflow_model() **exists** https://github.com/tidymodels/workflowsets/issues/64
-it is used to add the formula to the GAM model inside a workflow_set.  
+ is used to add the formula to the GAM model inside a workflow_set.  
 
-note2 : we're could have used multiple different formulas to test different model specifications.   
+note2 : we're could have used multiple different formulas to test different model specifications.   we'll try that in a part later.  
 
 
 ```{r}
 all_workflows <- 
   workflow_set(
-    preproc = list("formula"= my_has_claim_formula ),
+    preproc = list("formula"= my_logistic_reg_formula ),
     models = list(
       logistic_glm = logistic_glm_spec,
       logistic_gam = logistic_gam_spec,
@@ -527,7 +569,7 @@ all_workflows <-
 all_workflows <- update_workflow_model(all_workflows,
                       i =  "formula_logistic_gam",
                       spec = logistic_gam_spec,
-                      formula = my_has_claim_formula)
+                      formula = my_logistic_reg_formula)
 
 # Workflows can take special arguments for the recipe (e.g. a blueprint) or a model (e.g. a special formula). However, when creating a workflow set, there is no way to specify these extra components. update_workflow_model() and update_workflow_recipe() allow users to set these values after the workflow set is initially created. They are analogous to workflows::add_model() or workflows::add_recipe().
       
@@ -552,17 +594,17 @@ autoplot(all_workflows2, metric="roc_auc")
 
 ## Adding hyperparameter tuning to the workflow_set   
 
-
+ok, that was fun.  Here's how to do try with a grid of hyperparameters
 
 ```{r}
 logistic_tuneable_xgb_spec <-
   boost_tree(
-    trees= 100,
+    trees= 200,
     learn_rate = 0.1,
     tree_depth = tune(),
     min_n = tune(),
-    loss_reduction = tune(),
-    sample_size = tune(),
+    loss_reduction = 0,
+    sample_size = 1,
     mtry= tune(),
     stop_iter = 50
   ) %>%
@@ -576,7 +618,7 @@ logistic_tuneable_xgb_spec <-
 ```{r}
 all_workflows3 <- 
   workflow_set(
-    preproc = list("formula"= my_has_claim_formula ),
+    preproc = list("formula"= my_logistic_reg_formula ),
     models = list(
       logistic_glm = logistic_glm_spec,
       logistic_gam = logistic_gam_spec,
@@ -589,28 +631,38 @@ all_workflows3 <-
 all_workflows3 <- update_workflow_model(all_workflows3,
                       i =  "formula_logistic_gam",
                       spec = logistic_gam_spec,
-                      formula = my_has_claim_formula)
+                      formula = my_logistic_reg_formula)
 
 # Workflows can take special arguments for the recipe (e.g. a blueprint) or a model (e.g. a special formula). However, when creating a workflow set, there is no way to specify these extra components. update_workflow_model() and update_workflow_recipe() allow users to set these values after the workflow set is initially created. They are analogous to workflows::add_model() or workflows::add_recipe().
-      
+ 
 all_workflows4 <- 
   all_workflows3 %>%
+  option_add(control = control_grid(save_pred = TRUE), grid = 12) %>% 
   workflow_map(resamples = train_resamples,
                fn = "tune_grid",
-               verbose = TRUE)
+               verbose = TRUE,
+               seed = 567) 
 ```
 
-this time we have a lot more of boosted trees because `logistic_tuneable_xgb` goes through a grid of 10 sets of hyperparameters. 
+this time we have a lot more of boosted trees because `logistic_tuneable_xgb` goes through a grid of 12 sets of hyperparameters. (most of which are shitty..)
 
 ```{r}
 autoplot(all_workflows4, metric="roc_auc")
 ```
 
 ```{r}
-rank_results(all_workflows4, rank_metric = "roc_auc")
+rank_results(all_workflows4, rank_metric = "roc_auc") %>% filter(.metric == "roc_auc")
 ```
 
-Here the best model is the "logistic_xgboost", the one where I hand-picked hyperparameters.  Let's pretend that the best model was one of the 10 sets of hyperparameters from "logistic_tuneable_xgb".  We could extract that workflow, then show the best 5 results and finally select_best() hyperparameters and finalise the `logistic_tuneable_xgb` by running the model on the whole training set with the best hyperparameters.    
+note: we can  compare the out-of-sample predictions of all models using collect_predictions(all_workflows4). Here are the predictions of all 15 models for the first row in test:  
+
+```{r}
+out_of_sample_preds <- collect_predictions(all_workflows4)
+out_of_sample_preds %>% filter(.row ==1) %>% arrange(desc(.pred_1))
+```
+
+
+Here the best model is the 7th set of hyperparameters from "formula_logistic_tuneable_xgb" workflow.  Let's extract that workflow, then show the best 5 results and finally select_best() hyperparameters and finalise the `logistic_tuneable_xgb` by running the model on the whole training set with the best hyperparameters.    
 ```{r}
 logistic_tuneable_xgb_wf_result <- 
   all_workflows4 %>%
@@ -641,6 +693,8 @@ test_with_preds %>%
 
 the mean of test_with_preds$has_claim is not the same as  test_with_preds$.pred_1.. shoot. maybe it wasnt done learning?
 
+
+
 ```{r}
 mean(test_with_preds$has_claim)
 ```
@@ -648,10 +702,37 @@ mean(test_with_preds$has_claim)
 mean(test_with_preds$.pred_1)
 ```
 
-anyway, enough for today.
+we'll figure that out later...
 
 
-# TODO: Logistic Regression with recipe  
+
+here's how to check the metrics: () https://juliasilge.com/blog/nber-papers/)
+```{r}
+collect_metrics(logistic_tuneable_xgb_wf_fit)
+```
+
+
+```{r}
+collect_predictions(logistic_tuneable_xgb_wf_fit) %>%
+  conf_mat(has_claim_fct, .pred_class) %>%
+  autoplot()
+```
+ROC curve is upside down when using .pred_1. ... guess I'd need to replace the reference level somewhere.. for today I'll just use .pred_0:
+
+
+
+```{r}
+collect_predictions(logistic_tuneable_xgb_wf_fit) %>%
+  roc_curve(truth = has_claim_fct, .pred_0) %>%
+  ggplot(aes(1 - specificity, sensitivity)) +
+  geom_abline(slope = 1, color = "gray50", lty = 2, alpha = 0.8) +
+  geom_path(size = 1.5, alpha = 0.7) +
+  labs(color = NULL) +
+  coord_fixed()
+```
+
+
+# Logistic Regression with recipe pre-processor
 
 ok, let's use the option to pass a recipe instead of a formula  to the workflow_set.  This will allow us to do some feature engineering,  like:
   * imputing missing values (this doesnt happen in this dataset),  
@@ -662,7 +743,7 @@ ok, let's use the option to pass a recipe instead of a formula  to the workflow_
 ```{r}
 
 my_recipe_with_imputation <- recipe(my_train ) %>%
-  update_role(all_of(labels(terms(my_has_claim_formula))), new_role = "predictor") %>% # assign the role of predictor to right-side terms of my formula
+  update_role(all_of(labels(terms(my_logistic_reg_formula))), new_role = "predictor") %>% # assign the role of predictor to right-side terms of my formula
   update_role(has_claim_fct, new_role= "outcome") %>%  ## was has_claim  in "my_recipe", but needs to be a factor for tidymodels
   update_role(exposure, new_role = "weight") %>%
   
@@ -712,7 +793,7 @@ all_workflows5 <-
 # all_workflows5 <- update_workflow_model(all_workflows5,
 #                       i =  "recipe_with_imputation_logistic_gam",
 #                       spec = logistic_gam_spec,
-#                       formula = my_has_claim_formula)
+#                       formula = my_logistic_reg_formula)
 
 # Workflows can take special arguments for the recipe (e.g. a blueprint) or a model (e.g. a special formula). However, when creating a workflow set, there is no way to specify these extra components. update_workflow_model() and update_workflow_recipe() allow users to set these values after the workflow set is initially created. They are analogous to workflows::add_model() or workflows::add_recipe().
       
@@ -852,7 +933,7 @@ YES!! ESTI QUE JE SUIS BON AHAH!
 tweedie_xgb_spec <-
   boost_tree(
     tree_depth = 3,
-    trees= 100,
+    trees= 200,
     learn_rate = 0.1,
     min_n = 50,
     loss_reduction = 0,
@@ -891,4 +972,11 @@ tweedie_xgb_wf_fit %>% extract_fit_engine() %>% vip::vip()
 ### xgboost  weighted     
 
 
+
+# resources
+
+
+* tidy modelling with r book https://www.tmwr.org/resampling  
+* all of juliasilge's blog posts juliasilge.com  
+* just stumbled on this website by taylor dunn as I put the finishing touch to this post (damn https://bookdown.org/taylordunn/islr-tidy-1655226885741/moving-beyond-linearity.html)
 
