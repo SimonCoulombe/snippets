@@ -1,16 +1,15 @@
 ---
-title: tidymodels and insurance loss cost models
-author: simon
-date: '2023-08-06'
-slug: index.en-us
+title: "tidymodels and insurance loss cost models"
+author: "simon"
+date: "2023-08-06"
+slug: "index.en-us"
 categories:
-  - category
-  - subcategory
+- category
+- subcategory
 tags:
-  - tag1
-  - tag2
-keywords:
-  - tech
+- tag1
+- tag2
+keywords: tech
 ---
 
 <script src="/rmarkdown-libs/htmlwidgets/htmlwidgets.js"></script>
@@ -44,10 +43,7 @@ keywords:
 </li>
 <li>figure out a way to use case weights in <code>lightgbm</code>,<br />
 </li>
-<li>create <code>poisson</code> and <code>gamma</code> regressions (should be easy, but I’m out of time).<br />
-</li>
-<li>figure out why my average prediction for the logistic xgboost is so off. maybe it wasnt done learning?</li>
-<li>figure out a way to give a maximum/minimum value to the tune_grid for variables. I don’t want it to test a learning rate of 0.000000000000001.</li>
+<li>create <code>poisson</code> and <code>gamma</code> regressions (should be similar to tweedie, but I’m out of time).</li>
 </ul>
 <p>Let’s get started!</p>
 </div>
@@ -106,7 +102,12 @@ for (i in seq(from =2, to =nrow(mydb))){
   }
 }
 
-mydb %&gt;% count(policy_id) %&gt;% count(n) %&gt;% gt(caption=&quot;most (fake) policy_id have only 1 record in the dataset, but many have more&quot;)</code></pre>
+mydb %&gt;%
+  count(policy_id) %&gt;% 
+  count(n) %&gt;%
+  gt(caption=&quot;most (fake) policy_id have only 1 record in the dataset, but many have more&quot;,
+     ) %&gt;%
+  cols_width(    everything() ~ px(200))</code></pre>
 <div id="zbgwxzhnkk" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
 <style>#zbgwxzhnkk table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
@@ -547,8 +548,12 @@ mydb %&gt;% count(policy_id) %&gt;% count(n) %&gt;% gt(caption=&quot;most (fake)
   text-indent: 25px;
 }
 </style>
-<table class="gt_table" data-quarto-disable-processing="false" data-quarto-bootstrap="false">
+<table class="gt_table" style="table-layout: fixed;; width: 0px" data-quarto-disable-processing="false" data-quarto-bootstrap="false">
   <caption><span id="tab:unnamed-chunk-1">Table 1: </span>most (fake) policy_id have only 1 record in the dataset, but many have more</caption>
+  <colgroup>
+    <col style="width:200px;"/>
+    <col style="width:200px;"/>
+  </colgroup>
   <thead>
     
     <tr class="gt_col_headings">
@@ -609,7 +614,8 @@ both %&gt;%
   distinct(policy_id, type) %&gt;% 
   count(policy_id) %&gt;%
   count(n) %&gt;%
-  gt(caption = &quot;all policy_id are seen in only 1 type (either train or test), never both&quot;)</code></pre>
+  gt(caption = &quot;all policy_id are seen in only 1 type (either train or test), never both&quot;) %&gt;%
+  cols_width(    everything() ~ px(200))</code></pre>
 <div id="etruhexnbz" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
 <style>#etruhexnbz table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
@@ -1050,8 +1056,12 @@ both %&gt;%
   text-indent: 25px;
 }
 </style>
-<table class="gt_table" data-quarto-disable-processing="false" data-quarto-bootstrap="false">
+<table class="gt_table" style="table-layout: fixed;; width: 0px" data-quarto-disable-processing="false" data-quarto-bootstrap="false">
   <caption><span id="tab:unnamed-chunk-4">Table 2: </span>all policy_id are seen in only 1 type (either train or test), never both</caption>
+  <colgroup>
+    <col style="width:200px;"/>
+    <col style="width:200px;"/>
+  </colgroup>
   <thead>
     
     <tr class="gt_col_headings">
@@ -1071,7 +1081,8 @@ both %&gt;%
 <pre class="r"><code>both %&gt;% 
   count(type) %&gt;%
   mutate(pct = n/sum(n)) %&gt;% 
-  gt(caption=&quot;proportion of records in train/test is exactly  75% vs 25%, as expected&quot;)</code></pre>
+  gt(caption=&quot;proportion of records in train/test is exactly  75% vs 25%, as expected&quot;) %&gt;%
+  cols_width(    everything() ~ px(200))</code></pre>
 <div id="yimikurtyt" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
 <style>#yimikurtyt table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
@@ -1512,8 +1523,13 @@ both %&gt;%
   text-indent: 25px;
 }
 </style>
-<table class="gt_table" data-quarto-disable-processing="false" data-quarto-bootstrap="false">
+<table class="gt_table" style="table-layout: fixed;; width: 0px" data-quarto-disable-processing="false" data-quarto-bootstrap="false">
   <caption><span id="tab:unnamed-chunk-5">Table 3: </span>proportion of records in train/test is exactly  75% vs 25%, as expected</caption>
+  <colgroup>
+    <col style="width:200px;"/>
+    <col style="width:200px;"/>
+    <col style="width:200px;"/>
+  </colgroup>
   <thead>
     
     <tr class="gt_col_headings">
@@ -1539,7 +1555,8 @@ both %&gt;%
   group_by(type) %&gt;% 
   summarise(exposure = sum(exposure)) %&gt;%
   mutate(pct = exposure/sum(exposure)) %&gt;%
-  gt(caption=&quot;exposure is NOT split exactly  75-25 because we couldnt weight records when splitting&quot;)</code></pre>
+  gt(caption=&quot;exposure is NOT split exactly  75-25 because we couldnt weight records when splitting&quot;) %&gt;%
+  cols_width(    everything() ~ px(200))</code></pre>
 <div id="wcohycrrpy" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
 <style>#wcohycrrpy table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
@@ -1980,8 +1997,13 @@ both %&gt;%
   text-indent: 25px;
 }
 </style>
-<table class="gt_table" data-quarto-disable-processing="false" data-quarto-bootstrap="false">
+<table class="gt_table" style="table-layout: fixed;; width: 0px" data-quarto-disable-processing="false" data-quarto-bootstrap="false">
   <caption><span id="tab:unnamed-chunk-6">Table 4: </span>exposure is NOT split exactly  75-25 because we couldnt weight records when splitting</caption>
+  <colgroup>
+    <col style="width:200px;"/>
+    <col style="width:200px;"/>
+    <col style="width:200px;"/>
+  </colgroup>
   <thead>
     
     <tr class="gt_col_headings">
@@ -2007,7 +2029,8 @@ both %&gt;%
   group_by(type) %&gt;% 
   summarise(overall_annual_loss = sum(dollar_loss)/ sum(exposure)) %&gt;%
   ungroup() %&gt;% 
-  gt(caption=&quot;overall annuall loss (dollar loss per year ) isnt the same in both train and test&quot;)</code></pre>
+  gt(caption=&quot;overall annuall loss (dollar loss per year ) isnt the same in both train and test&quot;) %&gt;%
+  cols_width(    everything() ~ px(200))</code></pre>
 <div id="hacnavchfz" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
 <style>#hacnavchfz table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
@@ -2448,8 +2471,12 @@ both %&gt;%
   text-indent: 25px;
 }
 </style>
-<table class="gt_table" data-quarto-disable-processing="false" data-quarto-bootstrap="false">
+<table class="gt_table" style="table-layout: fixed;; width: 0px" data-quarto-disable-processing="false" data-quarto-bootstrap="false">
   <caption><span id="tab:unnamed-chunk-7">Table 5: </span>overall annuall loss (dollar loss per year ) isnt the same in both train and test</caption>
+  <colgroup>
+    <col style="width:200px;"/>
+    <col style="width:200px;"/>
+  </colgroup>
   <thead>
     
     <tr class="gt_col_headings">
@@ -2472,7 +2499,8 @@ both %&gt;%
   group_by(type) %&gt;% 
   summarise(overall_frequency = sum(has_claim)/ sum(exposure)) %&gt;%
   ungroup() %&gt;% 
-  gt(caption=&quot;overall frequency (claims per year) is less different  between train and test  than the overall annual loss&quot;)</code></pre>
+  gt(caption=&quot;overall frequency (claims per year) is less different  between train and test  than the overall annual loss&quot;) %&gt;%
+  cols_width(    everything() ~ px(200))</code></pre>
 <div id="guqcrkkeoj" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
 <style>#guqcrkkeoj table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
@@ -2913,8 +2941,12 @@ both %&gt;%
   text-indent: 25px;
 }
 </style>
-<table class="gt_table" data-quarto-disable-processing="false" data-quarto-bootstrap="false">
+<table class="gt_table" style="table-layout: fixed;; width: 0px" data-quarto-disable-processing="false" data-quarto-bootstrap="false">
   <caption><span id="tab:unnamed-chunk-8">Table 6: </span>overall frequency (claims per year) is less different  between train and test  than the overall annual loss</caption>
+  <colgroup>
+    <col style="width:200px;"/>
+    <col style="width:200px;"/>
+  </colgroup>
   <thead>
     
     <tr class="gt_col_headings">
@@ -2955,7 +2987,7 @@ train_resamples &lt;- group_vfold_cv(my_train,
 <h2>comparing tidymodels model output to fitting the models outside tidymodels</h2>
 <p>before diving into the cool stuff like evaluating the model on multiple resamples and tuning parameters, I’ll just make sure I can reproduce the training inside and outside <code>tidymodels</code></p>
 <div id="glm-unweighted" class="section level3">
-<h3>GLM unweighted</h3>
+<h3>GLM (unweighted)</h3>
 <p>The code below to generate the specification for a GLM logistic regression was initially generated by running <code>parsnip::parsnip_addin()</code>, selecting <code>classification</code>, <code>logistic_reg (glm)</code> and unchecking <code>tag parameters for tuning (if any)</code> then clicking the gren <code>write specification code</code> button.</p>
 <p><strong>Tidymodels output</strong></p>
 <pre class="r"><code>logistic_glm_spec &lt;- 
@@ -2969,71 +3001,44 @@ logistic_glm_fit &lt;-logistic_glm_spec %&gt;%
 
 logistic_glm_fit %&gt;%
   extract_fit_engine() %&gt;% 
-  summary()</code></pre>
-<pre><code>## 
-## Call:
-## stats::glm(formula = has_claim_fct ~ veh_value + veh_body + veh_age + 
-##     gender + area + agecat, family = stats::binomial, data = data)
-## 
-## Coefficients:
-##                Estimate Std. Error z value       Pr(&gt;|z|)    
-## (Intercept)   -1.201053   0.442967  -2.711       0.006700 ** 
-## veh_value      0.054263   0.020710   2.620       0.008790 ** 
-## veh_bodyCONVT -2.252582   0.848823  -2.654       0.007960 ** 
-## veh_bodyCOUPE -0.963122   0.453412  -2.124       0.033656 *  
-## veh_bodyHBACK -1.279968   0.431300  -2.968       0.003000 ** 
-## veh_bodyHDTOP -1.122741   0.441883  -2.541       0.011060 *  
-## veh_bodyMCARA -0.531632   0.530179  -1.003       0.315986    
-## veh_bodyMIBUS -1.442704   0.466390  -3.093       0.001979 ** 
-## veh_bodyPANVN -1.045813   0.455114  -2.298       0.021567 *  
-## veh_bodyRDSTR -1.249806   0.856240  -1.460       0.144388    
-## veh_bodySEDAN -1.248954   0.430639  -2.900       0.003729 ** 
-## veh_bodySTNWG -1.269835   0.430620  -2.949       0.003190 ** 
-## veh_bodyTRUCK -1.349192   0.443015  -3.045       0.002323 ** 
-## veh_bodyUTE   -1.508527   0.435224  -3.466       0.000528 ***
-## veh_age       -0.001130   0.021941  -0.052       0.958927    
-## genderM        0.013152   0.037078   0.355       0.722806    
-## areaB          0.087678   0.053252   1.646       0.099665 .  
-## areaC          0.056931   0.048287   1.179       0.238395    
-## areaD         -0.094425   0.065652  -1.438       0.150359    
-## areaE         -0.006387   0.071821  -0.089       0.929142    
-## areaF          0.151325   0.082437   1.836       0.066411 .  
-## agecat        -0.080899   0.012638  -6.401 0.000000000154 ***
-## ---
-## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
-## 
-## (Dispersion parameter for binomial family taken to be 1)
-## 
-##     Null deviance: 25325  on 50892  degrees of freedom
-## Residual deviance: 25220  on 50871  degrees of freedom
-## AIC: 25264
-## 
-## Number of Fisher Scoring iterations: 5</code></pre>
+  tidy()</code></pre>
+<pre><code>## # A tibble: 22 × 5
+##    term          estimate std.error statistic p.value
+##    &lt;chr&gt;            &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;   &lt;dbl&gt;
+##  1 (Intercept)    -1.20      0.443      -2.71 0.00670
+##  2 veh_value       0.0543    0.0207      2.62 0.00879
+##  3 veh_bodyCONVT  -2.25      0.849      -2.65 0.00796
+##  4 veh_bodyCOUPE  -0.963     0.453      -2.12 0.0337 
+##  5 veh_bodyHBACK  -1.28      0.431      -2.97 0.00300
+##  6 veh_bodyHDTOP  -1.12      0.442      -2.54 0.0111 
+##  7 veh_bodyMCARA  -0.532     0.530      -1.00 0.316  
+##  8 veh_bodyMIBUS  -1.44      0.466      -3.09 0.00198
+##  9 veh_bodyPANVN  -1.05      0.455      -2.30 0.0216 
+## 10 veh_bodyRDSTR  -1.25      0.856      -1.46 0.144  
+## # ℹ 12 more rows</code></pre>
 <p><strong>Non-tidymodels output</strong>
 is this the same output as directly running the normal glm?<br />
 yes!</p>
-<pre class="r"><code>logistic_glm_direct_fit &lt;- glm(my_logistic_reg_formula,    family = &quot;binomial&quot;, data = my_train) 
-
-tidy(logistic_glm_fit) %&gt;%  select(term, estimate_logistic_glm_fit = estimate) %&gt;%
-  left_join(tidy(logistic_glm_direct_fit) %&gt;% select(term, estimate_logistic_glm_direct_fit = estimate)) </code></pre>
-<pre><code>## # A tibble: 22 × 3
-##    term          estimate_logistic_glm_fit estimate_logistic_glm_direct_fit
-##    &lt;chr&gt;                             &lt;dbl&gt;                            &lt;dbl&gt;
-##  1 (Intercept)                     -1.20                            -1.20  
-##  2 veh_value                        0.0543                           0.0543
-##  3 veh_bodyCONVT                   -2.25                            -2.25  
-##  4 veh_bodyCOUPE                   -0.963                           -0.963 
-##  5 veh_bodyHBACK                   -1.28                            -1.28  
-##  6 veh_bodyHDTOP                   -1.12                            -1.12  
-##  7 veh_bodyMCARA                   -0.532                           -0.532 
-##  8 veh_bodyMIBUS                   -1.44                            -1.44  
-##  9 veh_bodyPANVN                   -1.05                            -1.05  
-## 10 veh_bodyRDSTR                   -1.25                            -1.25  
+<pre class="r"><code>glm(my_logistic_reg_formula,    family = &quot;binomial&quot;, data = my_train)  %&gt;% 
+  tidy()</code></pre>
+<pre><code>## # A tibble: 22 × 5
+##    term          estimate std.error statistic p.value
+##    &lt;chr&gt;            &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;   &lt;dbl&gt;
+##  1 (Intercept)    -1.20      0.443      -2.71 0.00670
+##  2 veh_value       0.0543    0.0207      2.62 0.00879
+##  3 veh_bodyCONVT  -2.25      0.849      -2.65 0.00796
+##  4 veh_bodyCOUPE  -0.963     0.453      -2.12 0.0337 
+##  5 veh_bodyHBACK  -1.28      0.431      -2.97 0.00300
+##  6 veh_bodyHDTOP  -1.12      0.442      -2.54 0.0111 
+##  7 veh_bodyMCARA  -0.532     0.530      -1.00 0.316  
+##  8 veh_bodyMIBUS  -1.44      0.466      -3.09 0.00198
+##  9 veh_bodyPANVN  -1.05      0.455      -2.30 0.0216 
+## 10 veh_bodyRDSTR  -1.25      0.856      -1.46 0.144  
 ## # ℹ 12 more rows</code></pre>
 </div>
 <div id="glm-weighted" class="section level3">
 <h3>GLM (weighted)</h3>
-<p>what if we want weights? apparently we can use <code>add_case_weights()</code> and refer to the <code>exposure_weight</code> column of type <code>importance_weight</code> we created earlier:</p>
+<p>What if we want weights? It doesnt really make sense in this logistic example, but will in the future for tweedie/poisson/gamma. Apparently we can use <code>add_case_weights()</code> and refer to the <code>exposure_weight</code> column of type <code>importance_weight</code> we created earlier:</p>
 <p><strong>Tidymodels output</strong></p>
 <pre class="r"><code>weighted_logistic_glm_wf &lt;-   workflow() %&gt;% 
   add_case_weights(exposure_weight) %&gt;% 
@@ -3043,60 +3048,38 @@ tidy(logistic_glm_fit) %&gt;%  select(term, estimate_logistic_glm_fit = estimate
 weighted_logistic_glm_wf_fit &lt;-  weighted_logistic_glm_wf%&gt;% 
   fit(data = my_train)
 
-weighted_logistic_glm_wf_fit</code></pre>
-<pre><code>## ══ Workflow [trained] ══════════════════════════════════════════════════════════
-## Preprocessor: Formula
-## Model: logistic_reg()
-## 
-## ── Preprocessor ────────────────────────────────────────────────────────────────
-## has_claim_fct ~ veh_value + veh_body + veh_age + gender + area + 
-##     agecat
-## 
-## ── Case Weights ────────────────────────────────────────────────────────────────
-## exposure_weight
-## 
-## ── Model ───────────────────────────────────────────────────────────────────────
-## 
-## Call:  stats::glm(formula = ..y ~ ., family = stats::binomial, data = data, 
-##     weights = weights)
-## 
-## Coefficients:
-##   (Intercept)      veh_value  veh_bodyCONVT  veh_bodyCOUPE  veh_bodyHBACK  
-##     -0.634486       0.046051      -1.987176      -1.032251      -1.414774  
-## veh_bodyHDTOP  veh_bodyMCARA  veh_bodyMIBUS  veh_bodyPANVN  veh_bodyRDSTR  
-##     -1.203900      -0.624696      -1.416084      -1.131264      -0.933886  
-## veh_bodySEDAN  veh_bodySTNWG  veh_bodyTRUCK    veh_bodyUTE        veh_age  
-##     -1.349159      -1.339807      -1.358917      -1.523044      -0.060379  
-##       genderM          areaB          areaC          areaD          areaE  
-##     -0.004264       0.074793       0.027175      -0.155155      -0.079106  
-##         areaF         agecat  
-##      0.092154      -0.074668  
-## 
-## Degrees of Freedom: 50892 Total (i.e. Null);  50871 Residual
-## Null Deviance:	    14300 
-## Residual Deviance: 14220 	AIC: 14940</code></pre>
+weighted_logistic_glm_wf_fit %&gt;% tidy()</code></pre>
+<pre><code>## # A tibble: 22 × 5
+##    term          estimate std.error statistic p.value
+##    &lt;chr&gt;            &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;   &lt;dbl&gt;
+##  1 (Intercept)    -0.634     0.544     -1.17  0.243  
+##  2 veh_value       0.0461    0.0271     1.70  0.0893 
+##  3 veh_bodyCONVT  -1.99      1.03      -1.93  0.0539 
+##  4 veh_bodyCOUPE  -1.03      0.563     -1.83  0.0667 
+##  5 veh_bodyHBACK  -1.41      0.527     -2.68  0.00729
+##  6 veh_bodyHDTOP  -1.20      0.541     -2.22  0.0262 
+##  7 veh_bodyMCARA  -0.625     0.676     -0.923 0.356  
+##  8 veh_bodyMIBUS  -1.42      0.574     -2.46  0.0137 
+##  9 veh_bodyPANVN  -1.13      0.556     -2.04  0.0417 
+## 10 veh_bodyRDSTR  -0.934     1.02      -0.916 0.360  
+## # ℹ 12 more rows</code></pre>
 <p><strong>Non-tidymodels output</strong></p>
 <p>is it the same a directly modelling outside tidymodels? Yes!</p>
-<pre class="r"><code>weighted_logistic_glm_direct_fit &lt;- glm(my_logistic_reg_formula,    family = &quot;binomial&quot;, data = my_train, weights = exposure)
-
-
-tidy(weighted_logistic_glm_wf_fit) %&gt;% select(term, estimate_weighted_logistic_glm_wf_fit = estimate) %&gt;%
-  left_join(tidy(weighted_logistic_glm_direct_fit) %&gt;% select(term, estimate_weighted_logistic_glm_direct_fit = estimate)) </code></pre>
-<pre><code>## # A tibble: 22 × 3
-##    term          estimate_weighted_logistic_glm_wf_fit estimate_weighted_logis…¹
-##    &lt;chr&gt;                                         &lt;dbl&gt;                     &lt;dbl&gt;
-##  1 (Intercept)                                 -0.634                    -0.634 
-##  2 veh_value                                    0.0461                    0.0461
-##  3 veh_bodyCONVT                               -1.99                     -1.99  
-##  4 veh_bodyCOUPE                               -1.03                     -1.03  
-##  5 veh_bodyHBACK                               -1.41                     -1.41  
-##  6 veh_bodyHDTOP                               -1.20                     -1.20  
-##  7 veh_bodyMCARA                               -0.625                    -0.625 
-##  8 veh_bodyMIBUS                               -1.42                     -1.42  
-##  9 veh_bodyPANVN                               -1.13                     -1.13  
-## 10 veh_bodyRDSTR                               -0.934                    -0.934 
-## # ℹ 12 more rows
-## # ℹ abbreviated name: ¹​estimate_weighted_logistic_glm_direct_fit</code></pre>
+<pre class="r"><code>glm(my_logistic_reg_formula,    family = &quot;binomial&quot;, data = my_train, weights = exposure) %&gt;% tidy()</code></pre>
+<pre><code>## # A tibble: 22 × 5
+##    term          estimate std.error statistic p.value
+##    &lt;chr&gt;            &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;   &lt;dbl&gt;
+##  1 (Intercept)    -0.634     0.544     -1.17  0.243  
+##  2 veh_value       0.0461    0.0271     1.70  0.0893 
+##  3 veh_bodyCONVT  -1.99      1.03      -1.93  0.0539 
+##  4 veh_bodyCOUPE  -1.03      0.563     -1.83  0.0667 
+##  5 veh_bodyHBACK  -1.41      0.527     -2.68  0.00729
+##  6 veh_bodyHDTOP  -1.20      0.541     -2.22  0.0262 
+##  7 veh_bodyMCARA  -0.625     0.676     -0.923 0.356  
+##  8 veh_bodyMIBUS  -1.42      0.574     -2.46  0.0137 
+##  9 veh_bodyPANVN  -1.13      0.556     -2.04  0.0417 
+## 10 veh_bodyRDSTR  -0.934     1.02      -0.916 0.360  
+## # ℹ 12 more rows</code></pre>
 </div>
 <div id="gam-with-splines-weighted" class="section level3">
 <h3>GAM (with splines) (weighted)</h3>
@@ -3231,7 +3214,7 @@ direct_xgb_fit &lt;- xgboost::xgb.train(
   data = xgtrain,
   params = my_params,
   nrounds = 200,
-   objective = &quot;binary:logistic&quot;
+  objective = &quot;binary:logistic&quot;
 )
 vip::vip(direct_xgb_fit, num_features = 30L)</code></pre>
 <p><img src="/post/2023-08-06-tidymodels-and-insurance-loss-cost-models/index.en-us_files/figure-html/unnamed-chunk-19-1.png" width="672" />
@@ -3304,7 +3287,7 @@ tidymodels xgboost model tree #1:</p>
 <p>looks likes I managed to get the same thing</p>
 </div>
 <div id="lightgbm-unweighted" class="section level3">
-<h3>lightgbm unweighted</h3>
+<h3>lightgbm (unweighted)</h3>
 <p>Here’s how to create a lightgbm model in tidymodels. TODO :try to reproduce it by fitting it directly (outside tidymodels)</p>
 <pre class="r"><code>logistic_lightgbm_spec &lt;-
   boost_tree(
@@ -3356,16 +3339,16 @@ is used to add the formula to the GAM model inside a workflow_set.</p>
       logistic_gam = logistic_gam_spec,
       logistic_xgboost = logistic_xgb_spec
     ),
-     case_weights = exposure_weight
+    case_weights = exposure_weight
   )
 
 all_workflows &lt;- update_workflow_model(all_workflows,
-                      i =  &quot;formula_logistic_gam&quot;,
-                      spec = logistic_gam_spec,
-                      formula = my_logistic_reg_formula)
+                                       i =  &quot;formula_logistic_gam&quot;,
+                                       spec = logistic_gam_spec,
+                                       formula = my_logistic_reg_formula)
 
 # Workflows can take special arguments for the recipe (e.g. a blueprint) or a model (e.g. a special formula). However, when creating a workflow set, there is no way to specify these extra components. update_workflow_model() and update_workflow_recipe() allow users to set these values after the workflow set is initially created. They are analogous to workflows::add_model() or workflows::add_recipe().
-      
+
 all_workflows2 &lt;- 
   all_workflows %&gt;%
   workflow_map(resamples = train_resamples,
@@ -3390,16 +3373,22 @@ all_workflows2 &lt;-
 <pre class="r"><code>logistic_tuneable_xgb_spec &lt;-
   boost_tree(
     trees= 200,
-    learn_rate = 0.1,
+    learn_rate = 0.05,
     tree_depth = tune(),
     min_n = tune(),
     loss_reduction = 0,
     sample_size = 1,
-    mtry= tune(),
-    stop_iter = 50
+    mtry= 1, # colsample_bynode
+    stop_iter = 50 
   ) %&gt;%
   set_engine(&#39;xgboost&#39;, nthread = 1) %&gt;%
   set_mode(&#39;classification&#39;)</code></pre>
+<p>create a grid with 12 different sets of hyperparameters</p>
+<pre class="r"><code>my_grid &lt;- grid_latin_hypercube(
+  tree_depth(range = c(2,10)),
+  min_n(),
+  size = 12
+)</code></pre>
 <pre class="r"><code>all_workflows3 &lt;- 
   workflow_set(
     preproc = list(&quot;formula&quot;= my_logistic_reg_formula ),
@@ -3409,81 +3398,116 @@ all_workflows2 &lt;-
       logistic_xgboost = logistic_xgb_spec,
       logistic_tuneable_xgb = logistic_tuneable_xgb_spec
     ),
-     case_weights = exposure_weight
+    case_weights = exposure_weight
   )
 
 all_workflows3 &lt;- update_workflow_model(all_workflows3,
-                      i =  &quot;formula_logistic_gam&quot;,
-                      spec = logistic_gam_spec,
-                      formula = my_logistic_reg_formula)
+                                        i =  &quot;formula_logistic_gam&quot;,
+                                        spec = logistic_gam_spec,
+                                        formula = my_logistic_reg_formula)
 
 # Workflows can take special arguments for the recipe (e.g. a blueprint) or a model (e.g. a special formula). However, when creating a workflow set, there is no way to specify these extra components. update_workflow_model() and update_workflow_recipe() allow users to set these values after the workflow set is initially created. They are analogous to workflows::add_model() or workflows::add_recipe().
- 
+
 all_workflows4 &lt;- 
   all_workflows3 %&gt;%
-  option_add(control = control_grid(save_pred = TRUE), grid = 12) %&gt;% 
+  #option_add(control = control_grid(save_pred = TRUE), grid = 12) %&gt;% 
+  option_add(control = control_grid(save_pred = TRUE), grid = my_grid) %&gt;%
   workflow_map(resamples = train_resamples,
                fn = &quot;tune_grid&quot;,
                verbose = TRUE,
                seed = 567) </code></pre>
 <p>this time we have a lot more of boosted trees because <code>logistic_tuneable_xgb</code> goes through a grid of 12 sets of hyperparameters. (most of which are shitty..)</p>
 <pre class="r"><code>autoplot(all_workflows4, metric=&quot;roc_auc&quot;)</code></pre>
-<p><img src="/post/2023-08-06-tidymodels-and-insurance-loss-cost-models/index.en-us_files/figure-html/unnamed-chunk-32-1.png" width="672" /></p>
+<p><img src="/post/2023-08-06-tidymodels-and-insurance-loss-cost-models/index.en-us_files/figure-html/unnamed-chunk-33-1.png" width="672" /></p>
 <pre class="r"><code>rank_results(all_workflows4, rank_metric = &quot;roc_auc&quot;) %&gt;% filter(.metric == &quot;roc_auc&quot;)</code></pre>
 <pre><code>## # A tibble: 15 × 9
 ##    wflow_id         .config .metric  mean std_err     n preprocessor model  rank
 ##    &lt;chr&gt;            &lt;chr&gt;   &lt;chr&gt;   &lt;dbl&gt;   &lt;dbl&gt; &lt;int&gt; &lt;chr&gt;        &lt;chr&gt; &lt;int&gt;
-##  1 formula_logisti… Prepro… roc_auc 0.541 0.00202     5 formula      boos…     1
-##  2 formula_logisti… Prepro… roc_auc 0.540 0.00262     5 formula      boos…     2
+##  1 formula_logisti… Prepro… roc_auc 0.541 0.00213     5 formula      boos…     1
+##  2 formula_logisti… Prepro… roc_auc 0.540 0.00254     5 formula      boos…     2
 ##  3 formula_logisti… Prepro… roc_auc 0.540 0.00112     5 formula      logi…     3
 ##  4 formula_logisti… Prepro… roc_auc 0.540 0.00112     5 formula      gen_…     4
-##  5 formula_logisti… Prepro… roc_auc 0.539 0.00273     5 formula      boos…     5
-##  6 formula_logisti… Prepro… roc_auc 0.539 0.00193     5 formula      boos…     6
-##  7 formula_logisti… Prepro… roc_auc 0.537 0.00133     5 formula      boos…     7
-##  8 formula_logisti… Prepro… roc_auc 0.536 0.00197     5 formula      boos…     8
-##  9 formula_logisti… Prepro… roc_auc 0.535 0.00229     5 formula      boos…     9
-## 10 formula_logisti… Prepro… roc_auc 0.535 0.00145     5 formula      boos…    10
-## 11 formula_logisti… Prepro… roc_auc 0.529 0.00397     5 formula      boos…    11
-## 12 formula_logisti… Prepro… roc_auc 0.529 0.00420     5 formula      boos…    12
-## 13 formula_logisti… Prepro… roc_auc 0.529 0.00275     5 formula      boos…    13
-## 14 formula_logisti… Prepro… roc_auc 0.527 0.00232     5 formula      boos…    14
-## 15 formula_logisti… Prepro… roc_auc 0.524 0.00354     5 formula      boos…    15</code></pre>
+##  5 formula_logisti… Prepro… roc_auc 0.539 0.00220     5 formula      boos…     5
+##  6 formula_logisti… Prepro… roc_auc 0.539 0.00201     5 formula      boos…     6
+##  7 formula_logisti… Prepro… roc_auc 0.539 0.00273     5 formula      boos…     7
+##  8 formula_logisti… Prepro… roc_auc 0.539 0.00313     5 formula      boos…     8
+##  9 formula_logisti… Prepro… roc_auc 0.538 0.00202     5 formula      boos…     9
+## 10 formula_logisti… Prepro… roc_auc 0.538 0.00159     5 formula      boos…    10
+## 11 formula_logisti… Prepro… roc_auc 0.538 0.00247     5 formula      boos…    11
+## 12 formula_logisti… Prepro… roc_auc 0.538 0.00262     5 formula      boos…    12
+## 13 formula_logisti… Prepro… roc_auc 0.538 0.00250     5 formula      boos…    13
+## 14 formula_logisti… Prepro… roc_auc 0.538 0.00211     5 formula      boos…    14
+## 15 formula_logisti… Prepro… roc_auc 0.537 0.00196     5 formula      boos…    15</code></pre>
 <p>note: we can compare the out-of-sample predictions of all models using collect_predictions(all_workflows4). Here are the predictions of all 15 models for the first row in test:</p>
 <pre class="r"><code>out_of_sample_preds &lt;- collect_predictions(all_workflows4)
 out_of_sample_preds %&gt;% filter(.row ==1) %&gt;% arrange(desc(.pred_1))</code></pre>
 <pre><code>## # A tibble: 15 × 9
 ##    wflow_id            .config preproc model  .row has_claim_fct .pred_0 .pred_1
 ##    &lt;chr&gt;               &lt;chr&gt;   &lt;chr&gt;   &lt;chr&gt; &lt;int&gt; &lt;fct&gt;           &lt;dbl&gt;   &lt;dbl&gt;
-##  1 formula_logistic_t… Prepro… formula boos…     1 0               0.911  0.0894
-##  2 formula_logistic_t… Prepro… formula boos…     1 0               0.917  0.0827
-##  3 formula_logistic_g… Prepro… formula logi…     1 0               0.919  0.0811
-##  4 formula_logistic_g… Prepro… formula gen_…     1 0               0.919  0.0811
-##  5 formula_logistic_t… Prepro… formula boos…     1 0               0.923  0.0767
-##  6 formula_logistic_x… Prepro… formula boos…     1 0               0.926  0.0744
-##  7 formula_logistic_t… Prepro… formula boos…     1 0               0.928  0.0723
-##  8 formula_logistic_t… Prepro… formula boos…     1 0               0.930  0.0696
-##  9 formula_logistic_t… Prepro… formula boos…     1 0               0.932  0.0680
-## 10 formula_logistic_t… Prepro… formula boos…     1 0               0.933  0.0675
-## 11 formula_logistic_t… Prepro… formula boos…     1 0               0.934  0.0663
-## 12 formula_logistic_t… Prepro… formula boos…     1 0               0.935  0.0647
-## 13 formula_logistic_t… Prepro… formula boos…     1 0               0.939  0.0609
-## 14 formula_logistic_t… Prepro… formula boos…     1 0               0.940  0.0600
-## 15 formula_logistic_t… Prepro… formula boos…     1 0               0.942  0.0575
+##  1 formula_logistic_t… Prepro… formula boos…     1 0               0.914  0.0861
+##  2 formula_logistic_t… Prepro… formula boos…     1 0               0.915  0.0845
+##  3 formula_logistic_t… Prepro… formula boos…     1 0               0.916  0.0839
+##  4 formula_logistic_t… Prepro… formula boos…     1 0               0.916  0.0836
+##  5 formula_logistic_t… Prepro… formula boos…     1 0               0.917  0.0830
+##  6 formula_logistic_t… Prepro… formula boos…     1 0               0.917  0.0829
+##  7 formula_logistic_t… Prepro… formula boos…     1 0               0.918  0.0822
+##  8 formula_logistic_g… Prepro… formula logi…     1 0               0.919  0.0811
+##  9 formula_logistic_g… Prepro… formula gen_…     1 0               0.919  0.0811
+## 10 formula_logistic_t… Prepro… formula boos…     1 0               0.919  0.0808
+## 11 formula_logistic_t… Prepro… formula boos…     1 0               0.919  0.0808
+## 12 formula_logistic_t… Prepro… formula boos…     1 0               0.920  0.0804
+## 13 formula_logistic_t… Prepro… formula boos…     1 0               0.920  0.0803
+## 14 formula_logistic_t… Prepro… formula boos…     1 0               0.921  0.0790
+## 15 formula_logistic_x… Prepro… formula boos…     1 0               0.926  0.0744
 ## # ℹ 1 more variable: .pred_class &lt;fct&gt;</code></pre>
-<p>Here the best model is the 7th set of hyperparameters from “formula_logistic_tuneable_xgb” workflow. Let’s extract that workflow, then show the best 5 results and finally select_best() hyperparameters and finalise the <code>logistic_tuneable_xgb</code> by running the model on the whole training set with the best hyperparameters.</p>
+<p>here’s the average prediction for all worflow on train:</p>
+<pre class="r"><code>out_of_sample_preds %&gt;% group_by(wflow_id, .config) %&gt;% summarise(unweighted_average = mean(.pred_1))</code></pre>
+<pre><code>## # A tibble: 15 × 3
+## # Groups:   wflow_id [4]
+##    wflow_id                      .config               unweighted_average
+##    &lt;chr&gt;                         &lt;chr&gt;                              &lt;dbl&gt;
+##  1 formula_logistic_gam          Preprocessor1_Model1              0.0890
+##  2 formula_logistic_glm          Preprocessor1_Model1              0.0890
+##  3 formula_logistic_tuneable_xgb Preprocessor1_Model01             0.0889
+##  4 formula_logistic_tuneable_xgb Preprocessor1_Model02             0.0889
+##  5 formula_logistic_tuneable_xgb Preprocessor1_Model03             0.0889
+##  6 formula_logistic_tuneable_xgb Preprocessor1_Model04             0.0889
+##  7 formula_logistic_tuneable_xgb Preprocessor1_Model05             0.0889
+##  8 formula_logistic_tuneable_xgb Preprocessor1_Model06             0.0888
+##  9 formula_logistic_tuneable_xgb Preprocessor1_Model07             0.0889
+## 10 formula_logistic_tuneable_xgb Preprocessor1_Model08             0.0889
+## 11 formula_logistic_tuneable_xgb Preprocessor1_Model09             0.0889
+## 12 formula_logistic_tuneable_xgb Preprocessor1_Model10             0.0889
+## 13 formula_logistic_tuneable_xgb Preprocessor1_Model11             0.0889
+## 14 formula_logistic_tuneable_xgb Preprocessor1_Model12             0.0889
+## 15 formula_logistic_xgboost      Preprocessor1_Model1              0.0886</code></pre>
+<p>just making sure.. is my weighted average pred equal to my weighted average “has_claim” ? yup</p>
+<pre class="r"><code>my_train %&gt;% add_column(
+  out_of_sample_preds %&gt;%
+  filter(wflow_id==&quot;formula_logistic_glm&quot;) %&gt;%
+    select(.pred_1)
+) %&gt;%
+  summarise(weighted_average_pred = sum(exposure * .pred_1)/sum(exposure),
+            weighted_average_has_claim = sum(has_claim * exposure) / sum(exposure)
+  )</code></pre>
+<pre><code>## # A tibble: 1 × 2
+##   weighted_average_pred weighted_average_has_claim
+##                   &lt;dbl&gt;                      &lt;dbl&gt;
+## 1                0.0888                     0.0889</code></pre>
+<p>Here the best modelon set of hyperparameters from “formula_logistic_tuneable_xgb” workflow. Let’s extract that workflow, then show the best 5 results and finally select_best() hyperparameters and finalise the <code>logistic_tuneable_xgb</code> by running the model on the whole training set with the best hyperparameters.</p>
 <pre class="r"><code>logistic_tuneable_xgb_wf_result &lt;- 
   all_workflows4 %&gt;%
   extract_workflow_set_result(&quot;formula_logistic_tuneable_xgb&quot;)
 
 logistic_tuneable_xgb_wf_result %&gt;% show_best(metric = &quot;roc_auc&quot;)</code></pre>
-<pre><code>## # A tibble: 5 × 9
-##    mtry min_n tree_depth .metric .estimator  mean     n std_err .config         
-##   &lt;int&gt; &lt;int&gt;      &lt;int&gt; &lt;chr&gt;   &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;           
-## 1     1    12          3 roc_auc binary     0.541     5 0.00202 Preprocessor1_M…
-## 2    24    27          2 roc_auc binary     0.540     5 0.00262 Preprocessor1_M…
-## 3    11    18          4 roc_auc binary     0.539     5 0.00193 Preprocessor1_M…
-## 4    14    37          5 roc_auc binary     0.537     5 0.00133 Preprocessor1_M…
-## 5     7    26          7 roc_auc binary     0.536     5 0.00197 Preprocessor1_M…</code></pre>
+<pre><code>## # A tibble: 5 × 8
+##   min_n tree_depth .metric .estimator  mean     n std_err .config              
+##   &lt;int&gt;      &lt;int&gt; &lt;chr&gt;   &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;                
+## 1    15          6 roc_auc binary     0.541     5 0.00213 Preprocessor1_Model06
+## 2    14          7 roc_auc binary     0.540     5 0.00254 Preprocessor1_Model04
+## 3    10          3 roc_auc binary     0.539     5 0.00220 Preprocessor1_Model03
+## 4    25          4 roc_auc binary     0.539     5 0.00201 Preprocessor1_Model02
+## 5     5          8 roc_auc binary     0.539     5 0.00313 Preprocessor1_Model07</code></pre>
 <pre class="r"><code>logistic_tuneable_xgb_wf_fit &lt;- all_workflows4 %&gt;%
   extract_workflow(&quot;formula_logistic_tuneable_xgb&quot;) %&gt;%
   finalize_workflow(select_best(logistic_tuneable_xgb_wf_result, metric = &quot;roc_auc&quot;)) %&gt;%
@@ -3501,24 +3525,18 @@ test_with_preds &lt;- augment(logistic_tuneable_xgb_wf_fit)</code></pre>
 <pre class="r"><code>test_with_preds %&gt;%
   ggplot(aes(x=.pred_1)) +
   geom_histogram()</code></pre>
-<p><img src="/post/2023-08-06-tidymodels-and-insurance-loss-cost-models/index.en-us_files/figure-html/unnamed-chunk-38-1.png" width="672" /></p>
-<p>the mean of test_with_preds<span class="math inline">\(has_claim is not the same as test_with_preds\)</span>.pred_1.. shoot. maybe it wasnt done learning?</p>
-<pre class="r"><code>mean(test_with_preds$has_claim)</code></pre>
-<pre><code>## [1] 0.06814832</code></pre>
-<pre class="r"><code>mean(test_with_preds$.pred_1)</code></pre>
-<pre><code>## [1] 0.0889384</code></pre>
-<p>we’ll figure that out later…</p>
+<p><img src="/post/2023-08-06-tidymodels-and-insurance-loss-cost-models/index.en-us_files/figure-html/unnamed-chunk-41-1.png" width="672" /></p>
 <p>here’s how to check the metrics: () <a href="https://juliasilge.com/blog/nber-papers/" class="uri">https://juliasilge.com/blog/nber-papers/</a>)</p>
 <pre class="r"><code>collect_metrics(logistic_tuneable_xgb_wf_fit)</code></pre>
 <pre><code>## # A tibble: 2 × 4
 ##   .metric  .estimator .estimate .config             
 ##   &lt;chr&gt;    &lt;chr&gt;          &lt;dbl&gt; &lt;chr&gt;               
 ## 1 accuracy binary         0.932 Preprocessor1_Model1
-## 2 roc_auc  binary         0.543 Preprocessor1_Model1</code></pre>
+## 2 roc_auc  binary         0.545 Preprocessor1_Model1</code></pre>
 <pre class="r"><code>collect_predictions(logistic_tuneable_xgb_wf_fit) %&gt;%
   conf_mat(has_claim_fct, .pred_class) %&gt;%
   autoplot()</code></pre>
-<p><img src="/post/2023-08-06-tidymodels-and-insurance-loss-cost-models/index.en-us_files/figure-html/unnamed-chunk-42-1.png" width="672" />
+<p><img src="/post/2023-08-06-tidymodels-and-insurance-loss-cost-models/index.en-us_files/figure-html/unnamed-chunk-43-1.png" width="672" />
 ROC curve is upside down when using .pred_1. … guess I’d need to replace the reference level somewhere.. for today I’ll just use .pred_0:</p>
 <pre class="r"><code>collect_predictions(logistic_tuneable_xgb_wf_fit) %&gt;%
   roc_curve(truth = has_claim_fct, .pred_0) %&gt;%
@@ -3527,7 +3545,7 @@ ROC curve is upside down when using .pred_1. … guess I’d need to replace the
   geom_path(size = 1.5, alpha = 0.7) +
   labs(color = NULL) +
   coord_fixed()</code></pre>
-<p><img src="/post/2023-08-06-tidymodels-and-insurance-loss-cost-models/index.en-us_files/figure-html/unnamed-chunk-43-1.png" width="672" /></p>
+<p><img src="/post/2023-08-06-tidymodels-and-insurance-loss-cost-models/index.en-us_files/figure-html/unnamed-chunk-44-1.png" width="672" /></p>
 </div>
 </div>
 <div id="logistic-regression-with-recipe-pre-processor" class="section level1">
@@ -3546,7 +3564,7 @@ ROC curve is upside down when using .pred_1. … guess I’d need to replace the
   embed::step_lencode_glm(veh_body, outcome = vars(has_claim_fct)) %&gt;% #  encode veh_body   
   step_other(area, threshold = 0.10) %&gt;% 
   step_dummy(all_nominal_predictors())# %&gt;%
-  #step_select(has_role(c(&quot;predictor&quot;, &quot;outcome&quot;, &quot;weight&quot;, &quot;case_weights&quot;))) # don&#39;t forger case_weights</code></pre>
+#step_select(has_role(c(&quot;predictor&quot;, &quot;outcome&quot;, &quot;weight&quot;, &quot;case_weights&quot;))) # don&#39;t forger case_weights</code></pre>
 <p>we don’t actually need to prep/bake the recipe, but it’s interesting to check what is the output data.</p>
 <pre class="r"><code>prepped_recipe &lt;- prep(my_recipe_with_imputation)
 baked_train &lt;- bake(prepped_recipe, my_train)
@@ -3618,7 +3636,7 @@ baked_train %&gt;% glimpse()</code></pre>
       logistic_xgboost = logistic_xgb_spec,
       logistic_tuneable_xgb = logistic_tuneable_xgb_spec
     ),
-     case_weights = exposure_weight
+    case_weights = exposure_weight
   )
 # 
 # all_workflows5 &lt;- update_workflow_model(all_workflows5,
@@ -3627,40 +3645,41 @@ baked_train %&gt;% glimpse()</code></pre>
 #                       formula = my_logistic_reg_formula)
 
 # Workflows can take special arguments for the recipe (e.g. a blueprint) or a model (e.g. a special formula). However, when creating a workflow set, there is no way to specify these extra components. update_workflow_model() and update_workflow_recipe() allow users to set these values after the workflow set is initially created. They are analogous to workflows::add_model() or workflows::add_recipe().
-      
+
 all_workflows6 &lt;- 
   all_workflows5 %&gt;%
   workflow_map(resamples = train_resamples,
                fn = &quot;tune_grid&quot;,
                verbose = TRUE)</code></pre>
 <pre class="r"><code>autoplot(all_workflows6, metric=&quot;roc_auc&quot;)</code></pre>
-<p><img src="/post/2023-08-06-tidymodels-and-insurance-loss-cost-models/index.en-us_files/figure-html/unnamed-chunk-49-1.png" width="672" /></p>
+<p><img src="/post/2023-08-06-tidymodels-and-insurance-loss-cost-models/index.en-us_files/figure-html/unnamed-chunk-50-1.png" width="672" /></p>
 <pre class="r"><code>rank_results(all_workflows6, rank_metric = &quot;roc_auc&quot;)</code></pre>
 <pre><code>## # A tibble: 24 × 9
 ##    wflow_id         .config .metric  mean std_err     n preprocessor model  rank
 ##    &lt;chr&gt;            &lt;chr&gt;   &lt;chr&gt;   &lt;dbl&gt;   &lt;dbl&gt; &lt;int&gt; &lt;chr&gt;        &lt;chr&gt; &lt;int&gt;
-##  1 recipe_with_imp… Prepro… accura… 0.932 1.33e-3     5 recipe       boos…     1
-##  2 recipe_with_imp… Prepro… roc_auc 0.545 1.55e-3     5 recipe       boos…     1
-##  3 recipe_with_imp… Prepro… accura… 0.932 1.33e-3     5 recipe       boos…     2
-##  4 recipe_with_imp… Prepro… roc_auc 0.540 2.30e-3     5 recipe       boos…     2
-##  5 recipe_with_imp… Prepro… accura… 0.932 1.33e-3     5 recipe       logi…     3
-##  6 recipe_with_imp… Prepro… roc_auc 0.539 8.48e-4     5 recipe       logi…     3
-##  7 recipe_with_imp… Prepro… accura… 0.932 1.33e-3     5 recipe       boos…     4
-##  8 recipe_with_imp… Prepro… roc_auc 0.539 2.87e-3     5 recipe       boos…     4
-##  9 recipe_with_imp… Prepro… accura… 0.932 1.33e-3     5 recipe       boos…     5
-## 10 recipe_with_imp… Prepro… roc_auc 0.537 1.70e-3     5 recipe       boos…     5
+##  1 recipe_with_imp… Prepro… accura… 0.932 0.00133     5 recipe       boos…     1
+##  2 recipe_with_imp… Prepro… roc_auc 0.544 0.00153     5 recipe       boos…     1
+##  3 recipe_with_imp… Prepro… accura… 0.932 0.00133     5 recipe       boos…     2
+##  4 recipe_with_imp… Prepro… roc_auc 0.544 0.00176     5 recipe       boos…     2
+##  5 recipe_with_imp… Prepro… accura… 0.932 0.00133     5 recipe       boos…     3
+##  6 recipe_with_imp… Prepro… roc_auc 0.543 0.00159     5 recipe       boos…     3
+##  7 recipe_with_imp… Prepro… accura… 0.932 0.00133     5 recipe       boos…     4
+##  8 recipe_with_imp… Prepro… roc_auc 0.543 0.00287     5 recipe       boos…     4
+##  9 recipe_with_imp… Prepro… accura… 0.932 0.00133     5 recipe       boos…     5
+## 10 recipe_with_imp… Prepro… roc_auc 0.543 0.00257     5 recipe       boos…     5
 ## # ℹ 14 more rows</code></pre>
 <p>let’s fit the best model:</p>
 <pre class="r"><code>best_workflow_fit &lt;- all_workflows6 %&gt;%
   extract_workflow(&quot;recipe_with_imputation_logistic_tuneable_xgb&quot;) %&gt;%
   finalize_workflow(select_best(all_workflows6 %&gt;%
-  extract_workflow_set_result(&quot;recipe_with_imputation_logistic_tuneable_xgb&quot;), metric = &quot;roc_auc&quot;)) %&gt;%
+                                  extract_workflow_set_result(&quot;recipe_with_imputation_logistic_tuneable_xgb&quot;), metric = &quot;roc_auc&quot;)
+  ) %&gt;%
   last_fit(split= my_split)
 
 best_workflow_fit %&gt;% 
   extract_fit_engine() %&gt;% 
   vip(num_features=20)</code></pre>
-<p><img src="/post/2023-08-06-tidymodels-and-insurance-loss-cost-models/index.en-us_files/figure-html/unnamed-chunk-51-1.png" width="672" /></p>
+<p><img src="/post/2023-08-06-tidymodels-and-insurance-loss-cost-models/index.en-us_files/figure-html/unnamed-chunk-52-1.png" width="672" /></p>
 </div>
 <div id="tweedie-regression" class="section level1">
 <h1>Tweedie regression</h1>
@@ -3807,7 +3826,7 @@ tweedie_xgb_wf_fit &lt;-  tweedie_xgb_wf%&gt;%
 
 
 tweedie_xgb_wf_fit %&gt;% extract_fit_engine() %&gt;% vip::vip()</code></pre>
-<p><img src="/post/2023-08-06-tidymodels-and-insurance-loss-cost-models/index.en-us_files/figure-html/unnamed-chunk-58-1.png" width="672" /></p>
+<p><img src="/post/2023-08-06-tidymodels-and-insurance-loss-cost-models/index.en-us_files/figure-html/unnamed-chunk-59-1.png" width="672" /></p>
 </div>
 </div>
 </div>
