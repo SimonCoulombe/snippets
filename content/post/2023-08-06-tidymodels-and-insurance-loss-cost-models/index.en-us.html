@@ -10,6 +10,9 @@ tags:
 - tag1
 - tag2
 keywords: tech
+output:
+  blogdown::html_page:
+    toc: true
 ---
 
 <script src="/rmarkdown-libs/htmlwidgets/htmlwidgets.js"></script>
@@ -17,6 +20,57 @@ keywords: tech
 <link href="/rmarkdown-libs/DiagrammeR-styles/styles.css" rel="stylesheet" />
 <script src="/rmarkdown-libs/grViz-binding/grViz.js"></script>
 
+<div id="TOC">
+<ul>
+<li><a href="#objective" id="toc-objective">Objective</a></li>
+<li><a href="#the-data" id="toc-the-data">The data</a></li>
+<li><a href="#rsample-grouped-and-stratified-traintest-split-and-resamples" id="toc-rsample-grouped-and-stratified-traintest-split-and-resamples">{rsample} Grouped and stratified train/test split and resamples</a></li>
+<li><a href="#domc-set-up-parallel-processing" id="toc-domc-set-up-parallel-processing">{doMC} Set up parallel processing</a></li>
+<li><a href="#logistic-regression-with-formula-pre-processor" id="toc-logistic-regression-with-formula-pre-processor">Logistic Regression with formula pre-processor</a>
+<ul>
+<li><a href="#comparing-tidymodels-model-output-to-fitting-the-models-outside-tidymodels" id="toc-comparing-tidymodels-model-output-to-fitting-the-models-outside-tidymodels">comparing tidymodels model output to fitting the models outside tidymodels</a>
+<ul>
+<li><a href="#glm-unweighted" id="toc-glm-unweighted">GLM (unweighted)</a></li>
+<li><a href="#glm-weighted" id="toc-glm-weighted">GLM (weighted)</a></li>
+<li><a href="#gam-with-splines-weighted" id="toc-gam-with-splines-weighted">GAM (with splines) (weighted)</a></li>
+<li><a href="#xgboost-weighted" id="toc-xgboost-weighted">XGBoost (weighted)</a></li>
+<li><a href="#lightgbm-unweighted" id="toc-lightgbm-unweighted">lightgbm (unweighted)</a></li>
+<li><a href="#lightgbm-weighted-not-implemented-in-tidymodels" id="toc-lightgbm-weighted-not-implemented-in-tidymodels">lightgbm weighted (not implemented in tidymodels)</a></li>
+</ul></li>
+<li><a href="#use-workflow_set-to-fit-models-on-all-resamples" id="toc-use-workflow_set-to-fit-models-on-all-resamples">Use workflow_set to fit models on all resamples</a></li>
+<li><a href="#adding-hyperparameter-tuning-to-the-workflow_set" id="toc-adding-hyperparameter-tuning-to-the-workflow_set">Adding hyperparameter tuning to the workflow_set</a></li>
+</ul></li>
+<li><a href="#logistic-regression-with-recipe-pre-processor" id="toc-logistic-regression-with-recipe-pre-processor">Logistic Regression with recipe pre-processor</a></li>
+<li><a href="#tweedie-regression" id="toc-tweedie-regression">Tweedie regression</a>
+<ul>
+<li><a href="#comparing-tidymodels-model-output-to-fitting-the-models-outside-tidymodels-1" id="toc-comparing-tidymodels-model-output-to-fitting-the-models-outside-tidymodels-1">comparing tidymodels model output to fitting the models outside tidymodels</a>
+<ul>
+<li><a href="#glm-weighted-1" id="toc-glm-weighted-1">GLM weighted</a></li>
+<li><a href="#gam-with-splines-weighted-1" id="toc-gam-with-splines-weighted-1">GAM (with splines) weighted</a></li>
+<li><a href="#xgboost-weighted-1" id="toc-xgboost-weighted-1">XGBoost weighted</a></li>
+</ul></li>
+</ul></li>
+<li><a href="#todo-poisson-regression" id="toc-todo-poisson-regression">TODO: Poisson regression</a>
+<ul>
+<li><a href="#comparing-tidymodels-model-output-to-fitting-the-models-outside-tidymodels-2" id="toc-comparing-tidymodels-model-output-to-fitting-the-models-outside-tidymodels-2">comparing tidymodels model output to fitting the models outside tidymodels</a>
+<ul>
+<li><a href="#glm-weighted-2" id="toc-glm-weighted-2">GLM weighted</a></li>
+<li><a href="#gam-with-splines-weighted-2" id="toc-gam-with-splines-weighted-2">GAM (with splines) weighted</a></li>
+<li><a href="#xgboost-weighted-2" id="toc-xgboost-weighted-2">xgboost weighted</a></li>
+</ul></li>
+</ul></li>
+<li><a href="#todo-gamma-regression" id="toc-todo-gamma-regression">TODO: Gamma regression</a>
+<ul>
+<li><a href="#comparing-tidymodels-model-output-to-fitting-the-models-outside-tidymodels-3" id="toc-comparing-tidymodels-model-output-to-fitting-the-models-outside-tidymodels-3">comparing tidymodels model output to fitting the models outside tidymodels</a>
+<ul>
+<li><a href="#glm-weighted-3" id="toc-glm-weighted-3">GLM weighted</a></li>
+<li><a href="#gam-with-splines-weighted-3" id="toc-gam-with-splines-weighted-3">GAM (with splines) weighted</a></li>
+<li><a href="#xgboost-weighted-3" id="toc-xgboost-weighted-3">xgboost weighted</a></li>
+</ul></li>
+</ul></li>
+<li><a href="#resources" id="toc-resources">resources</a></li>
+</ul>
+</div>
 
 <div id="objective" class="section level1">
 <h1>Objective</h1>
