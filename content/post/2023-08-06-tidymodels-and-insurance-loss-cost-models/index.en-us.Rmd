@@ -51,6 +51,7 @@ library(statmod) #pour glm(family = tweedie)
 library(bonsai) # pour lightgbm
 library(embed) # pour step_lencode_glm
 library(DiagrammeR) # pour xgb.plot.tree()
+library(tweedie) # pour tweedit.profile()
 tidymodels::tidymodels_prefer()
 ```
 
@@ -68,7 +69,7 @@ Here's a list of "new to me" stuff I do in the code below that work:
 * use case weights  (in my case, `exposure`),  
 * use `embed::step_lencode_glm()` to replace high-cardinality variables with embedded values,    
 * use  `GLM`, `GAM`, `xgboost` and `lightgbm`  model specifications and check that the output is the same as fitting the models outside of tidymodels.  Spoiler : for GAMs you need to pass a formula with the `add_model()`  or the `update_workflow_model()` functions,  
-* create `logistic` regression and  `tweedie` regressions and check that the output is the same as what I would get by fitting the models outside of tidymodels .  
+* create `tweedie` regressions and check that the output is the same as what I would get by fitting the models outside of tidymodels .  
 * use workflow sets to apply the same pre-processors (recipe or formula) to a bunch of model specifications and pick the best one using cross validation.   bonus: tune some hyperparameters at the same time.  
 
 Things I would like to figure out eventually:
@@ -91,7 +92,7 @@ The dataCar data from the `insuranceData` package.  It contains 67 856 one-year 
 
 The presence of a claim is indicated by the `clm` (0 or 1) , which indicates that there is at least one claim.  We will rename the variable to `has_claim`.
 
-The total dollar value of claims for a given period is  `claimcst0`, which we will rename to `dollar_loss`.  We will divide it by the exposure to obtain `annual_loss`.
+The total dollar value of claims for a given period is  `claimcst0`, which we will rename to `dollar_loss`.  We will divide it by the exposure to obtain `loss_cost`, the dollar loss per year.  
 
 The `exposure` variable  represents the "number of years of exposure" and is used as the case weight variable.  It is bound between 0 and 1.   
 
@@ -104,9 +105,9 @@ The independent variables are as follow:
 * `area` a factor with levels A B C D E F,   
 * `agecat` 1 (youngest), 2, 3, 4, 5, 6  
 
-The `annual_loss` variable is what actuaries want to model (and charge you with a slight markup).  In insurance, it is typically modelled directly using a `tweedie`regression, or indirectly by multiplying the output of two models, one predicting  the frequency of claims  (poisson regression)  and the other predicting the severity of claims (gamma regression).
+The `loss_cost` variable is what actuaries want to model (and charge you with a slight markup).  In insurance, it is typically modelled directly using a `tweedie`regression, or indirectly by multiplying the output of two models, one predicting  the frequency of claims  (poisson regression)  and the other predicting the severity of claims (gamma regression).
 
-NOTE: While the end goal of this blog post is to model the `annual_loss`, I will start with baby steps and start with modelling `has_claim_fct` using logistic regression.  
+NOTE: While the end goal of this blog post is to model the `loss_cost`, I will start with baby steps and start with modelling `has_claim_fct` using logistic regression.  
 
 Note: when using the frequency*severity approach, we will use the `has_claim_fct` variable in the Poisson (frequency) variable instead of `numclaims` (actual number of claims) because we don't have the breakdown of the value of each  claims when there is more than one.  In practice, this means modelling "a lower frequency multiplied with an higher average severity" than reality, but the overall predicted annual loss will be the same.
 
@@ -132,7 +133,7 @@ mydb <- dataCar %>%
   select(has_claim = clm, dollar_loss= claimcst0, exposure, veh_value, veh_body,
          veh_age, gender, area, agecat) %>% 
   mutate(
-    annual_loss = dollar_loss / exposure,
+    loss_cost = dollar_loss / exposure,
     policy_id =1,
     random = runif(nrow(.)),
     has_claim_fct = factor(if_else(has_claim==1, "yes", "no"), levels = c("yes", "no")),
@@ -153,7 +154,7 @@ mydb %>%
   count(policy_id) %>% 
   count(n) %>%
   gt(caption="most (fake) policy_id have only 1 record in the dataset, but many have more",
-     ) %>%
+  ) %>%
   cols_width(    everything() ~ px(200))
 ```
 
@@ -162,24 +163,24 @@ mydb %>%
 
 We want all the records for a given `policy_id` to end up in either train or test.  We also want to try to have roughly the same annual loss in the train and test.  
 
-To do this, we use  `recipes::group_initial_split()` to group by `policy_id` and stratify by  `annual_loss`.
+To do this, we use  `recipes::group_initial_split()` to group by `policy_id` and stratify by  `loss_cost`.
 
 ```{r}
 set.seed(123)
-try(my_split <- group_initial_split( mydb, group = policy_id, prop= 3/4, strata = annual_loss))
+try(my_split <- group_initial_split( mydb, group = policy_id, prop= 3/4, strata = loss_cost))
 ```
-oooh !   our first error.:  "`strata` must be constant across all members of each `group`.".  This happens because some records for a given policy will have a claim and other won't.   I'm going to calculate an average annual_loss over all records for a given policy_id.  I would love to be able to weight records by exposure (to have the same total exposure  and average annual_loss in all resamples), but I don't think that's possible.   
+oooh !   our first error.:  "`strata` must be constant across all members of each `group`.".  This happens because some records for a given policy will have a claim and other won't.   I'm going to calculate an average loss_cost over all records for a given policy_id.  I would love to be able to weight records by exposure (to have the same total exposure  and average loss_cost in all resamples), but I don't think that's possible.   
 
 here we go:
 
 ```{r}
 mydb <- mydb %>%
   group_by(policy_id) %>%
-  mutate(policy_annual_loss = sum( dollar_loss) / sum(exposure)) %>%
+  mutate(policy_loss_cost = sum( dollar_loss) / sum(exposure)) %>%
   ungroup()
 
 set.seed(123)
-my_split <- group_initial_split( mydb, group = policy_id, prop= 3/4, strata = policy_annual_loss) # this works!  
+my_split <- group_initial_split( mydb, group = policy_id, prop= 3/4, strata = policy_loss_cost) # this works!  
 
 my_train <- training(my_split)
 my_test  <- testing(my_split)
@@ -225,12 +226,12 @@ both %>%
   gt(caption="exposure is NOT split exactly  75-25 because we couldnt weight records when splitting") %>%
   cols_width(    everything() ~ px(200))
 ```
-We tried to stratify our groups using the policy_annual_loss variable. However, some policies have more exposure than other.  This means that the average annual loss for the train/test won't be identical.  How different are they?  It appears we got lucky and outliers didnt mess too much with our averages:  
+We tried to stratify our groups using the policy_loss_cost variable. However, some policies have more exposure than other.  This means that the average annual loss for the train/test won't be identical.  How different are they?  It appears we got lucky and outliers didnt mess too much with our averages:  
 
 ```{r}
 both %>% 
   group_by(type) %>% 
-  summarise(overall_annual_loss = sum(dollar_loss)/ sum(exposure)) %>%
+  summarise(overall_loss_cost = sum(dollar_loss)/ sum(exposure)) %>%
   ungroup() %>% 
   gt(caption="overall annuall loss (dollar loss per year ) isnt the same in both train and test") %>%
   cols_width(    everything() ~ px(200))
@@ -247,13 +248,13 @@ both %>%
   cols_width(    everything() ~ px(200))
 ```
 
-to create folds , we use the `group_vfold_cv`, again stratified over policy_annual_loss   
+to create folds , we use the `group_vfold_cv`, again stratified over policy_loss_cost   
 
 ```{r}
 set.seed(234)
 train_resamples <- group_vfold_cv(my_train,
                                   group="policy_id",
-                                  strata = policy_annual_loss,
+                                  strata = policy_loss_cost,
                                   v= 5)
 ```
 
@@ -280,7 +281,7 @@ my_logistic_reg_formula <- as.formula("has_claim_fct ~ veh_value + veh_body + ve
 ```
 
 
-## comparing tidymodels model output to fitting the models outside tidymodels  
+## Reproducing "non-tidymodels" specs in tidymodels  
 
 Before diving into the cool stuff like evaluating the model on multiple resamples and tuning parameters, I'll just make sure I can reproduce the model fit inside and outside `tidymodels`  
 
@@ -317,7 +318,7 @@ glm(my_logistic_reg_formula,    family = "binomial", data = my_train)  %>%
 
 ### GLM (weighted)   
 
-What if we want to weights records?   It doesnt really make sense in this logistic example, but will in the future for the annual_loss model.   .  Apparently we can use `add_case_weights()` and refer to the `exposure_weight` column of type `importance_weight` we created earlier:
+What if we want to weights records?   It doesnt really make sense in this logistic example, but will in the future for the loss_cost model.   .  Apparently we can use `add_case_weights()` and refer to the `exposure_weight` column of type `importance_weight` we created earlier:
 
 **Tidymodels output**  
 ```{r}
@@ -544,7 +545,7 @@ try(
 
 ```
 
-## Use workflow_set to fit models  on all resamples   
+## Use workflow_set to fit all logitics models specification on all resamples   
 
 Alright, that was fun!  Now that I feel I know how to train a model in tidymodels, let's try to define all the models at once using a preprocessor  and a list of model specifications.  Then we apply fit_resamples() to fit all workflows to all resamples.  
 
@@ -593,7 +594,7 @@ autoplot(all_workflows2, metric="roc_auc")
 ```
 
 
-## Adding hyperparameter tuning to the workflow_set   
+## Add hyperparameter tuning to the workflow_set   
 
 ok, that was fun.  Here's how to do try with a grid of hyperparameters
 
@@ -675,7 +676,7 @@ just making sure.. is my weighted average pred equal to my weighted average "has
 ```{r}
 my_train %>% add_column(
   out_of_sample_preds %>%
-  filter(wflow_id=="formula_logistic_glm") %>%
+    filter(wflow_id=="formula_logistic_glm") %>%
     select(.pred_yes)
 ) %>%
   summarise(weighted_average_pred = sum(exposure * .pred_yes)/sum(exposure),
@@ -834,36 +835,67 @@ best_workflow_fit %>%
 
 # Tweedie regression  
 
-alright that was fun, let's try tweedie.   
+alright that was fun, let's try to model the weedie.   
 
 
 ```{r}
-my_annual_loss_formula <- as.formula("annual_loss ~ veh_value + veh_body + veh_age +  gender +  area +  agecat")
+my_loss_cost_formula <- as.formula("loss_cost ~ veh_value + veh_body + veh_age +  gender +  area +  agecat")
 ```
 
-## comparing tidymodels model output to fitting the models outside tidymodels  
+## Estimate tweedie "p" parameter  
 
+We first need to estimate the tweedie index parameter p.    I will do it only once on the full training data set.  There will be some data leak when estimating the resamples, but I'm not sure how I could estimate it for each resamples.   
+
+We use tweedie.profile() to estimate the p parameter.  If the tweedie.profile() function fails to converge, we can try switching the method to "saddeploint" or "interpolation" (as per ?tweedie.profile).
+```{r}
+out <- tweedie::tweedie.profile(
+  my_loss_cost_formula, 
+  data = my_train,
+  p.vec = seq(1.05, 1.95, by=0.05),
+  weights= my_train$exposure,
+  link.power = 0,
+  do.smooth= TRUE,
+  do.plot = TRUE)
+out
+```
+Our estimate for the tweedie p parameter is out$p.max.  
+**FUN #3 !!! For some reason, when I dont round my_p_max (or I keep more than 3 digits), my "direct" tweedie  xgboost has slightly different results than the tidymodels xgboost.  **
+
+```{r}
+my_p_max <- round(out$p.max, digits = 2)
+my_p_max
+```
+
+
+## Reproducing "non-tidymodels" specs in tidymodels  
 
 ### GLM weighted   
 
+direct call to glm()  with tweedie family:
 
-glm  tweedie model in tidymodels:
+```{r}
+tweedie_fit <- 
+  glm(formula =  my_loss_cost_formula,
+      family=tweedie(var.power=my_p_max, link.power=0),
+      weights = exposure,
+      data = my_train)
+
+tweedie_fit %>% tidy()
+```
 
 
-stackoverflow adding gamma to glm regression: https://stackoverflow.com/questions/66024469/glm-family-using-tidymodels
-
-
+tidymodels call glm regression with tweedie family:
 
 
 ```{r}
 tweedie_glm_spec <- 
   parsnip::linear_reg(mode = "regression") %>%
-  parsnip::set_engine("glm", family=tweedie(var.power=1.1, link.power=0))
+  parsnip::set_engine("glm", family=tweedie(var.power=my_p_max, link.power=0))
 
 
 tweedie_glm_wf <-   workflow() %>% 
   add_case_weights(exposure_weight) %>% 
-  add_formula(my_annual_loss_formula) %>%
+  add_formula(my_loss_cost_formula) %>%
   add_model(tweedie_glm_spec)
 
 tweedie_glm_wf_fit <-  tweedie_glm_wf %>% 
@@ -872,44 +904,30 @@ tweedie_glm_wf_fit <-  tweedie_glm_wf %>%
 tweedie_glm_wf_fit %>%  tidy()
 ```
 
-
-
-tweedie model when calling glm directly. identique. yes!!
-```{r}
-tweedie_fit <- 
-  glm(formula =  my_annual_loss_formula,
-      family=tweedie(var.power=1.1, link.power=0),
-      weights = exposure,
-      data = my_train)
-
-tweedie_fit %>% tidy()
-```
-
+it's identical, yes!
 
 ### GAM (with splines) weighted     
 
 
 ```{r}
-my_annual_loss_spline_formula <- as.formula('annual_loss ~ s(veh_value, bs= "tp") + veh_body + veh_age +  gender +  area +  agecat')
+my_loss_cost_spline_formula <- as.formula('loss_cost ~ s(veh_value, bs= "tp") + veh_body + veh_age +  gender +  area +  agecat')
 ```
 
 
 ```{r}
-
 tweedie_gam_spec <-
   gen_additive_mod() %>%
-  set_engine('mgcv', method= "REML", family = Tweedie(p = 1.1, link = "log")) %>%
+  set_engine('mgcv', method= "REML", family = Tweedie(p = my_p_max, link = "log")) %>%
   set_mode('regression')
 
 tweedie_gam_wf <- workflow() %>%
-  add_model(tweedie_gam_spec, formula = my_annual_loss_spline_formula) %>%  # need to add formula twice, and  in add_formula
-  add_formula(my_annual_loss_formula) %>%
+  add_model(tweedie_gam_spec, formula = my_loss_cost_spline_formula) %>%  # need to add formula twice, and  in add_formula
+  add_formula(my_loss_cost_formula) %>%
   add_case_weights(exposure_weight)
 
 
 tweedie_gam_wf_fit <-  tweedie_gam_wf%>% 
   fit(data = my_train )
-
 
 tweedie_gam_wf_fit %>% tidy(parametric = TRUE)
 
@@ -918,21 +936,74 @@ same result if I do it directly using mgcv::gam?
 
 ```{r}
 mgcv::gam(
-  formula = my_annual_loss_spline_formula, 
+  formula = my_loss_cost_spline_formula, 
   data = my_train, 
   weights = exposure,
-  family = Tweedie(p = 1.1, link = "log"),
+  family = Tweedie(p = my_p_max, link = "log"),
   method="REML") %>% 
   broom::tidy(parametric= TRUE)
 ```
 
 YES!! ESTI QUE JE SUIS BON AHAH!
 
-
-
-
-
 ### XGBoost  weighted     
+
+
+Here's how I could train an xgboost outside parsnip:
+
+NOTE: I need to one-hot encode dummy variables to match what {tidymodels} do.  
+
+
+
+```{r}
+
+my_tweedie_recipe <- recipe(my_train ) %>%
+  update_role(all_of(labels(terms(my_loss_cost_formula))), new_role = "predictor") %>%
+  update_role(loss_cost, new_role= "outcome") %>% 
+  update_role(exposure, new_role = "weight") %>%
+  step_dummy(all_nominal_predictors(), one_hot = TRUE) %>% ## APPARENTLY tidymodels use one_hot = TRUE because their model has 24 features. when I dont set one_hot  I only have 21 features.  
+  step_select(has_role(c("predictor", "outcome", "weight")))
+
+prepped_tweedie_recipe <- prep(my_tweedie_recipe) 
+baked_train <- bake(prepped_tweedie_recipe, my_train)
+baked_test <- bake(prepped_tweedie_recipe, my_test)
+
+my_params <- list(
+  eta = 0.1, 
+  max_depth = 3,
+  gamma = 0, 
+  colsample_bytree = 1,
+  colsample_bynode = 1,
+  min_child_weight = 50,
+  subsample = 1,
+  nthread = 1)
+
+xgtrain <- xgboost::xgb.DMatrix(
+  data = as.matrix(baked_train %>% select(-loss_cost, -exposure)),
+  label = baked_train$loss_cost,
+  weight = baked_train$exposure
+)
+
+xgtest <- xgboost::xgb.DMatrix(
+  data = as.matrix(baked_test %>% select(-loss_cost, -exposure)),
+  label = baked_test$loss_cost,
+  weight = baked_test$exposure
+)
+
+set.seed(456)
+direct_xgb_tweedie_fit <- xgboost::xgb.train(
+  data = xgtrain,
+  params = my_params,
+  nrounds = 200,
+  objective = "reg:tweedie",
+  eval_metric=paste0("tweedie-nloglik@",my_p_max), 
+  tweedie_variance_power = my_p_max
+)
+vip::vip(direct_xgb_tweedie_fit, num_features = 30L)
+
+```
+
+Here's how I would train the same model in tidymodels:
 
 ```{r}
 tweedie_xgb_spec <-
@@ -943,15 +1014,18 @@ tweedie_xgb_spec <-
     min_n = 50,
     loss_reduction = 0,
     sample_size = 1.0,
-    stop_iter = 50
+    stop_iter = NULL
   ) %>%
-  set_engine('xgboost', nthread = 1, objective = "reg:tweedie",eval_metric="tweedie-nloglik@1.1", tweedie_variance_power = 1.1) %>% ##https://www.kaggle.com/code/olehmezhenskyi/tweedie-xgboost
+  set_engine('xgboost', nthread = 1, 
+             objective = "reg:tweedie",
+             eval_metric=paste0("tweedie-nloglik@",my_p_max), 
+             tweedie_variance_power = my_p_max) %>% ##https://www.kaggle.com/code/olehmezhenskyi/tweedie-xgboost
   set_mode('regression') 
 
 
 tweedie_xgb_wf <- workflow() %>%
   add_model(tweedie_xgb_spec) %>%
-  add_formula(my_annual_loss_formula) %>%
+  add_formula(my_loss_cost_formula) %>%
   add_case_weights(exposure_weight)
 
 set.seed(456)
@@ -959,19 +1033,66 @@ tweedie_xgb_wf_fit <-  tweedie_xgb_wf%>%
   fit(data = my_train )
 
 
-tweedie_xgb_wf_fit %>% extract_fit_engine() %>% vip::vip()
+tweedie_xgb_wf_fit %>% extract_fit_engine() %>% vip::vip(num_features = 30L)
 ```
+
+let's compare them:
+
+
+Same predictions for the first.. 6 digits?
+
+```{r}
+
+pred_tidy <- predict(tweedie_xgb_wf_fit, new_data = my_test)   
+pred_direct <- predict(direct_xgb_tweedie_fit, newdata = xgtest)
+z <- pred_tidy %>% rename(pred_tidy = .pred) %>%  add_column(pred_direct) %>%
+  mutate(diff_percent = (pred_tidy-pred_direct)/pred_tidy)
+z %>% ggplot(aes(x= pred_tidy, y = pred_direct)) +
+  geom_point(alpha = 0.05) +
+  geom_smooth() +
+  coord_equal()
+
+```
+```{r}
+z %>% select(diff_percent) %>% skimr::skim()
+```
+
+Identical first tree?
+tidymodels xgboost model tree #1:  
+```{r}
+xgb.plot.tree(model = tweedie_xgb_wf_fit %>% extract_fit_engine(), trees = 1)
+```
+
+direct xgboost model tree #1:
+```{r}
+xgb.plot.tree(model = direct_xgb_tweedie_fit, trees = 1)
+```
+
+
+same parameters?  
+
+tidymodels parameters:  
+```{r}
+tweedie_xgb_wf_fit %>% extract_fit_engine()
+```
+direct fit parameters:  
+```{r}
+direct_xgb_tweedie_fit
+```
+
 
 # TODO: Poisson regression  
 
-## comparing tidymodels model output to fitting the models outside tidymodels  
+## Reproducing "non-tidymodels" specs in tidymodels  
 
 ### GLM weighted   
 ### GAM (with splines) weighted     
 ### xgboost  weighted     
 
 # TODO: Gamma regression   
-## comparing tidymodels model output to fitting the models outside tidymodels  
+
+stackoverflow adding gamma to glm regression: https://stackoverflow.com/questions/66024469/glm-family-using-tidymodels
+## Reproducing "non-tidymodels" specs in tidymodels  
 ### GLM weighted   
 ### GAM (with splines) weighted     
 ### xgboost  weighted     

@@ -1,0 +1,58 @@
+---
+title: "tidymodels hello world"
+author: "simon"
+date: "2023-08-05"
+slug: "index.en-us"
+categories:
+- category
+- subcategory
+tags:
+- tag1
+- tag2
+keywords: tech
+output:
+  blogdown::html_page:
+    toc: true
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  #dpi = 150,
+  #fig.width = 5,
+  #fig.height = 5,
+  cache = FALSE # cache= TRUE leads to Error: path for html_dependency not found: error
+)
+
+ggplot2::theme_set(ggplot2::theme_minimal()) # this ggplot2 theme uses roboto condensed font, which works well with the font used for the whole document.
+options(ggplot2.discrete.fill  = function() scale_fill_viridis_d() )
+options(ggplot2.continuous.fill  = function() scale_fill_viridis_c())
+options(ggplot2.discrete.colour = function() scale_color_viridis_d())
+options(ggplot2.continuous.colour = function() scale_color_viridis_c())
+ggplot2::update_geom_defaults("point", ggplot2::aes(color = "midnightblue"))
+ggplot2::update_geom_defaults("line", ggplot2::aes(color = "midnightblue"))
+ggplot2::update_geom_defaults("rect", ggplot2::aes(color = "midnightblue", fill = "midnightblue"))
+options(scipen=999)
+
+library(insuranceData)
+library(tidyverse)
+library(tidymodels)
+library(xgboost)
+library(mgcv)
+library(lightgbm)
+library(doMC)
+library(gt)
+library(vip)
+library(broom) # pour tidy()
+library(statmod) #pour glm(family = tweedie)
+library(bonsai) # pour lightgbm
+library(embed) # pour step_lencode_glm
+library(DiagrammeR) # pour xgb.plot.tree()
+tidymodels::tidymodels_prefer()
+```
+
+# Objective   
+
